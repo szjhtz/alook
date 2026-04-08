@@ -200,6 +200,24 @@ export async function cancelTask(db: Database, id: string) {
   return rows[0] ?? null;
 }
 
+export async function failStaleDispatchedTasks(db: Database, staleSeconds = 20) {
+  const rows = await db
+    .update(agentTaskQueue)
+    .set({
+      status: "failed",
+      completedAt: new Date(),
+      error: "timed out in dispatched state (daemon likely disconnected)",
+    })
+    .where(
+      and(
+        eq(agentTaskQueue.status, "dispatched"),
+        sql`${agentTaskQueue.dispatchedAt} < now() - interval '${sql.raw(String(staleSeconds))} seconds'`
+      )
+    )
+    .returning({ agentId: agentTaskQueue.agentId });
+  return rows;
+}
+
 export async function countRunningTasks(db: Database, agentId: string) {
   const rows = await db
     .select({ count: sql<number>`COUNT(*)` })

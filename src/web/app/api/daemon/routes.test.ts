@@ -33,6 +33,9 @@ vi.mock("@/lib/db/queries/runtime", () => ({
   setAgentRuntimeOffline: vi.fn(async () => {}),
   updateAgentRuntimeHeartbeat: vi.fn(async () => {}),
 }));
+vi.mock("@/lib/db/queries/task", () => ({
+  failStaleDispatchedTasks: vi.fn(async () => []),
+}));
 vi.mock("@/lib/db/queries/member", () => ({
   getMemberByUserAndWorkspace: vi.fn(async () => ({ id: "m1" })),
 }));
