@@ -1,0 +1,154 @@
+import { vi, describe, it, expect, beforeEach } from "vitest";
+import { join } from "path";
+import { homedir } from "os";
+
+vi.mock("fs", () => ({
+  readFileSync: vi.fn(),
+  writeFileSync: vi.fn(),
+  mkdirSync: vi.fn(),
+}));
+
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import {
+  configPath,
+  loadCLIConfig,
+  loadCLIConfigForProfile,
+  saveCLIConfig,
+  saveCLIConfigForProfile,
+} from "./config.js";
+
+const mockedReadFileSync = vi.mocked(readFileSync);
+const mockedWriteFileSync = vi.mocked(writeFileSync);
+const mockedMkdirSync = vi.mocked(mkdirSync);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("configPath", () => {
+  it("returns ~/.alook/config.json", () => {
+    expect(configPath()).toBe(join(homedir(), ".alook", "config.json"));
+  });
+});
+
+describe("loadCLIConfig", () => {
+  it("returns empty object when file doesn't exist", () => {
+    mockedReadFileSync.mockImplementation(() => {
+      throw new Error("ENOENT");
+    });
+    expect(loadCLIConfig()).toEqual({});
+  });
+
+  it("returns parsed JSON when file exists", () => {
+    const cfg = { token: "abc", server_url: "http://example.com" };
+    mockedReadFileSync.mockReturnValue(JSON.stringify(cfg));
+    expect(loadCLIConfig()).toEqual(cfg);
+  });
+});
+
+describe("loadCLIConfigForProfile", () => {
+  it("returns profile config when profile specified", () => {
+    const profileCfg = {
+      token: "profile-token",
+      server_url: "http://profile.example.com",
+      watched_workspaces: [{ id: "w1", name: "Workspace 1" }],
+    };
+    const cfg = { profiles: { staging: profileCfg } };
+    mockedReadFileSync.mockReturnValue(JSON.stringify(cfg));
+
+    expect(loadCLIConfigForProfile("staging")).toEqual(profileCfg);
+  });
+
+  it("uses default_profile when no profile specified", () => {
+    const profileCfg = {
+      token: "default-token",
+      server_url: "http://default.example.com",
+      watched_workspaces: [],
+    };
+    const cfg = { default_profile: "prod", profiles: { prod: profileCfg } };
+    mockedReadFileSync.mockReturnValue(JSON.stringify(cfg));
+
+    expect(loadCLIConfigForProfile()).toEqual(profileCfg);
+  });
+
+  it("falls back to root-level fields when profile not found", () => {
+    const cfg = {
+      token: "root-token",
+      server_url: "http://root.example.com",
+      watched_workspaces: [{ id: "w2", name: "Root WS" }],
+    };
+    mockedReadFileSync.mockReturnValue(JSON.stringify(cfg));
+
+    expect(loadCLIConfigForProfile()).toEqual({
+      token: "root-token",
+      server_url: "http://root.example.com",
+      watched_workspaces: [{ id: "w2", name: "Root WS" }],
+    });
+  });
+
+  it("returns empty defaults when no config exists", () => {
+    mockedReadFileSync.mockImplementation(() => {
+      throw new Error("ENOENT");
+    });
+
+    expect(loadCLIConfigForProfile()).toEqual({
+      token: "",
+      server_url: "",
+      watched_workspaces: [],
+    });
+  });
+});
+
+describe("saveCLIConfig", () => {
+  it("writes valid JSON with mode 0600", () => {
+    const cfg = { token: "abc", server_url: "http://example.com" };
+    saveCLIConfig(cfg);
+
+    expect(mockedMkdirSync).toHaveBeenCalledWith(
+      join(homedir(), ".alook"),
+      { recursive: true, mode: 0o700 },
+    );
+    expect(mockedWriteFileSync).toHaveBeenCalledWith(
+      configPath(),
+      JSON.stringify(cfg, null, 2),
+      { mode: 0o600 },
+    );
+  });
+});
+
+describe("saveCLIConfigForProfile", () => {
+  it("updates specific profile", () => {
+    const existing = { token: "root", profiles: {} };
+    mockedReadFileSync.mockReturnValue(JSON.stringify(existing));
+
+    const profileCfg = {
+      token: "new-token",
+      server_url: "http://new.example.com",
+      watched_workspaces: [],
+    };
+    saveCLIConfigForProfile("staging", profileCfg);
+
+    const written = JSON.parse(
+      mockedWriteFileSync.mock.calls[0][1] as string,
+    );
+    expect(written.profiles.staging).toEqual(profileCfg);
+  });
+
+  it("updates root-level fields when no profile specified", () => {
+    mockedReadFileSync.mockReturnValue(JSON.stringify({}));
+
+    const profileCfg = {
+      token: "root-token",
+      server_url: "http://root.example.com",
+      watched_workspaces: [{ id: "w1", name: "WS" }],
+    };
+    saveCLIConfigForProfile(undefined, profileCfg);
+
+    const written = JSON.parse(
+      mockedWriteFileSync.mock.calls[0][1] as string,
+    );
+    expect(written.token).toBe("root-token");
+    expect(written.server_url).toBe("http://root.example.com");
+    expect(written.watched_workspaces).toEqual([{ id: "w1", name: "WS" }]);
+  });
+});

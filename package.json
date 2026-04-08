@@ -1,0 +1,12 @@
+{
+  "name": "alook",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p src/web/tsconfig.json && tsc --noEmit -p src/cli/tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^3.0.0"
+  }
+}
