@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Logo } from "@/components/logo";
+import { GradientBackground } from "@/components/gradient-background";
 import { sendCode, verifyCode, listWorkspaces } from "@/lib/api";
 import { ApiError } from "@/lib/errors";
 
@@ -92,8 +93,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm">
+    <div className="flex min-h-screen items-center justify-center p-4 relative">
+      <GradientBackground />
+      <Card className="w-full max-w-sm bg-card/80 backdrop-blur-xl">
         <CardHeader className="text-center">
           <Logo size="lg" className="justify-center" />
           <CardDescription>
