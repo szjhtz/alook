@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { DashboardNavbar } from "@/components/dashboard-navbar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -22,5 +23,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!ready) return null;
 
-  return <>{children}</>;
+  return (
+    <>
+      <DashboardNavbar />
+      {children}
+    </>
+  );
 }

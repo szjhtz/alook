@@ -22,7 +22,6 @@ import {
   SheetDescription,
   SheetBody,
   SheetFooter,
-  SheetTrigger,
 } from "@/components/ui/sheet";
 import {
   listAgents,
@@ -30,8 +29,6 @@ import {
   createAgent,
   updateAgent,
   createConversation,
-  createMachineToken,
-  deleteMachine,
   deleteAgent,
 } from "@/lib/api";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -44,7 +41,6 @@ import {
   SelectGroup,
   SelectGroupLabel,
 } from "@/components/ui/select";
-import { Logo } from "@/components/logo";
 import { toast } from "sonner";
 import type { Agent, Runtime } from "@/lib/types";
 
@@ -59,121 +55,6 @@ function statusVariant(status: string) {
   }
 }
 
-function OnboardingSteps({
-  generatedToken,
-  generatingToken,
-  tokenCopied,
-  onGenerateToken,
-  onCopyToken,
-}: {
-  generatedToken: string;
-  generatingToken: boolean;
-  tokenCopied: boolean;
-  onGenerateToken: () => void;
-  onCopyToken: () => void;
-}) {
-  // Auto-generate token on mount
-  const hasTriggered = useRef(false);
-  useEffect(() => {
-    if (!generatedToken && !generatingToken && !hasTriggered.current) {
-      hasTriggered.current = true;
-      onGenerateToken();
-    }
-  }, [generatedToken, generatingToken, onGenerateToken]);
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast("Copied to clipboard");
-  };
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-medium tracking-tight">
-          Connect a machine
-        </p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Your machine runs AI agents locally using Claude Code, Codex, or
-          OpenCode.
-        </p>
-      </div>
-
-      {/* Step 1 — Register CLI */}
-      <div className="space-y-2">
-        <p className="text-xs font-medium flex items-center gap-2">
-          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-foreground text-background text-[10px] font-semibold">
-            1
-          </span>
-          Register your CLI
-        </p>
-        <p className="text-[11px] text-muted-foreground pl-7">
-          Run this in your terminal to link your machine.
-        </p>
-        {generatingToken ? (
-          <div className="pl-7">
-            <div className="rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground animate-pulse">
-              Generating token...
-            </div>
-          </div>
-        ) : generatedToken ? (
-          <div className="pl-7 space-y-2">
-            <div
-              className="rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
-              onClick={() =>
-                copyToClipboard(
-                  `npx @alook/cli register --token ${generatedToken}`
-                )
-              }
-              title="Click to copy"
-            >
-              npx @alook/cli register --token{" "}
-              <span className="text-foreground/70">
-                {generatedToken.slice(0, 12)}...
-              </span>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => {
-                navigator.clipboard.writeText(
-                  `npx @alook/cli register --token ${generatedToken}`
-                );
-                toast("Copied to clipboard");
-              }}
-              className="w-full"
-            >
-              Copy Command
-            </Button>
-          </div>
-        ) : null}
-      </div>
-
-      {/* Step 2 — Start daemon */}
-      <div
-        className={`space-y-2 ${!generatedToken ? "opacity-40 pointer-events-none" : ""}`}
-      >
-        <p className="text-xs font-medium flex items-center gap-2">
-          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-foreground text-background text-[10px] font-semibold">
-            2
-          </span>
-          Start the daemon
-        </p>
-        <p className="text-[11px] text-muted-foreground pl-7">
-          The daemon connects your local agents to Alook.
-        </p>
-        <div
-          className="ml-7 rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
-          onClick={() =>
-            copyToClipboard("npx @alook/cli daemon start --foreground")
-          }
-          title="Click to copy"
-        >
-          npx @alook/cli daemon start --foreground
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function HomePage() {
   const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -182,13 +63,8 @@ export default function HomePage() {
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
-  const [runtimeSheetOpen, setRuntimeSheetOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [generatedToken, setGeneratedToken] = useState("");
-  const [generatingToken, setGeneratingToken] = useState(false);
-  const [tokenCopied, setTokenCopied] = useState(false);
-
   const hasAnimated = useRef(false);
 
   // Confirm dialog state
@@ -323,44 +199,11 @@ export default function HomePage() {
     }
   };
 
-  const handleGenerateToken = async () => {
-    setGeneratingToken(true);
-    setTokenCopied(false);
-    try {
-      const res = await createMachineToken("cli");
-      setGeneratedToken(res.token);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to generate token"
-      );
-    } finally {
-      setGeneratingToken(false);
-    }
-  };
-
-  const handleCopyToken = async () => {
-    await navigator.clipboard.writeText(generatedToken);
-    setTokenCopied(true);
-    toast("Copied to clipboard");
-  };
-
   const runtimeMap = new Map(runtimes.map((r) => [r.id, r]));
 
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <header className="border-b">
-          <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-            <div className="flex items-center gap-2.5">
-              <div className="h-7 w-7 rounded-md bg-muted animate-pulse" />
-              <div className="h-5 w-16 rounded bg-muted animate-pulse" />
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-24 rounded-md bg-muted animate-pulse" />
-              <div className="h-7 w-20 rounded-md bg-muted animate-pulse" />
-            </div>
-          </div>
-        </header>
         <main className="mx-auto max-w-5xl px-6 py-8">
           <div className="mb-8">
             <div className="h-6 w-32 rounded bg-muted animate-pulse mb-2" />
@@ -388,14 +231,8 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* ── Header ── */}
-      <header className="border-b">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-          <Logo />
-
-          {/* Right: Actions */}
-          <div className="flex items-center gap-1.5">
-            <Sheet open={createSheetOpen} onOpenChange={setCreateSheetOpen}>
+      {/* Create Agent Sheet (opened programmatically) */}
+      <Sheet open={createSheetOpen} onOpenChange={setCreateSheetOpen}>
               <SheetContent>
                 <form onSubmit={handleCreate} className="flex flex-col h-full">
                   <SheetHeader>
@@ -524,200 +361,7 @@ export default function HomePage() {
                   </SheetFooter>
                 </form>
               </SheetContent>
-            </Sheet>
-
-            <Sheet
-              open={runtimeSheetOpen}
-              onOpenChange={(open) => {
-                setRuntimeSheetOpen(open);
-                if (!open) {
-                  setGeneratedToken("");
-                  setTokenCopied(false);
-                }
-              }}
-            >
-              <SheetTrigger render={<Button variant="outline" size="sm" />}>
-                Runtimes
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader>
-                  <SheetTitle>Runtimes</SheetTitle>
-                  <SheetDescription>
-                    Your machines and their agent runtimes.
-                  </SheetDescription>
-                </SheetHeader>
-                <SheetBody>
-                  {runtimes.length === 0 ? (
-                    /* ── Onboarding: Connect a machine ── */
-                    <OnboardingSteps
-                      generatedToken={generatedToken}
-                      generatingToken={generatingToken}
-                      tokenCopied={tokenCopied}
-                      onGenerateToken={handleGenerateToken}
-                      onCopyToken={handleCopyToken}
-                    />
-                  ) : (
-                    /* ── Machines list ── */
-                    <div className="space-y-3">
-                      {(() => {
-                        // Group runtimes by daemon_id (machine)
-                        const machines = new Map<
-                          string,
-                          { deviceInfo: string; name: string; runtimes: Runtime[] }
-                        >();
-                        for (const rt of runtimes) {
-                          const key = rt.daemon_id || rt.id;
-                          if (!machines.has(key)) {
-                            machines.set(key, {
-                              deviceInfo:
-                                typeof rt.device_info === "string"
-                                  ? rt.device_info
-                                  : "",
-                              name: rt.name || "",
-                              runtimes: [],
-                            });
-                          }
-                          machines.get(key)!.runtimes.push(rt);
-                        }
-
-                        return Array.from(machines.entries()).map(
-                          ([daemonId, machine]) => {
-                            const displayName =
-                              machine.deviceInfo || machine.name || daemonId;
-
-                            return (
-                              <div
-                                key={daemonId}
-                                className="rounded-lg border p-3.5 space-y-3"
-                              >
-                                {/* Machine header */}
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium tracking-tight">
-                                    {displayName}
-                                  </span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-[11px] text-muted-foreground h-6 px-2 hover:text-destructive"
-                                    onClick={() => {
-                                      openConfirm(
-                                        "Remove machine",
-                                        `This will remove "${displayName}" and all its runtimes. Agents using these runtimes will be unlinked.`,
-                                        async () => {
-                                          try {
-                                            await deleteMachine(daemonId);
-                                            const r = await listRuntimes();
-                                            setRuntimes(r);
-                                          } catch (err) {
-                                            toast.error(
-                                              err instanceof Error
-                                                ? err.message
-                                                : "Failed to remove machine"
-                                            );
-                                          }
-                                        }
-                                      );
-                                    }}
-                                  >
-                                    Remove
-                                  </Button>
-                                </div>
-
-                                {/* Nested runtimes */}
-                                <div className="space-y-2 pl-0.5">
-                                  {machine.runtimes.map((runtime) => (
-                                    <div
-                                      key={runtime.id}
-                                      className="rounded-md border border-dashed p-2.5 space-y-1"
-                                    >
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-xs font-medium">
-                                          {runtime.provider}
-                                          {runtime.metadata?.version ? (
-                                            <span className="ml-1.5 font-normal text-muted-foreground">
-                                              {String(runtime.metadata.version)}
-                                            </span>
-                                          ) : null}
-                                        </span>
-                                        <Badge
-                                          variant={
-                                            runtime.status === "online"
-                                              ? "default"
-                                              : "outline"
-                                          }
-                                          className="text-[10px] px-1.5 py-0"
-                                        >
-                                          {runtime.status}
-                                        </Badge>
-                                      </div>
-                                      <p className="text-[11px] text-muted-foreground tabular-nums">
-                                        Last seen{" "}
-                                        {new Date(
-                                          runtime.last_seen_at
-                                        ).toLocaleString()}
-                                      </p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          }
-                        );
-                      })()}
-
-                      {/* Connect another machine */}
-                      <div className="pt-3 border-t">
-                        {generatedToken ? (
-                          <div className="space-y-2">
-                            <div className="rounded-md bg-muted p-2.5 font-mono text-xs break-all select-all">
-                              {generatedToken}
-                            </div>
-                            <p className="text-[11px] text-muted-foreground">
-                              Copy this token now — it won&apos;t be shown again.
-                            </p>
-                            <Button
-                              size="sm"
-                              onClick={handleCopyToken}
-                              className="w-full"
-                            >
-                              {tokenCopied ? "Copied!" : "Copy Token"}
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={handleGenerateToken}
-                            disabled={generatingToken}
-                            className="w-full text-xs text-muted-foreground"
-                          >
-                            {generatingToken
-                              ? "Generating..."
-                              : "Connect new machine"}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </SheetBody>
-              </SheetContent>
-            </Sheet>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                localStorage.removeItem("alook_token");
-                localStorage.removeItem("alook_workspace_id");
-                document.cookie = "alook_session=; path=/; max-age=0";
-                router.push("/login");
-              }}
-            >
-              Sign Out
-            </Button>
-          </div>
-        </div>
-      </header>
+      </Sheet>
 
       {/* ── Main ── */}
       <main className="mx-auto max-w-5xl px-6 py-8">
