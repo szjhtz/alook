@@ -16,8 +16,12 @@ vi.mock("@/lib/api/responses", () => ({
   runtimeToResponse: vi.fn((r: any) => ({ id: r.id })),
 }));
 
-import { listAgentRuntimes } from "@/lib/db/queries/runtime";
+import {
+  listAgentRuntimes,
+  markStaleRuntimesOffline,
+} from "@/lib/db/queries/runtime";
 const mockList = vi.mocked(listAgentRuntimes);
+const mockMarkStale = vi.mocked(markStaleRuntimesOffline);
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -31,5 +35,14 @@ describe("GET /api/runtimes", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toHaveLength(2);
+  });
+
+  it("marks stale runtimes offline before listing", async () => {
+    mockList.mockResolvedValue([{ id: "rt1" }] as any);
+    const { GET } = await import("./route");
+    await GET(
+      new NextRequest("http://localhost/api/runtimes?workspace_id=w1"),
+    );
+    expect(mockMarkStale).toHaveBeenCalledOnce();
   });
 });

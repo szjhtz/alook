@@ -14,7 +14,8 @@ import {
   getTaskMessages,
 } from "@/lib/api";
 import type { Conversation, Message, Task, TaskMessage } from "@/lib/types";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/logo";
+import { toast } from "sonner";
 
 export default function ChatPage() {
   const params = useParams();
@@ -29,9 +30,12 @@ export default function ChatPage() {
   const [taskMessages, setTaskMessages] = useState<TaskMessage[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [connectionLost, setConnectionLost] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSeqRef = useRef(0);
+  const pollFailures = useRef(0);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -52,6 +56,7 @@ export default function ChatPage() {
         setConversation(conv);
         setMessages(msgs);
       } catch {
+        toast.error("Conversation not found");
         router.push("/agents");
       } finally {
         setLoading(false);
@@ -68,6 +73,8 @@ export default function ChatPage() {
     (taskId: string) => {
       if (pollRef.current) clearInterval(pollRef.current);
       lastSeqRef.current = 0;
+      pollFailures.current = 0;
+      setConnectionLost(false);
 
       pollRef.current = setInterval(async () => {
         try {
@@ -76,6 +83,8 @@ export default function ChatPage() {
             getTaskMessages(taskId, lastSeqRef.current || undefined),
           ]);
 
+          pollFailures.current = 0;
+          setConnectionLost(false);
           setActiveTask(task);
 
           if (tmsgs.length > 0) {
@@ -90,13 +99,25 @@ export default function ChatPage() {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
 
-            const updatedMessages = await listMessages(conversationId);
-            setMessages(updatedMessages);
+            try {
+              const updatedMessages = await listMessages(conversationId);
+              setMessages(updatedMessages);
+            } catch {
+              toast.error("Failed to refresh messages");
+            }
             setActiveTask(null);
             setTaskMessages([]);
           }
         } catch {
-          // ignore polling errors
+          pollFailures.current += 1;
+          if (pollFailures.current >= 3) {
+            setConnectionLost(true);
+          }
+          if (pollFailures.current >= 10) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            toast.error("Lost connection to agent");
+          }
         }
       }, 1000);
     },
@@ -133,9 +154,10 @@ export default function ChatPage() {
       setActiveTask(task);
       setTaskMessages([]);
       startPolling(task.id);
-    } catch {
+    } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       setInput(content);
+      toast.error(err instanceof Error ? err.message : "Failed to send message");
     } finally {
       setSending(false);
     }
@@ -168,7 +190,7 @@ export default function ChatPage() {
             {conversation?.title || "Chat"}
           </h1>
         </div>
-        <ThemeToggle />
+        <Logo />
       </header>
 
       <div className="flex-1 overflow-y-auto px-6" ref={scrollRef}>
@@ -236,6 +258,11 @@ export default function ChatPage() {
               )}
               {activeTask.status === "failed" && activeTask.error && (
                 <p className="text-sm text-destructive">{activeTask.error}</p>
+              )}
+              {connectionLost && (
+                <p className="text-xs text-muted-foreground animate-pulse">
+                  Connection lost — retrying...
+                </p>
               )}
             </div>
           )}

@@ -112,6 +112,48 @@ describe("POST /daemon/register validation", () => {
     const res = await POST(makeBadJsonReq());
     expect(res.status).toBe(400);
   });
+
+  it("stores deviceInfo as device_name only, without version", async () => {
+    const { upsertAgentRuntime } = await import("@/lib/db/queries/runtime");
+    (upsertAgentRuntime as any).mockClear();
+
+    const res = await POST(makeReq({
+      workspace_id: "w1",
+      daemon_id: "d1",
+      device_name: "Gustavos-MacBook-Pro.local",
+      cli_version: "0.1.0",
+      runtimes: [{ type: "claude", version: "2.1.97 (Claude Code)" }],
+    }));
+    expect(res.status).toBe(200);
+    expect(upsertAgentRuntime).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        deviceInfo: "Gustavos-MacBook-Pro.local",
+      }),
+    );
+  });
+
+  it("stores version in metadata, not in deviceInfo", async () => {
+    const { upsertAgentRuntime } = await import("@/lib/db/queries/runtime");
+    (upsertAgentRuntime as any).mockClear();
+
+    await POST(makeReq({
+      workspace_id: "w1",
+      daemon_id: "d1",
+      device_name: "my-host",
+      cli_version: "0.1.0",
+      runtimes: [{ type: "claude", version: "2.1.97 (Claude Code)" }],
+    }));
+    expect(upsertAgentRuntime).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        deviceInfo: "my-host",
+        metadata: expect.objectContaining({
+          version: "2.1.97 (Claude Code)",
+        }),
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

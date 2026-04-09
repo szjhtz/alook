@@ -9,7 +9,7 @@ export default function Home() {
   useEffect(() => {
     const token = localStorage.getItem("alook_token");
     if (token) {
-      router.replace("/agents");
+      router.replace("/home");
     } else {
       router.replace("/login");
     }

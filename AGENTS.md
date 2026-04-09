@@ -22,3 +22,6 @@ Alook's main purpose is to make the cli agent always on, and give it a email add
 - always write tests for your code changes, only when your code changes are already covered by the current tests.
 
 ## Don't use plan MODE, try to write the plan md directly
+
+## UIUX
+read @DESIGN.md

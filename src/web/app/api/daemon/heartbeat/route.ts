@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { updateAgentRuntimeHeartbeat } from "@/lib/db/queries/runtime";
+import {
+  updateAgentRuntimeHeartbeat,
+  markStaleRuntimesOffline,
+} from "@/lib/db/queries/runtime";
 import { failStaleDispatchedTasks } from "@/lib/db/queries/task";
 import { withAuth } from "@/lib/middleware/auth";
 import { writeJSON, parseBody } from "@/lib/middleware/helpers";
@@ -12,6 +15,9 @@ export const POST = withAuth(async (req: NextRequest) => {
   if (err) return err;
 
   await updateAgentRuntimeHeartbeat(db, body.runtime_id);
+
+  // Mark runtimes that haven't sent a heartbeat in >2 minutes as offline
+  await markStaleRuntimesOffline(db);
 
   // Fail tasks stuck in "dispatched" for >20s (daemon likely crashed)
   const stale = await failStaleDispatchedTasks(db);

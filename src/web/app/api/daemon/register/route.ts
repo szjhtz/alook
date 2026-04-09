@@ -30,12 +30,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     if (!name) {
       name = deviceName ? `${provider} (${deviceName})` : provider;
     }
-    let deviceInfo = deviceName.trim();
-    if (rt.version && deviceInfo) {
-      deviceInfo = `${deviceInfo} · ${rt.version}`;
-    } else if (rt.version) {
-      deviceInfo = rt.version;
-    }
+    const deviceInfo = deviceName.trim();
     const status = rt.status === "offline" ? "offline" : "online";
     const metadata: Record<string, unknown> = {
       version: rt.version || "",

@@ -2,6 +2,7 @@ import type {
   Agent,
   Conversation,
   CreateAgentRequest,
+  UpdateAgentRequest,
   LoginResponse,
   Message,
   Runtime,
@@ -10,6 +11,7 @@ import type {
   User,
   Workspace,
 } from "./types";
+import { ApiError } from "./errors";
 
 const API_BASE = "";
 
@@ -21,15 +23,23 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
       ? localStorage.getItem("alook_workspace_id")
       : null;
 
-  const res = await fetch(API_BASE + path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...(workspaceId && { "X-Workspace-ID": workspaceId }),
-      ...options?.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(API_BASE + path, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...(workspaceId && { "X-Workspace-ID": workspaceId }),
+        ...options?.headers,
+      },
+    });
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new ApiError("Unable to connect — check your network", 0);
+    }
+    throw err;
+  }
 
   if (res.status === 401) {
     if (typeof window !== "undefined") {
@@ -38,13 +48,40 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
       document.cookie = "alook_session=; path=/; max-age=0";
       window.location.href = "/login";
     }
-    throw new Error("Unauthorized");
+    throw new ApiError("Unauthorized", 401);
   }
 
   if (!res.ok) {
-    throw new Error(await res.text());
+    let serverError: string | undefined;
+    let details: string[] | undefined;
+    try {
+      const body = await res.json();
+      serverError = body.error;
+      details = body.details;
+    } catch {
+      // non-JSON body (HTML from proxy, empty body, etc.)
+    }
+
+    if (res.status === 429) {
+      throw new ApiError("Please wait a moment before trying again", 429);
+    }
+
+    if (res.status >= 500) {
+      throw new ApiError(
+        serverError || "Something went wrong — please try again",
+        res.status,
+        details,
+      );
+    }
+
+    throw new ApiError(
+      serverError || "Something went wrong",
+      res.status,
+      details,
+    );
   }
 
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
@@ -81,8 +118,22 @@ export const createAgent = (req: CreateAgentRequest) =>
     body: JSON.stringify(req),
   });
 
+export const updateAgent = (id: string, req: UpdateAgentRequest) =>
+  apiFetch<Agent>(`/api/agents/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(req),
+  });
+
+export const deleteAgent = (id: string) =>
+  apiFetch<void>(`/api/agents/${id}`, { method: "DELETE" });
+
 // Runtimes
 export const listRuntimes = () => apiFetch<Runtime[]>("/api/runtimes");
+
+export const deleteMachine = (daemonId: string) =>
+  apiFetch<void>(`/api/runtimes/machine?daemon_id=${encodeURIComponent(daemonId)}`, {
+    method: "DELETE",
+  });
 
 // Conversations
 export const listConversations = () =>

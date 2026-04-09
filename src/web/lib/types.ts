@@ -22,9 +22,12 @@ export interface Agent {
 
 export interface Runtime {
   id: string;
+  daemon_id: string | null;
+  name: string;
   provider: string;
   status: string;
-  device_info: Record<string, unknown>;
+  device_info: string;
+  metadata: Record<string, unknown>;
   last_seen_at: string;
 }
 
@@ -73,4 +76,11 @@ export interface CreateAgentRequest {
   description?: string;
   instructions?: string;
   runtime_id: string;
+}
+
+export interface UpdateAgentRequest {
+  name?: string;
+  description?: string;
+  instructions?: string;
+  runtime_id?: string;
 }

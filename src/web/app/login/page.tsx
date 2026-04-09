@@ -17,8 +17,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/logo";
 import { sendCode, verifyCode, listWorkspaces } from "@/lib/api";
+import { ApiError } from "@/lib/errors";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,7 +37,17 @@ export default function LoginPage() {
       await sendCode(email);
       setStep("code");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send code");
+      if (err instanceof ApiError) {
+        if (err.isRateLimit) {
+          setError("Please wait before requesting another code");
+        } else if (err.isNetworkError) {
+          setError("Unable to connect — check your network");
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to send code");
+      }
     } finally {
       setLoading(false);
     }
@@ -52,14 +63,28 @@ export default function LoginPage() {
       const res = await verifyCode(email, value);
       localStorage.setItem("alook_token", res.token);
 
-      const workspaces = await listWorkspaces();
-      if (workspaces.length > 0) {
-        localStorage.setItem("alook_workspace_id", workspaces[0].id);
+      try {
+        const workspaces = await listWorkspaces();
+        if (workspaces.length > 0) {
+          localStorage.setItem("alook_workspace_id", workspaces[0].id);
+        }
+      } catch {
+        setError("Signed in, but failed to load workspace");
       }
 
       router.push("/agents");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Invalid code");
+      if (err instanceof ApiError) {
+        if (err.isRateLimit) {
+          setError("Please wait before requesting another code");
+        } else if (err.isNetworkError) {
+          setError("Unable to connect — check your network");
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError(err instanceof Error ? err.message : "Invalid code");
+      }
       setCode("");
     } finally {
       setLoading(false);
@@ -68,12 +93,9 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="fixed top-4 right-4">
-        <ThemeToggle />
-      </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-semibold tracking-tight">Alook</CardTitle>
+          <Logo size="lg" className="justify-center" />
           <CardDescription>
             {step === "email"
               ? "Sign in with your email"
