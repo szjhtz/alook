@@ -198,3 +198,6 @@ Thumbs.db
 
 # Plans (local only)
 plans/
+
+# Temp
+temp/
