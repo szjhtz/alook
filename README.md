@@ -36,7 +36,7 @@ graph TD
     end
 
     subgraph RM["Runtime Machine"]
-        CLI["CLI Daemon<br/>- Heartbeat (3s)<br/>- Event poll (2s)<br/>- Task execution<br/>&nbsp; (Claude / Codex)"]
+        CLI["CLI Daemon<br/>- Heartbeat (15s)<br/>- Event poll (3s)<br/>- Task execution<br/>&nbsp; (Claude / Codex)"]
     end
 
     EW -- "service binding" --> WS
