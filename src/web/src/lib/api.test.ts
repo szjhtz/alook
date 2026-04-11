@@ -1,18 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ApiError } from "./errors";
 
-// Mock localStorage and window
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] ?? null,
-    setItem: (key: string, value: string) => { store[key] = value; },
-    removeItem: (key: string) => { delete store[key]; },
-    clear: () => { store = {}; },
-  };
-})();
-
-Object.defineProperty(globalThis, "localStorage", { value: localStorageMock });
+// Mock window globals needed by apiFetch
 Object.defineProperty(globalThis, "document", {
   value: { cookie: "" },
   writable: true,
@@ -33,8 +22,6 @@ Object.defineProperty(globalThis, "window", {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  localStorageMock.clear();
-  // Reset window.location.href
   if (typeof window !== "undefined") {
     window.location.href = "";
   }
@@ -83,7 +70,7 @@ describe("apiFetch", () => {
 
     const { listAgents } = await getApiFetch();
     try {
-      await listAgents();
+      await listAgents("w1");
     } catch (e) {
       expect(e).toBeInstanceOf(ApiError);
       expect((e as ApiError).message).toBe("name is required");
@@ -103,7 +90,7 @@ describe("apiFetch", () => {
 
     const { listAgents } = await getApiFetch();
     try {
-      await listAgents();
+      await listAgents("w1");
     } catch (e) {
       expect(e).toBeInstanceOf(ApiError);
       expect((e as ApiError).details).toEqual(["name: required", "email: invalid"]);
@@ -115,7 +102,7 @@ describe("apiFetch", () => {
 
     const { listAgents } = await getApiFetch();
     try {
-      await listAgents();
+      await listAgents("w1");
     } catch (e) {
       expect(e).toBeInstanceOf(ApiError);
       expect((e as ApiError).status).toBe(0);
@@ -133,7 +120,7 @@ describe("apiFetch", () => {
 
     const { listAgents } = await getApiFetch();
     try {
-      await listAgents();
+      await listAgents("w1");
     } catch (e) {
       expect(e).toBeInstanceOf(ApiError);
       expect((e as ApiError).status).toBe(429);
@@ -151,7 +138,7 @@ describe("apiFetch", () => {
 
     const { listAgents } = await getApiFetch();
     try {
-      await listAgents();
+      await listAgents("w1");
     } catch (e) {
       expect(e).toBeInstanceOf(ApiError);
       expect((e as ApiError).status).toBe(500);
@@ -168,7 +155,7 @@ describe("apiFetch", () => {
 
     const { listAgents } = await getApiFetch();
     try {
-      await listAgents();
+      await listAgents("w1");
     } catch (e) {
       expect(e).toBeInstanceOf(ApiError);
       expect((e as ApiError).message).toBe("database connection failed");
@@ -184,7 +171,7 @@ describe("apiFetch", () => {
 
     const { listAgents } = await getApiFetch();
     try {
-      await listAgents();
+      await listAgents("w1");
     } catch (e) {
       expect(e).toBeInstanceOf(ApiError);
       expect((e as ApiError).status).toBe(502);
@@ -201,7 +188,7 @@ describe("apiFetch", () => {
 
     const { listAgents } = await getApiFetch();
     try {
-      await listAgents();
+      await listAgents("w1");
     } catch (e) {
       expect(e).toBeInstanceOf(ApiError);
       expect((e as ApiError).status).toBe(401);
