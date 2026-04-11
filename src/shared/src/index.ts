@@ -52,6 +52,9 @@ export {
   OFFLINE_THRESHOLD_MS,
   EVENT_POLL_INTERVAL_MS,
   AGENT_HANDLE_MIN_LENGTH,
+  DEV_WEB_URL,
+  DEV_WS_DO_URL,
+  DEV_EMAIL_WORKER_URL,
 } from "./constants";
 
 export type {

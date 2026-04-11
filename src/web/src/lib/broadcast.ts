@@ -1,7 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare"
 import type { WsMessage } from "@alook/shared"
-
-const WS_DO_DEV_URL = "http://localhost:8789"
+import { DEV_WS_DO_URL } from "@alook/shared"
 
 export async function broadcastToUser(userId: string, message: WsMessage) {
   const body = JSON.stringify(message)
@@ -17,7 +16,7 @@ export async function broadcastToUser(userId: string, message: WsMessage) {
       body,
     })
   } catch {
-    await fetch(`${WS_DO_DEV_URL}${url}`, {
+    await fetch(`${DEV_WS_DO_URL}${url}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
@@ -37,7 +36,7 @@ export async function broadcastToAgent(agentId: string, message: WsMessage) {
       body,
     })
   } catch {
-    await fetch(`${WS_DO_DEV_URL}${url}`, {
+    await fetch(`${DEV_WS_DO_URL}${url}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,

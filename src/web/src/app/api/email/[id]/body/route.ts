@@ -28,7 +28,15 @@ export const GET = withAuth(async (req, ctx) => {
     });
   }
 
-  return new Response(object.body, {
+  const raw = await object.text();
+  // RFC822: headers and body are separated by a blank line
+  const crlfIdx = raw.indexOf("\r\n\r\n");
+  const lfIdx = raw.indexOf("\n\n");
+  const sepIdx = crlfIdx !== -1 ? crlfIdx : lfIdx;
+  const sepLen = crlfIdx !== -1 ? 4 : 2;
+  const bodyText = sepIdx !== -1 ? raw.slice(sepIdx + sepLen) : raw;
+
+  return new Response(bodyText, {
     headers: { "Content-Type": "text/plain; charset=utf-8" },
   });
 });

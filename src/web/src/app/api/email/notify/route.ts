@@ -8,13 +8,13 @@ export async function POST(req: NextRequest) {
   const { env } = getCloudflareContext()
   const db = createDb((env as Env).DB)
 
-  let body: { agentId: string; r2Key: string; from: string; subject: string; isWhitelisted: boolean; forwarded?: boolean }
+  let body: { agentId: string; r2Key: string; from: string; to?: string; subject: string; isWhitelisted: boolean; forwarded?: boolean }
   try { body = await req.json() } catch { return writeError("invalid body", 400) }
 
   await queries.email.createEmail(db, {
     agentId: body.agentId,
     fromEmail: body.from,
-    toEmail: "",
+    toEmail: body.to ?? "",
     subject: body.subject,
     r2Key: body.r2Key,
     isWhitelisted: body.isWhitelisted,

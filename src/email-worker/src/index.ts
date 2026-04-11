@@ -1,10 +1,31 @@
 import { nanoid } from "nanoid"
-import { createDb, queries, parseEmailHandle } from "@alook/shared"
+import { createDb, queries, parseEmailHandle, DEV_WEB_URL } from "@alook/shared"
 
 interface EmailEnv {
   DB: D1Database
   EMAIL_BUCKET: R2Bucket
   WEB_SERVICE: Fetcher
+}
+
+async function notifyWeb(env: EmailEnv, payload: Record<string, unknown>) {
+  const body = JSON.stringify(payload)
+  const headers = { "Content-Type": "application/json" }
+
+  // Service bindings may connect in local dev but not route to Next.js — check response status
+  try {
+    const res = await env.WEB_SERVICE.fetch("http://internal/api/email/notify", {
+      method: "POST",
+      headers,
+      body,
+    })
+    if (!res.ok) throw new Error(`WEB_SERVICE responded ${res.status}`)
+  } catch {
+    await fetch(`${DEV_WEB_URL}/api/email/notify`, {
+      method: "POST",
+      headers,
+      body,
+    })
+  }
 }
 
 export default {
@@ -79,16 +100,13 @@ export default {
     const subject = message.headers.get("subject") ?? ""
 
     if (whitelisted) {
-      await env.WEB_SERVICE.fetch("http://internal/api/email/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentId: agent.id,
-          r2Key,
-          from: message.from,
-          subject,
-          isWhitelisted: true,
-        }),
+      await notifyWeb(env, {
+        agentId: agent.id,
+        r2Key,
+        from: message.from,
+        to: message.to,
+        subject,
+        isWhitelisted: true,
       })
     } else {
       const forwardToEmail = agent.forwardToEmail ?? ""
@@ -101,17 +119,14 @@ export default {
 
       const forwarded = !!forwardAddress
 
-      await env.WEB_SERVICE.fetch("http://internal/api/email/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentId: agent.id,
-          r2Key,
-          from: message.from,
-          subject,
-          isWhitelisted: false,
-          forwarded,
-        }),
+      await notifyWeb(env, {
+        agentId: agent.id,
+        r2Key,
+        from: message.from,
+        to: message.to,
+        subject,
+        isWhitelisted: false,
+        forwarded,
       })
 
       if (forwardAddress) {
