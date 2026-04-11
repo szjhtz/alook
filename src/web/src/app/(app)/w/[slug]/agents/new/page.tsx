@@ -39,6 +39,7 @@ export default function CreateAgentPage() {
               description: data.description || undefined,
               instructions: data.instructions || undefined,
               runtime_id: data.runtime_id,
+              email_handle: data.email_handle || undefined,
             });
             if (agent) {
               const conversationId = await chatWithAgent(agent.id);
