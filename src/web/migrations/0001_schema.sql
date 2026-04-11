@@ -195,13 +195,14 @@ CREATE TABLE IF NOT EXISTS machine_token (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
   workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
-  token_hash TEXT NOT NULL UNIQUE,
+  token TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active',
   last_used_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_machine_token_hash ON machine_token(token_hash);
+CREATE INDEX IF NOT EXISTS idx_machine_token ON machine_token(token);
 
 -- Better Auth indexes
 CREATE INDEX IF NOT EXISTS idx_session_user_id ON "session"(userId);

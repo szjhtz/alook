@@ -115,6 +115,19 @@ export const DaemonRuntimeItemSchema = z.object({
 });
 export type DaemonRuntimeItem = z.infer<typeof DaemonRuntimeItemSchema>;
 
+export const ActivateTokenRuntimeSchema = z.object({
+  type: z.string().min(1),
+  version: z.string().optional().default(""),
+});
+export type ActivateTokenRuntime = z.infer<typeof ActivateTokenRuntimeSchema>;
+
+export const ActivateTokenRequestSchema = z.object({
+  token: z.string().min(1),
+  hostname: z.string().min(1),
+  runtimes: z.array(ActivateTokenRuntimeSchema).min(1),
+});
+export type ActivateTokenRequest = z.infer<typeof ActivateTokenRequestSchema>;
+
 export const RegisterDaemonRequestSchema = z.object({
   workspace_id: z.string().min(1),
   daemon_id: z.string().min(1),

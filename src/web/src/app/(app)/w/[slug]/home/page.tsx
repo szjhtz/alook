@@ -64,7 +64,7 @@ export default function HomePage() {
             <Button
               size="sm"
               className="mt-4"
-              onClick={() => router.push(`/w/${slug}/runtimes`)}
+              onClick={() => router.push(`/w/${slug}/runtimes?connect`)}
             >
               Connect Machine
             </Button>

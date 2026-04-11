@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "crypto"
+import { randomUUID } from "crypto"
 import { sql } from "./db"
 
 export interface TestSeed {
@@ -16,10 +16,6 @@ function nanoid() {
   return randomUUID().replace(/-/g, "").slice(0, 21)
 }
 
-function hashToken(raw: string): string {
-  return createHash("sha256").update(raw).digest("hex")
-}
-
 /**
  * Seed a full test environment: user, workspace, member, runtime, agent, machine token.
  * All IDs are unique per call.
@@ -32,7 +28,6 @@ export function seedTestData(): TestSeed {
   const agentId = `ag_${nanoid()}`
   const machineTokenId = `mt_${nanoid()}`
   const rawToken = `al_${randomUUID().replace(/-/g, "")}`
-  const tokenHash = hashToken(rawToken)
 
   const now = new Date().toISOString()
   const slug = `test-${nanoid()}`
@@ -42,7 +37,7 @@ export function seedTestData(): TestSeed {
   sql(`INSERT INTO member (id, workspace_id, user_id, role, created_at) VALUES ('${memberId}', '${workspaceId}', '${userId}', 'owner', '${now}')`)
   sql(`INSERT INTO agent_runtime (id, workspace_id, daemon_id, name, runtime_mode, provider, status, device_info, created_at, updated_at) VALUES ('${runtimeId}', '${workspaceId}', 'daemon_${nanoid()}', 'Test Runtime', 'local', 'claude', 'online', 'test-device', '${now}', '${now}')`)
   sql(`INSERT INTO agent (id, workspace_id, name, runtime_id, created_at, updated_at) VALUES ('${agentId}', '${workspaceId}', 'Test Agent', '${runtimeId}', '${now}', '${now}')`)
-  sql(`INSERT INTO machine_token (id, user_id, workspace_id, token_hash, name, created_at) VALUES ('${machineTokenId}', '${userId}', '${workspaceId}', '${tokenHash}', 'test-token', '${now}')`)
+  sql(`INSERT INTO machine_token (id, user_id, workspace_id, token, name, status, created_at) VALUES ('${machineTokenId}', '${userId}', '${workspaceId}', '${rawToken}', 'test-token', 'active', '${now}')`)
 
   return { userId, workspaceId, memberId, runtimeId, agentId, machineToken: rawToken, machineTokenId }
 }

@@ -5,6 +5,7 @@ import { withAuth } from "@/lib/middleware/auth";
 import { withWorkspaceMember } from "@/lib/middleware/workspace";
 import { writeJSON } from "@/lib/middleware/helpers";
 import { log } from "@/lib/logger";
+import { broadcastToUser } from "@/lib/broadcast";
 
 export const DELETE = withAuth(async (req: NextRequest, ctx) => {
   const ws = await withWorkspaceMember(req, ctx);
@@ -24,6 +25,11 @@ export const DELETE = withAuth(async (req: NextRequest, ctx) => {
     log.error("Failed to delete machine", { err: e });
     return writeJSON({ error: "Failed to remove machine" }, 500);
   }
+
+  broadcastToUser(ctx.userId, {
+    type: "runtime.deleted",
+    daemonId,
+  }).catch(() => {});
 
   return new Response(null, { status: 204 });
 });

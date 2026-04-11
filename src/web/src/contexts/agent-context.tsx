@@ -25,7 +25,9 @@ import type {
   Agent,
   CreateAgentRequest,
   UpdateAgentRequest,
+  WsMessage,
 } from "@alook/shared";
+import { useUserWs } from "@/lib/use-user-ws";
 
 interface AgentContextValue {
   agents: Agent[];
@@ -80,6 +82,21 @@ export function AgentProvider({
   useEffect(() => {
     reload();
   }, [reload]);
+
+  // Listen for real-time WS events
+  const handleWsMessage = useCallback(
+    (msg: WsMessage) => {
+      switch (msg.type) {
+        case "runtime.registered":
+        case "runtime.status":
+        case "runtime.deleted":
+          reload();
+          break;
+      }
+    },
+    [reload]
+  );
+  useUserWs(handleWsMessage);
 
   const handleCreateAgent = useCallback(
     async (req: CreateAgentRequest): Promise<Agent | null> => {

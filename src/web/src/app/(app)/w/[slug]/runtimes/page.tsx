@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useAgentContext } from "@/contexts/agent-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { Loader2, Monitor, Plus } from "lucide-react";
 import type { Runtime } from "@/lib/api";
+import { CLI_CMD } from "@/lib/utils";
 
 function ConnectMachineSteps({
   generatedToken,
@@ -71,12 +73,12 @@ function ConnectMachineSteps({
               className="rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
               onClick={() =>
                 copyToClipboard(
-                  `npx @alook/cli register --token ${generatedToken}`
+                  `${CLI_CMD} register --token ${generatedToken}`
                 )
               }
               title="Click to copy"
             >
-              npx @alook/cli register --token{" "}
+              {CLI_CMD} register --token{" "}
               <span className="text-foreground/70">
                 {generatedToken.slice(0, 12)}...
               </span>
@@ -85,7 +87,7 @@ function ConnectMachineSteps({
               size="sm"
               onClick={() => {
                 navigator.clipboard.writeText(
-                  `npx @alook/cli register --token ${generatedToken}`
+                  `${CLI_CMD} register --token ${generatedToken}`
                 );
                 toast("Copied to clipboard");
               }}
@@ -113,11 +115,11 @@ function ConnectMachineSteps({
         <div
           className="ml-7 rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
           onClick={() =>
-            copyToClipboard("npx @alook/cli daemon start --foreground")
+            copyToClipboard(`${CLI_CMD} daemon start --foreground`)
           }
           title="Click to copy"
         >
-          npx @alook/cli daemon start --foreground
+          {CLI_CMD} daemon start --foreground
         </div>
       </div>
 
@@ -128,6 +130,9 @@ function ConnectMachineSteps({
 export default function RuntimesPage() {
   const { runtimes, loading, handleGenerateToken, handleDeleteMachine, reload } =
     useAgentContext();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [generatedToken, setGeneratedToken] = useState("");
@@ -142,6 +147,14 @@ export default function RuntimesPage() {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  // Auto-open "New machine" sheet when navigated with ?connect
+  useEffect(() => {
+    if (searchParams.has("connect")) {
+      setSheetOpen(true);
+      router.replace(pathname, { scroll: false });
+    }
+  }, [searchParams, router, pathname]);
 
   const openConfirm = (
     title: string,

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { createDb, queries } from "@alook/shared"
-import { generateMachineToken, hashToken } from "@/lib/token";
+import { generateMachineToken } from "@/lib/token";
 import { withAuth } from "@/lib/middleware/auth";
 import { withWorkspaceMember } from "@/lib/middleware/workspace";
 import { writeJSON } from "@/lib/middleware/helpers";
@@ -25,6 +25,12 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   const { env } = getCloudflareContext()
   const db = createDb((env as Env).DB)
 
+  // Reuse existing pending token for this workspace
+  const pending = await queries.machineToken.getPendingMachineToken(db, ctx.userId, ws.workspaceId);
+  if (pending) {
+    return writeJSON({ token: pending.token, ...machineTokenToResponse(pending) });
+  }
+
   let name = "default";
   try {
     const body = (await req.json()) as { name?: string };
@@ -36,13 +42,13 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   }
 
   const raw = generateMachineToken();
-  const tokenHash = hashToken(raw);
 
   const mt = await queries.machineToken.createMachineToken(db, {
     userId: ctx.userId,
     workspaceId: ws.workspaceId,
-    tokenHash,
+    token: raw,
     name,
+    status: "pending",
   });
 
   return writeJSON({ token: raw, ...machineTokenToResponse(mt) }, 201);

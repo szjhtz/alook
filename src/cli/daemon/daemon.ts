@@ -6,6 +6,7 @@ import { createBackend, detectVersion } from "./agent/index.js";
 import { type Task, type TaskResult, fromApiTask } from "./types.js";
 import { loadCLIConfigForProfile } from "../lib/config.js";
 import { log } from "../lib/logger.js";
+import { cmdPrefix } from "../lib/env.js";
 import { mkdirSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
@@ -39,7 +40,7 @@ export async function startDaemon(
 
   const cliConfig = loadCLIConfigForProfile(profile);
   if (!cliConfig.token) {
-    log.error("Not registered. Run 'alook register' first.");
+    log.error(`Not registered. Run '${cmdPrefix()} register' first.`);
     process.exit(1);
   }
   if (cliConfig.server_url) config.serverURL = cliConfig.server_url;

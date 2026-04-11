@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { isRedirectError } from "next/dist/client/components/redirect-error"
 import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { createDb, queries } from "@alook/shared"
 import { requireSession } from "@/lib/session"
@@ -46,7 +47,8 @@ export default async function WorkspacesPage({
           role: "owner",
         })
         redirect(`/w/${ws.slug}/home`)
-      } catch {
+      } catch (err) {
+        if (isRedirectError(err)) throw err
         // Slug conflict — append random suffix and retry
         slug = `${baseSlug}-${randomSuffix()}`
       }

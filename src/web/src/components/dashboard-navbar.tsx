@@ -23,6 +23,7 @@ import { Logo } from "@/components/logo";
 import { toast } from "sonner";
 import type { Runtime } from "@/lib/api";
 import { signOut } from "@/lib/auth-client";
+import { CLI_CMD } from "@/lib/utils";
 
 function OnboardingSteps({
   generatedToken,
@@ -81,12 +82,12 @@ function OnboardingSteps({
               className="rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
               onClick={() =>
                 copyToClipboard(
-                  `npx @alook/cli register --token ${generatedToken}`
+                  `${CLI_CMD} register --token ${generatedToken}`
                 )
               }
               title="Click to copy"
             >
-              npx @alook/cli register --token{" "}
+              {CLI_CMD} register --token{" "}
               <span className="text-foreground/70">
                 {generatedToken.slice(0, 12)}...
               </span>
@@ -95,7 +96,7 @@ function OnboardingSteps({
               size="sm"
               onClick={() => {
                 navigator.clipboard.writeText(
-                  `npx @alook/cli register --token ${generatedToken}`
+                  `${CLI_CMD} register --token ${generatedToken}`
                 );
                 toast("Copied to clipboard");
               }}
@@ -123,11 +124,11 @@ function OnboardingSteps({
         <div
           className="ml-7 rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
           onClick={() =>
-            copyToClipboard("npx @alook/cli daemon start --foreground")
+            copyToClipboard(`${CLI_CMD} daemon start --foreground`)
           }
           title="Click to copy"
         >
-          npx @alook/cli daemon start --foreground
+          {CLI_CMD} daemon start --foreground
         </div>
       </div>
     </div>

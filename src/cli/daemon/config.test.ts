@@ -33,7 +33,7 @@ describe("loadDaemonConfig defaults", () => {
   it("returns correct defaults when no env vars set", () => {
     const cfg = loadDaemonConfig();
 
-    expect(cfg.serverURL).toBe("http://localhost:8080");
+    expect(cfg.serverURL).toBe("https://alook.ai");
     expect(cfg.pollInterval).toBe(3000);
     expect(cfg.heartbeatInterval).toBe(15000);
     expect(cfg.agentTimeout).toBe(7200000);

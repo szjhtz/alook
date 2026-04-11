@@ -5,6 +5,7 @@ import { withAuth } from "@/lib/middleware/auth";
 import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
 import { HeartbeatRequestSchema } from "@alook/shared";
 import { TaskService } from "@/lib/services/task";
+import { broadcastToUser } from "@/lib/broadcast";
 
 export const POST = withAuth(async (req: NextRequest, ctx) => {
   const { env } = getCloudflareContext()
@@ -27,6 +28,13 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   }
 
   await queries.runtime.updateAgentRuntimeHeartbeat(db, body.runtime_id);
+
+  // Notify web UI of status change
+  broadcastToUser(ctx.userId, {
+    type: "runtime.status",
+    runtimeId: body.runtime_id,
+    status: "online",
+  }).catch(() => {});
 
   // Mark runtimes that haven't sent a heartbeat in >45s as offline
   await queries.runtime.markStaleRuntimesOffline(db, ctx.workspaceId);

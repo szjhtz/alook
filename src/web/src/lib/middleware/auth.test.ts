@@ -9,7 +9,7 @@ vi.mock("@alook/shared", () => ({
   createDb: vi.fn(() => ({})),
   queries: {
     machineToken: {
-      getMachineTokenByHash: vi.fn(),
+      getMachineTokenByToken: vi.fn(),
       updateMachineTokenLastUsed: vi.fn(),
     },
   },
@@ -26,7 +26,7 @@ import { withAuth } from "./auth";
 import { queries } from "@alook/shared";
 
 const mockGetMachineTokenByHash = queries.machineToken
-  .getMachineTokenByHash as ReturnType<typeof vi.fn>;
+  .getMachineTokenByToken as ReturnType<typeof vi.fn>;
 const mockUpdateMachineTokenLastUsed = queries.machineToken
   .updateMachineTokenLastUsed as ReturnType<typeof vi.fn>;
 
@@ -127,7 +127,7 @@ describe("withAuth middleware", () => {
     expect(mockGetMachineTokenByHash).toHaveBeenCalledOnce();
   });
 
-  it("returns 401 for unknown machine token (getMachineTokenByHash returns null)", async () => {
+  it("returns 401 for unknown machine token (getMachineTokenByToken returns null)", async () => {
     mockGetMachineTokenByHash.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/test", {

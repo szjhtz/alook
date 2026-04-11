@@ -7,8 +7,9 @@ export async function createMachineToken(
   data: {
     userId: string;
     workspaceId: string;
-    tokenHash: string;
+    token: string;
     name: string;
+    status?: string;
   }
 ) {
   const rows = await db
@@ -16,29 +17,57 @@ export async function createMachineToken(
     .values({
       userId: data.userId,
       workspaceId: data.workspaceId,
-      tokenHash: data.tokenHash,
+      token: data.token,
       name: data.name,
+      status: data.status ?? "active",
     })
     .returning();
   return rows[0]!;
 }
 
-export async function getMachineTokenByHash(db: Database, tokenHash: string) {
+export async function getMachineTokenByToken(db: Database, token: string) {
   const rows = await db
     .select({
       id: machineToken.id,
       userId: machineToken.userId,
       workspaceId: machineToken.workspaceId,
-      tokenHash: machineToken.tokenHash,
+      token: machineToken.token,
       name: machineToken.name,
+      status: machineToken.status,
       lastUsedAt: machineToken.lastUsedAt,
       createdAt: machineToken.createdAt,
       userEmail: user.email,
     })
     .from(machineToken)
     .innerJoin(user, eq(user.id, machineToken.userId))
-    .where(eq(machineToken.tokenHash, tokenHash));
+    .where(eq(machineToken.token, token));
   return rows[0] ?? null;
+}
+
+export async function getPendingMachineToken(
+  db: Database,
+  userId: string,
+  workspaceId: string
+) {
+  const rows = await db
+    .select()
+    .from(machineToken)
+    .where(
+      and(
+        eq(machineToken.userId, userId),
+        eq(machineToken.workspaceId, workspaceId),
+        eq(machineToken.status, "pending")
+      )
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function activateMachineToken(db: Database, id: string) {
+  await db
+    .update(machineToken)
+    .set({ status: "active" })
+    .where(eq(machineToken.id, id));
 }
 
 export async function listMachineTokens(

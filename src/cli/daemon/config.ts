@@ -70,7 +70,7 @@ export function loadDaemonConfig(profile?: string): DaemonConfig {
 
   return {
     serverURL: normalizeServerBaseURL(
-      process.env.ALOOK_SERVER_URL || "http://localhost:8080",
+      process.env.ALOOK_SERVER_URL || "https://alook.ai",
     ),
     claudePath: process.env.ALOOK_CLAUDE_PATH || "claude",
     codexPath: process.env.ALOOK_CODEX_PATH || "codex",

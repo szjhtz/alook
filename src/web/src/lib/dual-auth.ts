@@ -1,11 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { createDb, queries } from "@alook/shared"
 import { createAuth } from "@/lib/auth"
-import { createHash } from "crypto"
-
-function hashToken(raw: string): string {
-  return createHash("sha256").update(raw).digest("hex")
-}
 
 export async function requireAuth(request: Request) {
   const { env } = await getCloudflareContext({ async: true })
@@ -13,11 +8,10 @@ export async function requireAuth(request: Request) {
 
   const authHeader = request.headers.get("Authorization")
   if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.slice(7)
-    if (token.startsWith("al_")) {
+    const raw = authHeader.slice(7)
+    if (raw.startsWith("al_")) {
       const db = createDb(cloudflareEnv.DB)
-      const hashedToken = hashToken(token)
-      const mt = await queries.machineToken.getMachineTokenByHash(db, hashedToken)
+      const mt = await queries.machineToken.getMachineTokenByToken(db, raw)
       if (mt) {
         queries.machineToken.updateMachineTokenLastUsed(db, mt.id).catch(() => {})
         return { userId: mt.userId, email: mt.userEmail, workspaceId: mt.workspaceId ?? undefined, error: null }

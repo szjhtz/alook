@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { createDb, queries } from "@alook/shared"
 import { createAuth } from "@/lib/auth"
-import { createHash } from "crypto"
 
 export interface AuthContext {
   userId: string
@@ -14,10 +13,6 @@ export type AuthenticatedHandler = (
   req: NextRequest,
   ctx: AuthContext & { params?: Record<string, string> }
 ) => Promise<NextResponse | Response>
-
-function hashToken(raw: string): string {
-  return createHash("sha256").update(raw).digest("hex")
-}
 
 export function withAuth(handler: AuthenticatedHandler) {
   return async (
@@ -35,12 +30,11 @@ export function withAuth(handler: AuthenticatedHandler) {
 
     const authHeader = req.headers.get("Authorization")
     if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.slice(7)
-      if (token.startsWith("al_")) {
+      const raw = authHeader.slice(7)
+      if (raw.startsWith("al_")) {
         try {
           const db = createDb(cloudflareEnv.DB)
-          const hashed = hashToken(token)
-          const mt = await queries.machineToken.getMachineTokenByHash(db, hashed)
+          const mt = await queries.machineToken.getMachineTokenByToken(db, raw)
           if (!mt) {
             return NextResponse.json({ error: "invalid token" }, { status: 401 })
           }

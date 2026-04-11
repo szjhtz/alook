@@ -5,6 +5,7 @@ import { withAuth } from "@/lib/middleware/auth";
 import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
 import { DeregisterRequestSchema } from "@alook/shared";
 import { log } from "@/lib/logger";
+import { broadcastToUser } from "@/lib/broadcast";
 
 export const POST = withAuth(async (req: NextRequest, ctx) => {
   const { env } = getCloudflareContext()
@@ -31,6 +32,12 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       log.warn("Failed to set runtime offline", { runtimeId: id, err: e });
     }
   }
+
+  broadcastToUser(ctx.userId, {
+    type: "runtime.status",
+    runtimeIds: body.runtime_ids,
+    status: "offline",
+  }).catch(() => {});
 
   return writeJSON({ status: "ok" });
 });
