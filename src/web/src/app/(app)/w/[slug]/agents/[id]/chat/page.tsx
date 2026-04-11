@@ -71,7 +71,7 @@ export default function AgentChatPage() {
     try {
       const conversationId = await chatWithAgent(agentId);
       if (conversationId) {
-        router.push(`/w/${slug}/chat/${conversationId}?agent=${agentId}`);
+        router.push(`/w/${slug}/agents/${agentId}/chat/${conversationId}`);
       }
     } finally {
       setCreating(false);
@@ -148,12 +148,12 @@ export default function AgentChatPage() {
                   role="button"
                   tabIndex={0}
                   onClick={() =>
-                    router.push(`/w/${slug}/chat/${conv.id}?agent=${agentId}`)
+                    router.push(`/w/${slug}/agents/${agentId}/chat/${conv.id}`)
                   }
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      router.push(`/w/${slug}/chat/${conv.id}?agent=${agentId}`);
+                      router.push(`/w/${slug}/agents/${agentId}/chat/${conv.id}`);
                     }
                   }}
                   className="group w-full text-left rounded-lg border border-border/50 bg-background/50 px-4 py-3 transition-colors duration-200 hover:bg-accent/50 cursor-pointer"

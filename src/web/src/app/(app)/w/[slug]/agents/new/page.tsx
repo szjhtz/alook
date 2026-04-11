@@ -12,7 +12,6 @@ export default function CreateAgentPage() {
   const {
     runtimes,
     handleCreateAgent,
-    chatWithAgent,
     getFirstOnlineRuntimeId,
   } = useAgentContext();
 
@@ -42,12 +41,7 @@ export default function CreateAgentPage() {
               email_handle: data.email_handle || undefined,
             });
             if (agent) {
-              const conversationId = await chatWithAgent(agent.id);
-              if (conversationId) {
-                router.push(`/w/${slug}/chat/${conversationId}?agent=${agent.id}`);
-              } else {
-                router.push(`/w/${slug}/home`);
-              }
+              router.push(`/w/${slug}/agents/${agent.id}/chat`);
             }
             return !!agent;
           } finally {
