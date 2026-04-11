@@ -34,15 +34,25 @@ export function AppSidebar() {
 
   return (
     <nav className="flex h-full w-14 flex-col items-center py-2 gap-0.5">
-      {/* Logo — navigates to home */}
-      <button
-        type="button"
-        title="Home"
-        onClick={() => router.push(`${prefix}/home`)}
-        className="flex shrink-0 items-center justify-center size-10 mb-1 cursor-pointer transition-opacity hover:opacity-70"
-      >
-        <Logo size="sm" iconOnly />
-      </button>
+      {/* Top — logo + theme toggle */}
+      <div className="flex flex-col items-center gap-1 pb-2 border-b border-border/50 mb-1">
+        <button
+          type="button"
+          title="Home"
+          onClick={() => router.push(`${prefix}/home`)}
+          className="flex shrink-0 items-center justify-center size-10 cursor-pointer transition-opacity hover:opacity-70"
+        >
+          <Logo size="sm" iconOnly />
+        </button>
+        <button
+          type="button"
+          title="Toggle theme"
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          className="flex items-center justify-center size-10 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-colors duration-200 cursor-pointer"
+        >
+          <SunMoon className="size-4" />
+        </button>
+      </div>
 
       {/* Agent avatars */}
       <div className="flex flex-1 w-full flex-col items-center gap-1.5 overflow-y-auto py-1 scrollbar-none">
@@ -102,15 +112,6 @@ export function AppSidebar() {
           )}
         >
           <Monitor className="size-4" />
-        </button>
-
-        <button
-          type="button"
-          title="Toggle theme"
-          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-          className="flex items-center justify-center size-10 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-colors duration-200 cursor-pointer"
-        >
-          <SunMoon className="size-4" />
         </button>
 
         <button
