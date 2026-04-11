@@ -34,16 +34,11 @@ export function NavUser() {
           <button
             type="button"
             title={user.name ?? user.email ?? "Account"}
-            className="flex items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer hover:bg-accent"
+            className="flex items-center justify-center size-10 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-colors duration-200 cursor-pointer"
           />
         }
       >
-        <Avatar className="size-7">
-          {user.image && (
-            <AvatarImage src={user.image} alt={user.name ?? ""} />
-          )}
-          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-        </Avatar>
+        <LogOut className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         className="min-w-52 rounded-lg"
