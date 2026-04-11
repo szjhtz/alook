@@ -41,8 +41,23 @@ export function agentToResponse(a: any) {
     runtime_config: rc,
     status: a.status,
     max_concurrent_tasks: a.maxConcurrentTasks,
+    email_handle: a.emailHandle || null,
     created_at: formatTimestamp(a.createdAt),
     updated_at: formatTimestamp(a.updatedAt),
+  };
+}
+
+export function emailToResponse(e: any) {
+  return {
+    id: e.id,
+    agent_id: e.agentId,
+    from_email: e.fromEmail,
+    to_email: e.toEmail,
+    subject: e.subject,
+    r2_key: e.r2Key,
+    is_whitelisted: !!e.isWhitelisted,
+    forwarded: !!e.forwarded,
+    created_at: formatTimestamp(e.createdAt),
   };
 }
 
