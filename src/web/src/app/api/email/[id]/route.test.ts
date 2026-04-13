@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 const mockGetEmailById = vi.fn();
-const mockGetAgentInWorkspace = vi.fn();
+const mockGetAgent = vi.fn();
 const mockDeleteEmail = vi.fn();
 
 vi.mock("@opennextjs/cloudflare", () => ({
@@ -19,7 +19,7 @@ vi.mock("@alook/shared", () => ({
       deleteEmail: (...args: unknown[]) => mockDeleteEmail(...args),
     },
     agent: {
-      getAgentInWorkspace: (...args: unknown[]) => mockGetAgentInWorkspace(...args),
+      getAgent: (...args: unknown[]) => mockGetAgent(...args),
     },
   },
 }));
@@ -50,7 +50,7 @@ describe("DELETE /api/email/[id]", () => {
 
   it("deletes an email and returns 204", async () => {
     mockGetEmailById.mockResolvedValue({ id: "e1", agentId: "a1" });
-    mockGetAgentInWorkspace.mockResolvedValue({ id: "a1" });
+    mockGetAgent.mockResolvedValue({ id: "a1" });
     mockDeleteEmail.mockResolvedValue(undefined);
 
     const req = new NextRequest("http://localhost/api/email/e1?workspace_id=ws1", { method: "DELETE" });
@@ -71,7 +71,7 @@ describe("DELETE /api/email/[id]", () => {
 
   it("returns 404 when agent not in workspace", async () => {
     mockGetEmailById.mockResolvedValue({ id: "e1", agentId: "a1" });
-    mockGetAgentInWorkspace.mockResolvedValue(null);
+    mockGetAgent.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/email/e1?workspace_id=ws1", { method: "DELETE" });
     const res = await DELETE(req, { params: Promise.resolve({ id: "e1" }) } as any);

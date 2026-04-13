@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const mockGetAgentInWorkspace = vi.fn();
+const mockGetAgent = vi.fn();
 const mockCreateEmail = vi.fn();
 const mockR2Put = vi.fn();
 const mockR2Get = vi.fn();
@@ -27,7 +27,7 @@ vi.mock("@alook/shared", () => ({
       createEmail: (...args: unknown[]) => mockCreateEmail(...args),
     },
     agent: {
-      getAgentInWorkspace: (...args: unknown[]) => mockGetAgentInWorkspace(...args),
+      getAgent: (...args: unknown[]) => mockGetAgent(...args),
     },
   },
 }));
@@ -61,7 +61,7 @@ describe("POST /api/email/send", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("sends an email and returns the created record", async () => {
-    mockGetAgentInWorkspace.mockResolvedValue({ id: "a1", emailHandle: "test-agent" });
+    mockGetAgent.mockResolvedValue({ id: "a1", emailHandle: "test-agent" });
     mockCreateEmail.mockResolvedValue({
       id: "e1", agentId: "a1", fromEmail: "test-agent@alook.ai",
       toEmail: "user@example.com", subject: "Hello",
@@ -92,7 +92,7 @@ describe("POST /api/email/send", () => {
   });
 
   it("sends email with attachments as MIME multipart/mixed", async () => {
-    mockGetAgentInWorkspace.mockResolvedValue({ id: "a1", emailHandle: "test-agent" });
+    mockGetAgent.mockResolvedValue({ id: "a1", emailHandle: "test-agent" });
     mockCreateEmail.mockResolvedValue({ id: "e1" });
     mockR2Put.mockResolvedValue(undefined);
     mockSendEmailSend.mockResolvedValue({ messageId: "msg1" });
@@ -130,7 +130,7 @@ describe("POST /api/email/send", () => {
   });
 
   it("skips missing R2 attachments gracefully", async () => {
-    mockGetAgentInWorkspace.mockResolvedValue({ id: "a1", emailHandle: "test-agent" });
+    mockGetAgent.mockResolvedValue({ id: "a1", emailHandle: "test-agent" });
     mockCreateEmail.mockResolvedValue({ id: "e1" });
     mockR2Put.mockResolvedValue(undefined);
     mockSendEmailSend.mockResolvedValue({ messageId: "msg1" });
@@ -154,7 +154,7 @@ describe("POST /api/email/send", () => {
   });
 
   it("returns 400 when agent has no emailHandle", async () => {
-    mockGetAgentInWorkspace.mockResolvedValue({ id: "a1", emailHandle: null });
+    mockGetAgent.mockResolvedValue({ id: "a1", emailHandle: null });
 
     const req = new NextRequest("http://localhost/api/email/send?workspace_id=ws1", {
       method: "POST",
@@ -171,7 +171,7 @@ describe("POST /api/email/send", () => {
   });
 
   it("returns 404 when agent not in workspace", async () => {
-    mockGetAgentInWorkspace.mockResolvedValue(null);
+    mockGetAgent.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/email/send?workspace_id=ws1", {
       method: "POST",
