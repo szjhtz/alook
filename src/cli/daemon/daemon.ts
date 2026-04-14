@@ -294,10 +294,10 @@ async function runTask(
         output: msg.output,
       });
 
-      // Context timeline — record assistant text messages as steps
+      // Context timeline — record assistant text messages
       if (msg.type === "text" && msg.content) {
         updateEntry(timelineDir, task.id, (entry) => {
-          entry.steps.push(msg.content!);
+          entry.agent_responses.push(msg.content!);
         });
       }
 
@@ -334,7 +334,6 @@ async function runTask(
       entry.session_id = result.sessionId || null;
       entry.pid = null;
       entry.status = "completed";
-      entry.response = result.output || null;
     });
   } else {
     updateEntry(timelineDir, task.id, (entry) => {

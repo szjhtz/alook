@@ -28,8 +28,7 @@ export interface ContextTimelineEntry {
   datetime: string;
   type: string;
   prompt: string;
-  steps: string[];
-  response: string | null;
+  agent_responses: string[];
   errmsg: string | null;
 }
 
@@ -202,8 +201,7 @@ export function createTimelineEntry(
     datetime: localISOString(),
     type: "user_dm_message",
     prompt,
-    steps: [],
-    response: null,
+    agent_responses: [],
     errmsg: null,
   };
 }

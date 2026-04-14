@@ -44,8 +44,7 @@ Each line is a JSON object with these fields:
 - "datetime" — when the task started (local timezone)
 - "type" — always "user_dm_message"
 - "prompt" — what the user asked
-- "steps" — assistant text outputs during execution
-- "response" — final response (null if running or failed)
+- "agent_responses" — assistant text outputs during execution
 - "errmsg" — error message (null unless status is "failed")
 
 ## RULES

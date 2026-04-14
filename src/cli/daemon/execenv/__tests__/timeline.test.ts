@@ -54,8 +54,7 @@ describe("timeline", () => {
     expect(entries[0].status).toBe("running");
     expect(entries[0].prompt).toBe("do something");
     expect(entries[0].type).toBe("user_dm_message");
-    expect(entries[0].steps).toEqual([]);
-    expect(entries[0].response).toBeNull();
+    expect(entries[0].agent_responses).toEqual([]);
     expect(entries[0].errmsg).toBeNull();
   });
 
@@ -73,11 +72,11 @@ describe("timeline", () => {
     initEntry(dir, entry);
 
     updateEntry(dir, "t_abc", (e) => {
-      e.steps.push("Step 1: Looking at the code...");
+      e.agent_responses.push("Step 1: Looking at the code...");
     });
 
     const entries = readEntries();
-    expect(entries[0].steps).toEqual(["Step 1: Looking at the code..."]);
+    expect(entries[0].agent_responses).toEqual(["Step 1: Looking at the code..."]);
   });
 
   it("updateEntry sets completion fields correctly", () => {
@@ -88,14 +87,12 @@ describe("timeline", () => {
       e.session_id = "sess_123";
       e.pid = null;
       e.status = "completed";
-      e.response = "Done! Here is the result.";
     });
 
     const entries = readEntries();
     expect(entries[0].session_id).toBe("sess_123");
     expect(entries[0].pid).toBeNull();
     expect(entries[0].status).toBe("completed");
-    expect(entries[0].response).toBe("Done! Here is the result.");
     expect(entries[0].errmsg).toBeNull();
   });
 
@@ -113,7 +110,6 @@ describe("timeline", () => {
     expect(entries[0].pid).toBeNull();
     expect(entries[0].status).toBe("failed");
     expect(entries[0].errmsg).toBe("something went wrong");
-    expect(entries[0].response).toBeNull();
   });
 
   it("multiple entries for different task_ids coexist in same file", () => {
@@ -131,29 +127,29 @@ describe("timeline", () => {
     initEntry(dir, createTimelineEntry("t_2", "second task"));
 
     updateEntry(dir, "t_2", (e) => {
-      e.steps.push("Working on second task");
+      e.agent_responses.push("Working on second task");
     });
 
     const entries = readEntries();
-    expect(entries[0].steps).toEqual([]);
-    expect(entries[1].steps).toEqual(["Working on second task"]);
+    expect(entries[0].agent_responses).toEqual([]);
+    expect(entries[1].agent_responses).toEqual(["Working on second task"]);
   });
 
   it("timeline operations are best-effort — errors don't propagate", () => {
     // updateEntry on a non-existent directory should not throw
-    expect(() => updateEntry("/nonexistent/path", "t_1", (e) => { e.steps.push("x"); })).not.toThrow();
+    expect(() => updateEntry("/nonexistent/path", "t_1", (e) => { e.agent_responses.push("x"); })).not.toThrow();
   });
 
   it("updateEntry is a no-op when task_id not found", () => {
     initEntry(dir, createTimelineEntry("t_1", "task"));
 
     updateEntry(dir, "t_nonexistent", (e) => {
-      e.steps.push("should not happen");
+      e.agent_responses.push("should not happen");
     });
 
     const entries = readEntries();
     expect(entries).toHaveLength(1);
-    expect(entries[0].steps).toEqual([]);
+    expect(entries[0].agent_responses).toEqual([]);
   });
 
   it("datetime is local timezone with UTC offset", () => {
@@ -195,12 +191,12 @@ describe("timeline", () => {
 
     // updateEntry should find it even though it's not in today's file
     updateEntry(dir, "t_old", (e) => {
-      e.steps.push("Updated across midnight");
+      e.agent_responses.push("Updated across midnight");
     });
 
     const content = readFileSync(filePath, "utf-8");
     const updated: ContextTimelineEntry = JSON.parse(content.trimEnd());
-    expect(updated.steps).toEqual(["Updated across midnight"]);
+    expect(updated.agent_responses).toEqual(["Updated across midnight"]);
   });
 
   it("updateEntry stops at first match and does not modify older files", () => {
@@ -216,16 +212,16 @@ describe("timeline", () => {
     writeFileSync(yesterdayFile, JSON.stringify(entryYesterday) + "\n");
 
     updateEntry(dir, "t_dup", (e) => {
-      e.response = "done";
+      e.status = "completed";
     });
 
     // Today's file should be updated
     const todayParsed: ContextTimelineEntry = JSON.parse(readFileSync(todayFile, "utf-8").trimEnd());
-    expect(todayParsed.response).toBe("done");
+    expect(todayParsed.status).toBe("completed");
 
     // Yesterday's should be untouched
     const yesterdayParsed: ContextTimelineEntry = JSON.parse(readFileSync(yesterdayFile, "utf-8").trimEnd());
-    expect(yesterdayParsed.response).toBeNull();
+    expect(yesterdayParsed.status).toBe("running");
   });
 
   it("updateEntry is a no-op when task_id not found in any day", () => {
@@ -237,12 +233,12 @@ describe("timeline", () => {
 
     // Should not throw, just silently no-op
     updateEntry(dir, "t_nonexistent", (e) => {
-      e.steps.push("nope");
+      e.agent_responses.push("nope");
     });
 
     // Verify nothing changed
     const todayEntries = JSON.parse(readFileSync(join(dir, _todayFilename()), "utf-8").trimEnd());
-    expect(todayEntries.steps).toEqual([]);
+    expect(todayEntries.agent_responses).toEqual([]);
   });
 
   describe("findResumableSessionId", () => {
@@ -262,8 +258,7 @@ describe("timeline", () => {
         datetime: new Date().toISOString(),
         type: "user_dm_message",
         prompt: "test",
-        steps: [],
-        response: null,
+        agent_responses: [],
         errmsg: null,
         ...overrides,
       };

@@ -160,7 +160,7 @@
   bottom: -180px;
   right: -150px;
   border-radius: 68% 32% 25% 75% / 38% 72% 28% 62%;
-  background: oklch(0.88 0.10 85);
+  background: oklch(0.90 0.06 250);
   animation: blob-drift-2 30s ease-in-out infinite;
 }
 
