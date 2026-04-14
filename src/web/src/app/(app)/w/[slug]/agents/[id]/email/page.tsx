@@ -202,10 +202,10 @@ export default function AgentEmailPage() {
       </div>
 
       {/* Column 2: Email list */}
-      <div className="w-[300px] shrink-0 border-r border-border/40 overflow-y-auto">
+      <div className={cn("w-[300px] shrink-0 border-r border-border/40", emails.length > 0 && !loading ? "overflow-y-auto" : "overflow-hidden")}>
         {loading ? (
           <>
-            {Array.from({ length: 5 }).map((_, i) => (
+            {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="px-4 py-3 border-b border-border/30">
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <Skeleton className="h-3.5 w-32" />

@@ -19,6 +19,7 @@ import {
   FieldSeparator,
 } from "@/components/ui/field"
 import { SiGithub, SiGoogle } from "@icons-pack/react-simple-icons"
+import { GradientBackground } from "@/components/gradient-background"
 
 const isProd = process.env.NEXTJS_ENV === "production"
 
@@ -267,7 +268,8 @@ function PasswordSignIn() {
 
 export default function SignInPage() {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10">
+    <div className="relative flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
+      <GradientBackground />
       <div className="w-full max-w-sm md:max-w-4xl">
         <div className="flex flex-col gap-6">
           <Card className="overflow-hidden p-0">
