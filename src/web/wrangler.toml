@@ -3,9 +3,6 @@ main = ".open-next/worker.js"
 compatibility_date = "2026-04-09"
 compatibility_flags = ["nodejs_compat"]
 
-[vars]
-AUTH_MODE = "otp"
-
 # OpenNext required bindings
 [assets]
 directory = ".open-next/assets"

@@ -17,7 +17,3 @@ GITHUB_CLIENT_SECRET=
 # Google OAuth (https://console.cloud.google.com/apis/credentials)
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-
-# Override wrangler.toml's AUTH_MODE=otp for local dev
-# "password" enables email+password auth, "otp" enables email OTP
-AUTH_MODE=password
