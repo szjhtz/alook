@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth"
 import { emailOTP } from "better-auth/plugins"
+import { getOtpSubject, renderOtpEmail } from "./email-templates"
 
 const isProduction = (env: Env) => env.NEXTJS_ENV === "production"
 
@@ -26,8 +27,12 @@ export function createAuth(env: Env) {
       ? [
           emailOTP({
             async sendVerificationOTP({ email, otp, type }) {
-              // TODO: Wire up your email provider (Resend, SES, SMTP, etc.)
-              console.log(`[OTP] type=${type} email=${email} otp=${otp}`)
+              await env.SEND_EMAIL.send({
+                from: "no-reply@alook.ai",
+                to: email,
+                subject: getOtpSubject(type),
+                html: renderOtpEmail(otp, type),
+              })
             },
           }),
         ]
