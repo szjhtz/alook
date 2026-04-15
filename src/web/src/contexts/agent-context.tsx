@@ -15,7 +15,6 @@ import {
   createAgent,
   updateAgent,
   deleteAgent,
-  createConversation,
   createMachineToken,
   deleteMachine,
   type Runtime,
@@ -40,7 +39,6 @@ interface AgentContextValue {
   handleCreateAgent: (req: CreateAgentRequest) => Promise<Agent | null>;
   handleUpdateAgent: (id: string, req: UpdateAgentRequest) => Promise<boolean>;
   handleDeleteAgent: (id: string) => Promise<boolean>;
-  chatWithAgent: (agentId: string) => Promise<string | null>;
   getFirstOnlineRuntimeId: () => string;
   handleGenerateToken: () => Promise<string | null>;
   handleDeleteMachine: (daemonId: string) => Promise<boolean>;
@@ -180,21 +178,6 @@ export function AgentProvider({
     [reload, workspaceId]
   );
 
-  const chatWithAgent = useCallback(
-    async (agentId: string): Promise<string | null> => {
-      try {
-        const conversation = await createConversation(agentId, workspaceId);
-        return conversation.id;
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Failed to start conversation"
-        );
-        return null;
-      }
-    },
-    [workspaceId]
-  );
-
   const getFirstOnlineRuntimeId = useCallback(() => {
     const first = runtimes.find((r) => r.status === "online");
     return first?.id ?? "";
@@ -239,7 +222,6 @@ export function AgentProvider({
         handleCreateAgent,
         handleUpdateAgent,
         handleDeleteAgent,
-        chatWithAgent,
         getFirstOnlineRuntimeId,
         handleGenerateToken,
         handleDeleteMachine,

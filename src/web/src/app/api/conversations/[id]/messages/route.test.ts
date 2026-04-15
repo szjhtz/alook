@@ -76,7 +76,70 @@ describe("GET /api/conversations/[id]/messages", () => {
       { id: "m1", content: "Hello" },
       { id: "m2", content: "World" },
     ]);
-    expect(mockListMessages).toHaveBeenCalledWith({}, "c1");
+    expect(mockListMessages).toHaveBeenCalledWith({}, "c1", {
+      limit: undefined,
+      before: undefined,
+      beforeId: undefined,
+    });
+  });
+
+  it("passes limit and before params when provided", async () => {
+    const conv = { id: "c1", workspaceId: "w1", agentId: "a1" };
+    mockGetConversation.mockResolvedValue(conv);
+    mockListMessages.mockResolvedValue([]);
+
+    const res = await GET(
+      new NextRequest(
+        "http://localhost/api/conversations/c1/messages?workspace_id=w1&limit=5&before=2024-01-01T00:00:00.000Z"
+      ),
+      withParams("c1")
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockListMessages).toHaveBeenCalledWith({}, "c1", {
+      limit: 5,
+      before: "2024-01-01T00:00:00.000Z",
+      beforeId: undefined,
+    });
+  });
+
+  it("passes before_id param for compound cursor", async () => {
+    const conv = { id: "c1", workspaceId: "w1", agentId: "a1" };
+    mockGetConversation.mockResolvedValue(conv);
+    mockListMessages.mockResolvedValue([]);
+
+    const res = await GET(
+      new NextRequest(
+        "http://localhost/api/conversations/c1/messages?workspace_id=w1&before=2024-01-01T00:00:00.000Z&before_id=m5"
+      ),
+      withParams("c1")
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockListMessages).toHaveBeenCalledWith({}, "c1", {
+      limit: undefined,
+      before: "2024-01-01T00:00:00.000Z",
+      beforeId: "m5",
+    });
+  });
+
+  it("clamps limit to max 100", async () => {
+    const conv = { id: "c1", workspaceId: "w1", agentId: "a1" };
+    mockGetConversation.mockResolvedValue(conv);
+    mockListMessages.mockResolvedValue([]);
+
+    await GET(
+      new NextRequest(
+        "http://localhost/api/conversations/c1/messages?workspace_id=w1&limit=999"
+      ),
+      withParams("c1")
+    );
+
+    expect(mockListMessages).toHaveBeenCalledWith({}, "c1", {
+      limit: 100,
+      before: undefined,
+      beforeId: undefined,
+    });
   });
 });
 

@@ -142,11 +142,27 @@ export const getConversation = (id: string, workspaceId: string) =>
 export const listAgentConversations = (agentId: string, workspaceId: string) =>
   apiFetch<Conversation[]>(`/api/agents/${agentId}/conversations${wsQuery(workspaceId)}`);
 
+export const getOrCreateAgentConversation = (agentId: string, workspaceId: string) =>
+  apiFetch<Conversation>(`/api/agents/${agentId}/conversation${wsQuery(workspaceId)}`, {
+    method: "POST",
+  });
+
 export const deleteConversation = (id: string, workspaceId: string) =>
   apiFetch<void>(`/api/conversations/${id}${wsQuery(workspaceId)}`, { method: "DELETE" });
 
-export const listMessages = (conversationId: string, workspaceId: string) =>
-  apiFetch<Message[]>(`/api/conversations/${conversationId}/messages${wsQuery(workspaceId)}`);
+export const listMessages = (
+  conversationId: string,
+  workspaceId: string,
+  opts?: { limit?: number; before?: string; beforeId?: string }
+) => {
+  const extra: Record<string, string> = {};
+  if (opts?.limit) extra.limit = String(opts.limit);
+  if (opts?.before) extra.before = opts.before;
+  if (opts?.beforeId) extra.before_id = opts.beforeId;
+  return apiFetch<Message[]>(
+    `/api/conversations/${conversationId}/messages${wsQuery(workspaceId, extra)}`
+  );
+};
 
 export const sendMessage = (conversationId: string, content: string, workspaceId: string) =>
   apiFetch<{ message: Message; task: Task }>(

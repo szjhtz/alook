@@ -90,6 +90,43 @@ export async function updateConversationTitle(
   return rows[0] ?? null;
 }
 
+export async function getOrCreateAgentConversation(
+  db: Database,
+  workspaceId: string,
+  userId: string,
+  agentId: string
+) {
+  // Find the most recent conversation for this user+agent+workspace
+  const rows = await db
+    .select()
+    .from(conversation)
+    .where(
+      and(
+        eq(conversation.workspaceId, workspaceId),
+        eq(conversation.userId, userId),
+        eq(conversation.agentId, agentId)
+      )
+    )
+    .orderBy(desc(conversation.createdAt))
+    .limit(1);
+
+  if (rows.length > 0) {
+    return rows[0]!;
+  }
+
+  // No conversation exists — create one
+  const created = await db
+    .insert(conversation)
+    .values({
+      workspaceId,
+      agentId,
+      userId,
+      title: "",
+    })
+    .returning();
+  return created[0]!;
+}
+
 export async function deleteConversation(db: Database, id: string, workspaceId: string) {
   const rows = await db
     .delete(conversation)

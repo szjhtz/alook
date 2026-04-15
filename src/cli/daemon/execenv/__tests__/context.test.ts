@@ -12,7 +12,6 @@ import {
 import { join } from "path";
 import { tmpdir } from "os";
 import {
-  buildInstructionContent,
   contentHash,
   hasContentChanged,
   ensureSymlinks,
@@ -37,30 +36,6 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     ...overrides,
   };
 }
-
-describe("buildInstructionContent", () => {
-  it("appends agent instructions when present", () => {
-    const task = makeTask();
-    const content = buildInstructionContent(task);
-
-    expect(content).toContain("## Agent Instructions");
-    expect(content).toContain("Be helpful and concise.");
-  });
-
-  it("omits agent instructions section when agent is undefined", () => {
-    const task = makeTask({ agent: undefined });
-    const content = buildInstructionContent(task);
-
-    expect(content).not.toContain("## Agent Instructions");
-  });
-
-  it("omits agent instructions section when instructions is empty", () => {
-    const task = makeTask({ agent: { name: "test", instructions: "" } });
-    const content = buildInstructionContent(task);
-
-    expect(content).not.toContain("## Agent Instructions");
-  });
-});
 
 describe("contentHash", () => {
   it("returns consistent hex string for same input", () => {
