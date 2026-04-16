@@ -9,6 +9,7 @@ import { initEntryAsync, updateEntry, createTimelineEntry, localISOString, findR
 import { loadCLIConfigForProfile } from "../lib/config.js";
 import { log } from "../lib/logger.js";
 import { cmdPrefix } from "../lib/env.js";
+import { acquireDaemonPid, releaseDaemonPid } from "./pidfile.js";
 import { createWriteStream } from "fs";
 import { execSync } from "child_process";
 
@@ -37,6 +38,10 @@ export async function startDaemon(
   profile?: string,
   serverUrl?: string,
 ): Promise<void> {
+  if (!acquireDaemonPid(profile)) {
+    process.exit(1);
+  }
+
   const config = loadDaemonConfig(profile);
   if (serverUrl) config.serverURL = serverUrl;
 
@@ -183,6 +188,7 @@ export async function startDaemon(
       // best-effort deregister
     }
     clearTimeout(timeout);
+    releaseDaemonPid(profile);
     health.server.close();
     process.exit(0);
   };

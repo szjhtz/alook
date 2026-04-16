@@ -2,6 +2,11 @@ import { hostname } from "os";
 import { join } from "path";
 import { configDir } from "../lib/config.js";
 
+export function pidFilePath(profile?: string): string {
+  const name = profile ? `daemon_${profile}.pid` : "daemon.pid";
+  return join(configDir(), name);
+}
+
 function parseDuration(s: string): number {
   if (!s) return 0;
   let total = 0;

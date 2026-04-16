@@ -53,6 +53,11 @@ vi.mock("../lib/config.js", () => ({
   })),
 }));
 
+vi.mock("./pidfile.js", () => ({
+  acquireDaemonPid: vi.fn(() => true),
+  releaseDaemonPid: vi.fn(),
+}));
+
 vi.mock("child_process", () => ({
   execSync: vi.fn(),
 }));
