@@ -10,7 +10,7 @@ import { TypewriterVisual } from "@/components/typewriter-visual";
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
 
-export function HeroSection() {
+export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const sublineRef = useRef<HTMLParagraphElement>(null);
@@ -197,7 +197,7 @@ export function HeroSection() {
         </div>
 
         {/* CTA */}
-        <div ref={ctaRef} className="mt-8">
+        <div ref={ctaRef} className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <a
             href="https://github.com/alookai/alook"
             className="inline-flex items-center gap-2 px-6 py-2.5 text-sm transition-all duration-200 hover:opacity-80"
@@ -213,6 +213,25 @@ export function HeroSection() {
             </svg>
             VIEW SOURCE ON GITHUB
           </a>
+          {isLoggedIn && (
+            <a
+              href="/workspaces?auto"
+              className="inline-flex items-center gap-2 px-6 py-2.5 text-sm transition-all duration-200 hover:opacity-80"
+              style={{
+                fontFamily: "var(--font-mono)",
+                color: "var(--landing-text)",
+                border: "1px solid var(--landing-text)",
+                letterSpacing: "0.05em",
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                <polyline points="10 17 15 12 10 7" />
+                <line x1="15" y1="12" x2="3" y2="12" />
+              </svg>
+              DASHBOARD
+            </a>
+          )}
         </div>
       </div>
     </section>

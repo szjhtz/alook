@@ -57,7 +57,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
       style={{ backgroundColor: "var(--landing-bg)" }}
     >
       <MarketingNav isLoggedIn={isLoggedIn} />
-      <HeroSection />
+      <HeroSection isLoggedIn={isLoggedIn} />
       <FeatureShowcase />
       <ArchitectureOverview />
       <MarketingFooter />
