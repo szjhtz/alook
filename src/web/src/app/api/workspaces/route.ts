@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { createDb, queries, isUniqueConstraintError } from "@alook/shared"
+import { nanoid } from "nanoid"
 import { withAuth } from "@/lib/middleware/auth";
 import { writeJSON, writeError } from "@/lib/middleware/helpers";
 import { workspaceToResponse } from "@/lib/api/responses";
@@ -34,18 +35,24 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     return writeError("slug is required", 400);
   }
 
-  try {
-    const ws = await queries.workspace.createWorkspace(db, { name, slug });
-    await queries.member.createMember(db, {
-      workspaceId: ws.id,
-      userId: ctx.userId,
-      role: "owner",
-    });
-    return writeJSON(workspaceToResponse(ws), 201);
-  } catch (err: unknown) {
-    if (isUniqueConstraintError(err)) {
-      return writeError("workspace slug already exists", 409);
+  const suffixLengths = [4, 4, 4, 8, 8, 8, 16, 16, 16];
+  let candidateSlug = slug;
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const ws = await queries.workspace.createWorkspace(db, { name, slug: candidateSlug });
+      await queries.member.createMember(db, {
+        workspaceId: ws.id,
+        userId: ctx.userId,
+        role: "owner",
+      });
+      return writeJSON(workspaceToResponse(ws), 201);
+    } catch (err: unknown) {
+      if (!isUniqueConstraintError(err)) throw err;
+      if (attempt >= suffixLengths.length) {
+        return writeError("workspace slug already exists", 409);
+      }
+      candidateSlug = `${slug}-${nanoid(suffixLengths[attempt])}`;
     }
-    throw err;
   }
 });

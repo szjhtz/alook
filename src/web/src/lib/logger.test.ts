@@ -70,6 +70,37 @@ describe("Logger", () => {
     expect(serialized.message).toBe("bad input");
   });
 
+  it("pretty mode outputs human-readable line with datetime", () => {
+    const logger = new Logger({ service: "web", pretty: true });
+    logger.info("hello");
+
+    const line = logSpy.mock.calls[0][0] as string;
+    expect(line.startsWith("{")).toBe(false);
+    expect(line).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
+    expect(line).toContain("INFO");
+    expect(line).toContain("[web]");
+    expect(line).toContain("hello");
+  });
+
+  it("pretty mode includes context fields as key=value pairs", () => {
+    const logger = new Logger({ service: "web", pretty: true });
+    logger.info("request", { method: "GET", status: 200 });
+
+    const line = logSpy.mock.calls[0][0] as string;
+    expect(line).toContain("method=GET");
+    expect(line).toContain("status=200");
+  });
+
+  it("pretty mode errors go to console.error", () => {
+    const logger = new Logger({ service: "web", pretty: true });
+    logger.error("boom");
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const line = errorSpy.mock.calls[0][0] as string;
+    expect(line).toContain("ERROR");
+    expect(line).toContain("boom");
+  });
+
   it("silent level suppresses all output", () => {
     const logger = new Logger({ service: "web", level: "silent" });
     logger.debug("nope");

@@ -40,13 +40,18 @@ describe("workspace", () => {
     workspaceId = data.id as string
   })
 
-  it("POST /api/workspaces rejects duplicate slug", async () => {
+  it("POST /api/workspaces auto-suffixes duplicate slug", async () => {
     const res = await sessionRequest("/api/workspaces", cookie, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Dup Workspace", slug }),
     })
-    expect(res.status).toBe(409)
+    expect(res.status).toBe(201)
+    const data = await res.json() as Record<string, unknown>
+    expect(data.name).toBe("Dup Workspace")
+    // Slug should start with the original slug but have a suffix
+    expect(data.slug).not.toBe(slug)
+    expect((data.slug as string).startsWith(`${slug}-`)).toBe(true)
   })
 
   it("GET /api/workspaces lists user's workspaces", async () => {

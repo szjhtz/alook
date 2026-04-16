@@ -11,16 +11,19 @@ const LEVELS: Record<LogLevel, number> = {
 export interface LoggerOptions {
   service: string
   level?: LogLevel
+  pretty?: boolean
 }
 
 export class Logger {
   private readonly service: string
   private readonly level: number
+  private readonly pretty: boolean
   private readonly fields: Record<string, unknown>
 
   constructor(opts: LoggerOptions, fields?: Record<string, unknown>) {
     this.service = opts.service
     this.level = LEVELS[opts.level ?? "info"]
+    this.pretty = opts.pretty ?? false
     this.fields = fields ?? {}
   }
 
@@ -43,7 +46,7 @@ export class Logger {
   child(fields: Record<string, unknown>): Logger {
     const merged = { ...this.fields, ...fields }
     const child = new Logger(
-      { service: this.service, level: this.levelName() },
+      { service: this.service, level: this.levelName(), pretty: this.pretty },
       merged,
     )
     return child
@@ -78,7 +81,19 @@ export class Logger {
       }
     }
 
-    const line = JSON.stringify(entry)
+    let line: string
+    if (this.pretty) {
+      const ts = (entry.ts as string).replace("T", " ").replace("Z", "")
+      const lvl = (entry.level as string).toUpperCase().padEnd(5)
+      const pairs = Object.entries(entry)
+        .filter(([k]) => k !== "level" && k !== "msg" && k !== "service" && k !== "ts")
+        .map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`)
+        .join(" ")
+      line = `${ts} ${lvl} [${entry.service}] ${entry.msg}${pairs ? " " + pairs : ""}`
+    } else {
+      line = JSON.stringify(entry)
+    }
+
     if (level === "error") {
       console.error(line)
     } else {

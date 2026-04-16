@@ -1,0 +1,44 @@
+const SUPPRESSED_WARNINGS = [
+  "[Better Auth]:",
+]
+
+export function register() {
+  if (process.env.NODE_ENV !== "development") return
+
+  // Patch stdout.write to prepend timestamps to Next.js dev request logs.
+  // Use Function constructor to access process.stdout without the Edge bundler
+  // statically detecting the Node.js API reference.
+  try {
+    const getStdout = new Function("return process.stdout") as () => typeof process.stdout
+    const stdout = getStdout()
+    if (typeof stdout?.write === "function") {
+      const origWrite = stdout.write.bind(stdout)
+      const REQUEST_LOG_RE = /^ +(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) /
+
+      function timestamp(): string {
+        return new Date().toISOString().replace("T", " ").replace("Z", "")
+      }
+
+      stdout.write = (
+        chunk: Uint8Array | string,
+        ...rest: unknown[]
+      ): boolean => {
+        const str = typeof chunk === "string" ? chunk : Buffer.from(chunk).toString()
+        if (REQUEST_LOG_RE.test(str)) {
+          return (origWrite as Function)(`${timestamp()}${str}`, ...rest)
+        }
+        return (origWrite as Function)(chunk, ...rest)
+      }
+    }
+  } catch {
+    // Edge Runtime — no process.stdout, skip patching
+  }
+
+  // Suppress noisy third-party warnings in dev
+  const origWarn = console.warn
+  console.warn = (...args: unknown[]) => {
+    const first = typeof args[0] === "string" ? args[0] : ""
+    if (SUPPRESSED_WARNINGS.some((s) => first.includes(s))) return
+    origWarn(...args)
+  }
+}
