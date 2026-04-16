@@ -7,7 +7,7 @@
     "test": "turbo run test",
     "predev": "[ -f src/web/.dev.vars ] || (cp src/web/.dev.vars.example src/web/.dev.vars && sed -i '' \"s|^BETTER_AUTH_SECRET=$|BETTER_AUTH_SECRET=$(openssl rand -base64 32)|\" src/web/.dev.vars && echo '✓ Generated src/web/.dev.vars (fill in OAuth keys if needed)')",
     "dev": "turbo run dev --filter='!@alook/cli'",
-    "clean": "rm -rf node_modules src/*/node_modules src/*/dist src/*/.turbo .turbo src/web/.next src/web/.open-next src/*/.wrangler",
+    "clean": "rm -rf node_modules src/*/node_modules src/*/dist src/*/.turbo .turbo src/web/.next src/web/.open-next src/*/.wrangler .alook",
     "clean:builds": "rm -rf src/*/dist src/web/.next src/web/.open-next .turbo src/*/.turbo",
     "reinstall": "pnpm run clean && pnpm install",
     "typecheck": "turbo run typecheck",
