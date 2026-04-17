@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -69,7 +69,10 @@ export interface CalendarEventSheetProps {
     event: CalendarEvent,
     patch: UpdateCalendarEventRequest
   ) => Promise<void>;
-  onDelete?: (event: CalendarEvent) => void;
+  onDelete?: (
+    event: CalendarEvent,
+    args?: { scope?: "this" | "following"; occurrence_at?: string }
+  ) => void;
 }
 
 function pad(n: number) {
@@ -138,6 +141,11 @@ interface RecurringScopeDialogProps {
   onOpenChange: (o: boolean) => void;
   onConfirm: (scope: "this" | "following") => void;
   loading?: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  loadingLabel: string;
+  confirmVariant?: "default" | "destructive";
 }
 
 function RecurringScopeDialog({
@@ -145,6 +153,11 @@ function RecurringScopeDialog({
   onOpenChange,
   onConfirm,
   loading,
+  title,
+  description,
+  confirmLabel,
+  loadingLabel,
+  confirmVariant = "default",
 }: RecurringScopeDialogProps) {
   const [scope, setScope] = useState<"this" | "following">("this");
   useEffect(() => {
@@ -155,10 +168,8 @@ function RecurringScopeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>Update recurring event</DialogTitle>
-          <DialogDescription>
-            How should this change apply?
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5 py-1">
           {(
@@ -205,10 +216,11 @@ function RecurringScopeDialog({
           </Button>
           <Button
             size="sm"
+            variant={confirmVariant}
             onClick={() => onConfirm(scope)}
             disabled={loading}
           >
-            {loading ? "Saving..." : "Update"}
+            {loading ? loadingLabel : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -240,6 +252,18 @@ export function CalendarEventSheet({
   const [repeat, setRepeat] = useState("");
   const [stopDate, setStopDate] = useState<Date | null>(null);
   const [scopeOpen, setScopeOpen] = useState(false);
+  const [deleteScopeOpen, setDeleteScopeOpen] = useState(false);
+  const descriptionRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
+
+  const focusDescription = () => {
+    // TipTap renders its ProseMirror root as [contenteditable="true"] inside
+    // the wrapper — there's no public ref, so query for it on demand.
+    const node = descriptionRef.current?.querySelector<HTMLElement>(
+      '[contenteditable="true"]'
+    );
+    node?.focus();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -393,6 +417,52 @@ export function CalendarEventSheet({
     setScopeOpen(false);
   };
 
+  const handleDeleteClick = () => {
+    if (!event) return;
+    if (event.repeat_interval) {
+      setDeleteScopeOpen(true);
+      return;
+    }
+    onDelete?.(event);
+  };
+
+  const handleDeleteScopeConfirm = (scope: "this" | "following") => {
+    if (!event) return;
+    onDelete?.(event, {
+      scope,
+      occurrence_at: event.occurrence_at ?? undefined,
+    });
+    setDeleteScopeOpen(false);
+  };
+
+  // Shift+Enter submits from anywhere in the sheet — including inside the
+  // description editor, where TipTap would otherwise insert a hard break.
+  // Capture-phase so we beat the editor's keydown handler.
+  const handleSubmitShortcut = (e: React.KeyboardEvent) => {
+    if (e.key !== "Enter" || !e.shiftKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (mode === "create") {
+      formRef.current?.requestSubmit();
+    } else {
+      void handleEditSave();
+    }
+  };
+
+  // Inline kbd hint rendered inside the submit button. Uses the button's own
+  // foreground colour at reduced opacity so it reads on the primary fill in
+  // both themes without needing a separate palette.
+  const inlineSubmitHint = (
+    <kbd
+      aria-hidden
+      className="mr-1 hidden sm:inline-flex items-center gap-0.5 font-sans font-medium leading-none opacity-60"
+    >
+      <span>⇧</span>
+      <span>+</span>
+      <span>⏎</span>
+    </kbd>
+  );
+
   const a11yTitle = mode === "edit"
     ? title.trim() || "Untitled event"
     : title.trim() || "New calendar event";
@@ -402,12 +472,21 @@ export function CalendarEventSheet({
       aria-label="Event title"
       value={title}
       onChange={(e) => setTitle(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          // Input is single-line, so Enter would otherwise submit the create
+          // form. Intercept and move focus into the description editor — a
+          // Notion-like flow the user expects after naming the event.
+          e.preventDefault();
+          focusDescription();
+        }
+      }}
       placeholder={mode === "edit" ? "Untitled event" : "New event"}
       autoFocus={mode === "create"}
       className={cn(
-        "h-auto border-0 bg-transparent px-0 py-0 font-display text-3xl font-semibold leading-tight",
+        "h-auto rounded-none border-0 bg-transparent px-0 py-0 font-news text-4xl md:text-5xl font-medium leading-[1.1] tracking-tight",
         "shadow-none focus-visible:border-0 focus-visible:ring-0 focus-visible:ring-offset-0",
-        "placeholder:text-muted-foreground/40"
+        "placeholder:text-muted-foreground/40 placeholder:font-normal"
       )}
     />
   );
@@ -468,7 +547,14 @@ export function CalendarEventSheet({
         <select
           aria-label="Repeat"
           value={repeat}
-          onChange={(e) => setRepeat(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setRepeat(next);
+            // Stop date only makes sense with a repeat interval. Clearing
+            // the interval hides the row but must also drop the underlying
+            // state so validation / patch-building don't see stale values.
+            if (!next) setStopDate(null);
+          }}
           className={GHOST_SELECT}
         >
           {REPEAT_OPTIONS.map((o) => (
@@ -484,6 +570,7 @@ export function CalendarEventSheet({
           <CalendarDatePicker
             value={stopDate}
             onChange={(d) => setStopDate(d)}
+            onClear={() => setStopDate(null)}
             placeholder="No end date"
             min={dateValue}
             ariaLabel="Stop date"
@@ -496,7 +583,7 @@ export function CalendarEventSheet({
   );
 
   const descriptionEditor = (
-    <div>
+    <div ref={descriptionRef}>
       <MarkdownEditor
         key={event?.id ?? "new"}
         value={description}
@@ -515,7 +602,12 @@ export function CalendarEventSheet({
         <SheetContent className="data-[side=right]:inset-y-2 data-[side=right]:right-2 data-[side=right]:h-auto data-[side=right]:rounded-xl data-[side=right]:border data-[side=right]:border-l">
           <SheetTitle className="sr-only">{a11yTitle}</SheetTitle>
           {mode === "create" ? (
-            <form onSubmit={handleCreateSubmit} className="flex flex-1 flex-col min-h-0">
+            <form
+              ref={formRef}
+              onSubmit={handleCreateSubmit}
+              onKeyDownCapture={handleSubmitShortcut}
+              className="flex flex-1 flex-col min-h-0"
+            >
               <SheetBody className="flex flex-col gap-6 px-8 pt-10 pb-6">
                 {titleInput}
                 {properties}
@@ -530,12 +622,20 @@ export function CalendarEventSheet({
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitting || !agents.length}>
-                  {submitting ? "Creating..." : "Create event"}
+                  {submitting ? "Creating..." : (
+                    <>
+                      {inlineSubmitHint}
+                      Create event
+                    </>
+                  )}
                 </Button>
               </SheetFooter>
             </form>
           ) : (
-            <>
+            <div
+              onKeyDownCapture={handleSubmitShortcut}
+              className="flex flex-1 flex-col min-h-0"
+            >
               <SheetBody className="flex flex-col gap-6 px-8 pt-10 pb-6">
                 {titleInput}
                 {properties}
@@ -544,7 +644,7 @@ export function CalendarEventSheet({
               <SheetFooter className="sm:justify-between">
                 <Button
                   variant="destructive"
-                  onClick={() => event && onDelete?.(event)}
+                  onClick={handleDeleteClick}
                   disabled={deleting || saving}
                 >
                   {deleting ? "Deleting..." : "Delete"}
@@ -561,11 +661,16 @@ export function CalendarEventSheet({
                     onClick={handleEditSave}
                     disabled={saving || !dirty}
                   >
-                    {saving ? "Saving..." : "Save"}
+                    {saving ? "Saving..." : (
+                      <>
+                        {inlineSubmitHint}
+                        Save
+                      </>
+                    )}
                   </Button>
                 </div>
               </SheetFooter>
-            </>
+            </div>
           )}
         </SheetContent>
       </Sheet>
@@ -574,6 +679,21 @@ export function CalendarEventSheet({
         onOpenChange={setScopeOpen}
         onConfirm={handleScopeConfirm}
         loading={saving}
+        title="Update recurring event"
+        description="How should this change apply?"
+        confirmLabel="Update"
+        loadingLabel="Saving..."
+      />
+      <RecurringScopeDialog
+        open={deleteScopeOpen}
+        onOpenChange={setDeleteScopeOpen}
+        onConfirm={handleDeleteScopeConfirm}
+        loading={deleting}
+        title="Delete recurring event"
+        description="How much of the series should be removed?"
+        confirmLabel="Delete"
+        loadingLabel="Deleting..."
+        confirmVariant="destructive"
       />
     </>
   );

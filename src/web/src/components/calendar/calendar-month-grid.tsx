@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import type { CalendarEvent, Agent } from "@alook/shared";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CalendarDayPopover } from "./calendar-day-popover";
 import { CalendarDatePicker } from "./calendar-date-picker";
@@ -24,14 +24,28 @@ function agentColor(agentId: string): string {
 
 // Tailwind v4 JIT only picks up classes that appear literally in source —
 // so each palette entry must be a fully-enumerated class string.
-function agentChipOutline(agentId: string): string {
+function agentDot(agentId: string): string {
   const palette = [
-    "border-[oklch(0.55_0.12_60)] text-[oklch(0.35_0.09_60)] bg-transparent hover:bg-[oklch(0.95_0.03_60)] dark:text-[oklch(0.82_0.08_60)] dark:hover:bg-[oklch(0.25_0.03_60)]",
-    "border-[oklch(0.55_0.11_120)] text-[oklch(0.35_0.09_120)] bg-transparent hover:bg-[oklch(0.95_0.03_120)] dark:text-[oklch(0.82_0.08_120)] dark:hover:bg-[oklch(0.25_0.03_120)]",
-    "border-[oklch(0.55_0.11_220)] text-[oklch(0.35_0.09_220)] bg-transparent hover:bg-[oklch(0.95_0.03_220)] dark:text-[oklch(0.82_0.08_220)] dark:hover:bg-[oklch(0.25_0.03_220)]",
-    "border-[oklch(0.55_0.12_30)] text-[oklch(0.35_0.09_30)] bg-transparent hover:bg-[oklch(0.95_0.03_30)] dark:text-[oklch(0.82_0.08_30)] dark:hover:bg-[oklch(0.25_0.03_30)]",
-    "border-[oklch(0.55_0.11_280)] text-[oklch(0.35_0.09_280)] bg-transparent hover:bg-[oklch(0.95_0.03_280)] dark:text-[oklch(0.82_0.08_280)] dark:hover:bg-[oklch(0.25_0.03_280)]",
-    "border-[oklch(0.55_0.11_160)] text-[oklch(0.35_0.09_160)] bg-transparent hover:bg-[oklch(0.95_0.03_160)] dark:text-[oklch(0.82_0.08_160)] dark:hover:bg-[oklch(0.25_0.03_160)]",
+    "bg-[oklch(0.62_0.13_60)] dark:bg-[oklch(0.72_0.11_60)]",
+    "bg-[oklch(0.62_0.12_120)] dark:bg-[oklch(0.72_0.10_120)]",
+    "bg-[oklch(0.62_0.12_220)] dark:bg-[oklch(0.72_0.10_220)]",
+    "bg-[oklch(0.62_0.13_30)] dark:bg-[oklch(0.72_0.11_30)]",
+    "bg-[oklch(0.62_0.12_280)] dark:bg-[oklch(0.72_0.10_280)]",
+    "bg-[oklch(0.62_0.12_160)] dark:bg-[oklch(0.72_0.10_160)]",
+  ];
+  let h = 0;
+  for (let i = 0; i < agentId.length; i++) h = (h * 31 + agentId.charCodeAt(i)) | 0;
+  return palette[Math.abs(h) % palette.length]!;
+}
+
+function agentInk(agentId: string): string {
+  const palette = [
+    "text-[oklch(0.52_0.14_60)] dark:text-[oklch(0.78_0.11_60)]",
+    "text-[oklch(0.52_0.13_120)] dark:text-[oklch(0.78_0.10_120)]",
+    "text-[oklch(0.52_0.13_220)] dark:text-[oklch(0.78_0.10_220)]",
+    "text-[oklch(0.52_0.14_30)] dark:text-[oklch(0.78_0.11_30)]",
+    "text-[oklch(0.52_0.13_280)] dark:text-[oklch(0.78_0.10_280)]",
+    "text-[oklch(0.52_0.13_160)] dark:text-[oklch(0.78_0.10_160)]",
   ];
   let h = 0;
   for (let i = 0; i < agentId.length; i++) h = (h * 31 + agentId.charCodeAt(i)) | 0;
@@ -280,34 +294,51 @@ export function CalendarMonthGrid({
                 </span>
               </div>
               <div className="flex flex-col gap-1">
-                {dayEvents.slice(0, 3).map((ev) => (
-                    <span
-                      key={`${ev.id}@${ev.occurrence_at}`}
-                      role="button"
-                      tabIndex={-1}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectEvent(ev);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
+                {dayEvents.slice(0, 3).map((ev) => {
+                    const isRecurring = Boolean(ev.repeat_interval);
+                    return (
+                      <span
+                        key={`${ev.id}@${ev.occurrence_at}`}
+                        role="button"
+                        tabIndex={-1}
+                        onClick={(e) => {
                           e.stopPropagation();
                           onSelectEvent(ev);
-                        }
-                      }}
-                      className={cn(
-                        "border truncate rounded-sm px-1.5 py-0.5 text-[10px] font-medium transition-colors",
-                        agentChipOutline(ev.agent_id)
-                      )}
-                      title={`${ev.title}${
-                        agentNameById.get(ev.agent_id)
-                          ? ` — ${agentNameById.get(ev.agent_id)}`
-                          : ""
-                      }`}
-                    >
-                      {ev.title}
-                    </span>
-                  ))}
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.stopPropagation();
+                            onSelectEvent(ev);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-[10px] font-medium text-foreground/85 hover:bg-accent/60 transition-colors cursor-pointer"
+                        title={`${isRecurring ? "Recurring · " : ""}${ev.title}${
+                          agentNameById.get(ev.agent_id)
+                            ? ` — ${agentNameById.get(ev.agent_id)}`
+                            : ""
+                        }`}
+                      >
+                        {isRecurring ? (
+                          <Repeat
+                            aria-hidden
+                            className={cn(
+                              "size-2.5 shrink-0",
+                              agentInk(ev.agent_id)
+                            )}
+                          />
+                        ) : (
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "size-1.5 shrink-0 rounded-full",
+                              agentDot(ev.agent_id)
+                            )}
+                          />
+                        )}
+                        <span className="truncate">{ev.title}</span>
+                      </span>
+                    );
+                  })}
                   {hiddenCount > 0 && (
                     <CalendarDayPopover
                       date={cell.date}
@@ -329,4 +360,4 @@ export function CalendarMonthGrid({
   );
 }
 
-export { agentColor, agentChipOutline };
+export { agentColor, agentDot, agentInk };

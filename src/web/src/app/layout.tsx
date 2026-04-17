@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
-import { DM_Sans, DM_Mono, Caveat, Bricolage_Grotesque, VT323 } from "next/font/google";
+import {
+  DM_Sans,
+  DM_Mono,
+  Caveat,
+  Bricolage_Grotesque,
+  VT323,
+  Literata,
+} from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeScript } from "@/components/theme-script";
 import { ToasterProvider } from "@/components/toaster-provider";
@@ -35,6 +42,12 @@ const vt323 = VT323({
   weight: ["400"],
 });
 
+const literata = Literata({
+  variable: "--font-literata",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
 
 export const metadata: Metadata = {
   title: "Alook",
@@ -61,7 +74,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${dmSans.variable} ${dmMono.variable} ${caveat.variable} ${bricolage.variable} ${vt323.variable} h-full antialiased`}
+      className={`${dmSans.variable} ${dmMono.variable} ${caveat.variable} ${bricolage.variable} ${vt323.variable} ${literata.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

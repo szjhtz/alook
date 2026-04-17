@@ -40,6 +40,7 @@ export type {
   GetCalendarEventResponse,
   CreateCalendarEventRequest,
   UpdateCalendarEventRequest,
+  DeleteCalendarEventRequest,
   CreateWorkspaceRequest,
   UpdateAgentRequest,
   SendMessageRequest,
@@ -93,6 +94,7 @@ export {
   RepeatIntervalSchema,
   CreateCalendarEventRequestSchema,
   UpdateCalendarEventRequestSchema,
+  DeleteCalendarEventRequestSchema,
   CalendarEventApiSchema,
 } from "./schemas";
 
@@ -115,6 +117,7 @@ export type {
   ReportMessagesRequest,
   CreateCalendarEventRequestInput,
   UpdateCalendarEventRequestInput,
+  DeleteCalendarEventRequestInput,
   CalendarEventApi,
 } from "./schemas";
 

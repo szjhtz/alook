@@ -19,6 +19,12 @@ export interface CalendarDatePickerProps {
   ariaLabel?: string;
   /** Suppress the built-in CalendarDays icon in the trigger. */
   hideIcon?: boolean;
+  /**
+   * When provided, the footer shows a "Clear" action while a value is set.
+   * Picks are still delivered through `onChange`; clearing is separate so
+   * required pickers (no clear affordance) can stay non-nullable.
+   */
+  onClear?: () => void;
 }
 
 function formatDisplay(d: Date): string {
@@ -44,6 +50,7 @@ export function CalendarDatePicker({
   className,
   ariaLabel = "Pick a date",
   hideIcon = false,
+  onClear,
 }: CalendarDatePickerProps) {
   const [open, setOpen] = useState(false);
   const initial = value ?? new Date();
@@ -156,7 +163,21 @@ export function CalendarDatePicker({
           })}
         </div>
 
-        <div className="flex items-center justify-end pt-2 mt-1 border-t border-border/50">
+        <div className="flex items-center justify-between gap-3 pt-2 mt-1 border-t border-border/50">
+          {onClear && value ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClear();
+                setOpen(false);
+              }}
+              className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Clear
+            </button>
+          ) : (
+            <span aria-hidden />
+          )}
           <button
             type="button"
             onClick={() => handleSelect(new Date())}

@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import {
   CalendarMonthGrid,
+  buildMonthCells,
   dateKey,
   stepDate,
 } from "@/components/calendar/calendar-month-grid";
@@ -29,9 +30,34 @@ import { CalendarEventSheet } from "@/components/calendar/calendar-event-sheet";
 import type { CalendarEvent, UpdateCalendarEventRequest } from "@alook/shared";
 import { isTypingTarget } from "@/components/calendar/keyboard";
 
-function monthRangeIso(year: number, month: number) {
-  const from = new Date(year, month, 1, 0, 0, 0, 0);
-  const to = new Date(year, month + 1, 0, 23, 59, 59, 999);
+/**
+ * The month grid always renders six full weeks (42 cells), which means the
+ * first and last rows usually include leading/trailing days from adjacent
+ * months. Fetch for the full visible grid — otherwise recurring occurrences
+ * that land on those out-of-month cells would silently not render.
+ */
+function gridRangeIso(year: number, month: number) {
+  const cells = buildMonthCells(year, month);
+  const first = cells[0]!.date;
+  const last = cells[cells.length - 1]!.date;
+  const from = new Date(
+    first.getFullYear(),
+    first.getMonth(),
+    first.getDate(),
+    0,
+    0,
+    0,
+    0
+  );
+  const to = new Date(
+    last.getFullYear(),
+    last.getMonth(),
+    last.getDate(),
+    23,
+    59,
+    59,
+    999
+  );
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
@@ -94,7 +120,7 @@ export default function CalendarPage() {
   );
 
   const fetchEvents = useCallback(async () => {
-    const { from, to } = monthRangeIso(year, month);
+    const { from, to } = gridRangeIso(year, month);
     setLoading(true);
     try {
       const list = await listCalendarEvents(workspaceId, { from, to });
@@ -188,11 +214,15 @@ export default function CalendarPage() {
     try {
       const created = await createCalendarEvent(values, workspaceId);
       // Only surface the new event in local state if it falls inside the
-      // currently-fetched month window. Otherwise let the next month
-      // navigation refetch pick it up (avoids leaking out-of-range events
-      // into agenda view).
-      const d = new Date(created.scheduled_at);
-      if (d.getFullYear() === year && d.getMonth() === month) {
+      // currently-fetched grid window (the 42-cell span may reach into
+      // adjacent months). Otherwise let the next navigation refetch pick it
+      // up so out-of-range events don't leak into the agenda.
+      const { from, to } = gridRangeIso(year, month);
+      const createdAt = new Date(created.scheduled_at).getTime();
+      if (
+        createdAt >= new Date(from).getTime() &&
+        createdAt <= new Date(to).getTime()
+      ) {
         setEvents((prev) => [...prev, created]);
       }
       setCreateOpen(false);
@@ -228,11 +258,21 @@ export default function CalendarPage() {
     }
   };
 
-  const handleDelete = async (event: CalendarEvent) => {
+  const handleDelete = async (
+    event: CalendarEvent,
+    args?: { scope?: "this" | "following"; occurrence_at?: string }
+  ) => {
     setDeletingId(event.id);
     try {
-      await deleteCalendarEvent(event.id, workspaceId);
-      setEvents((prev) => prev.filter((e) => e.id !== event.id));
+      await deleteCalendarEvent(event.id, workspaceId, args);
+      if (args?.scope) {
+        // Scoped deletes may keep the parent row alive (advance scheduled_at,
+        // append exception, clip repeat_stop_at) — refetch so the grid shows
+        // the new series state instead of optimistically removing the row.
+        await fetchEvents();
+      } else {
+        setEvents((prev) => prev.filter((e) => e.id !== event.id));
+      }
       setDetailOpen(false);
       setDetail(null);
       toast.success("Event deleted");

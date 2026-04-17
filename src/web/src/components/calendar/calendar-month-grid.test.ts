@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   buildMonthCells,
   agentColor,
-  agentChipOutline,
+  agentDot,
+  agentInk,
   dateKey,
   sameDay,
   isTodayMonth,
@@ -78,26 +79,43 @@ describe("agentColor", () => {
   });
 });
 
-describe("agentChipOutline", () => {
+describe("agentDot", () => {
   it("is deterministic for the same id", () => {
-    expect(agentChipOutline("ag_1")).toBe(agentChipOutline("ag_1"));
+    expect(agentDot("ag_1")).toBe(agentDot("ag_1"));
   });
 
   it("cycles through the palette", () => {
     const set = new Set([
-      agentChipOutline("ag_a"),
-      agentChipOutline("ag_bbb"),
-      agentChipOutline("ag_zzz"),
-      agentChipOutline("ag_1234567"),
+      agentDot("ag_a"),
+      agentDot("ag_bbb"),
+      agentDot("ag_zzz"),
+      agentDot("ag_1234567"),
     ]);
     expect(set.size).toBeGreaterThan(1);
   });
 
-  it("returns a class string containing border-, bg-transparent, and hover:bg-", () => {
-    const cls = agentChipOutline("ag_1");
-    expect(cls).toMatch(/border-/);
-    expect(cls).toContain("bg-transparent");
-    expect(cls).toMatch(/hover:bg-/);
+  it("first space-separated token is a bg- class", () => {
+    expect(agentDot("ag_1").split(" ")[0]).toMatch(/^bg-/);
+  });
+});
+
+describe("agentInk", () => {
+  it("is deterministic for the same id", () => {
+    expect(agentInk("ag_1")).toBe(agentInk("ag_1"));
+  });
+
+  it("cycles through the palette", () => {
+    const set = new Set([
+      agentInk("ag_a"),
+      agentInk("ag_bbb"),
+      agentInk("ag_zzz"),
+      agentInk("ag_1234567"),
+    ]);
+    expect(set.size).toBeGreaterThan(1);
+  });
+
+  it("first space-separated token is a text- class", () => {
+    expect(agentInk("ag_1").split(" ")[0]).toMatch(/^text-/);
   });
 });
 

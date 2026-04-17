@@ -97,16 +97,16 @@ describe("DELETE /api/calendar/[id]", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("404s when the event does not exist in the workspace", async () => {
-    mockDelete.mockResolvedValue(null);
+    mockGet.mockResolvedValue(null);
     const r = new NextRequest("http://localhost/api/calendar/ce_missing", {
       method: "DELETE",
     });
     const res = await DELETE(r, { params: { id: "ce_missing" } } as any);
     expect(res.status).toBe(404);
-    expect(mockDelete).toHaveBeenCalledWith({}, "ce_missing", "ws1");
   });
 
-  it("returns the deleted event when successful", async () => {
+  it("returns the deleted event when successful (non-recurring, no body)", async () => {
+    mockGet.mockResolvedValue(sourceNonRepeating());
     mockDelete.mockResolvedValue({ id: "ce_1" });
     const r = new NextRequest("http://localhost/api/calendar/ce_1", {
       method: "DELETE",
@@ -114,6 +114,7 @@ describe("DELETE /api/calendar/[id]", () => {
     const res = await DELETE(r, { params: { id: "ce_1" } } as any);
     expect(res.status).toBe(200);
     expect((await res.json()).id).toBe("ce_1");
+    expect(mockDelete).toHaveBeenCalledWith({}, "ce_1", "ws1");
   });
 
   it("400s when id is missing", async () => {
@@ -121,6 +122,124 @@ describe("DELETE /api/calendar/[id]", () => {
       method: "DELETE",
     });
     const res = await DELETE(r, { params: {} } as any);
+    expect(res.status).toBe(400);
+  });
+});
+
+function delReq(id: string | undefined, body?: unknown) {
+  const init: RequestInit & { body?: string; headers?: Record<string, string> } = {
+    method: "DELETE",
+  };
+  if (body !== undefined) {
+    init.body = JSON.stringify(body);
+    init.headers = { "Content-Type": "application/json" };
+  }
+  const r = new NextRequest(`http://localhost/api/calendar/${id ?? ""}`, init);
+  return DELETE(r, { params: { id } } as any);
+}
+
+describe("DELETE /api/calendar/[id] — scope-aware", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("scope=this on a non-recurring event falls back to full delete", async () => {
+    mockGet.mockResolvedValue(sourceNonRepeating());
+    mockDelete.mockResolvedValue({ id: "ce_1" });
+    const res = await delReq("ce_1", { scope: "this" });
+    expect(res.status).toBe(200);
+    expect(mockDelete).toHaveBeenCalledWith({}, "ce_1", "ws1");
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("scope=this without occurrence_at advances the parent one interval", async () => {
+    mockGet.mockResolvedValue(sourceDaily());
+    mockUpdate.mockResolvedValue({ id: "ce_1" });
+    const res = await delReq("ce_1", { scope: "this" });
+    expect(res.status).toBe(200);
+    expect(mockUpdate).toHaveBeenCalledWith({}, "ce_1", "ws1", {
+      scheduledAt: "2026-04-18T09:00:00.000Z",
+    });
+    expect(mockDelete).not.toHaveBeenCalled();
+  });
+
+  it("scope=this on the last remaining occurrence deletes the parent", async () => {
+    mockGet.mockResolvedValue(
+      sourceDaily({
+        scheduledAt: "2026-04-17T09:00:00.000Z",
+        repeatStopAt: "2026-04-17T23:59:59.999Z",
+      })
+    );
+    mockDelete.mockResolvedValue({ id: "ce_1" });
+    const res = await delReq("ce_1", { scope: "this" });
+    expect(res.status).toBe(200);
+    expect(mockDelete).toHaveBeenCalledWith({}, "ce_1", "ws1");
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("scope=this on a future occurrence appends an exception", async () => {
+    mockGet.mockResolvedValue(sourceDaily({ exceptions: [] }));
+    mockUpdate.mockResolvedValue({ id: "ce_1" });
+    const res = await delReq("ce_1", {
+      scope: "this",
+      occurrence_at: "2026-04-20T09:00:00.000Z",
+    });
+    expect(res.status).toBe(200);
+    expect(mockUpdate).toHaveBeenCalledWith({}, "ce_1", "ws1", {
+      exceptions: ["2026-04-20T09:00:00.000Z"],
+    });
+    expect(mockDelete).not.toHaveBeenCalled();
+  });
+
+  it("scope=this does not duplicate an already-recorded exception", async () => {
+    mockGet.mockResolvedValue(
+      sourceDaily({ exceptions: ["2026-04-20T09:00:00.000Z"] })
+    );
+    mockUpdate.mockResolvedValue({ id: "ce_1" });
+    await delReq("ce_1", {
+      scope: "this",
+      occurrence_at: "2026-04-20T09:00:00.000Z",
+    });
+    expect(mockUpdate.mock.calls[0][3].exceptions).toEqual([
+      "2026-04-20T09:00:00.000Z",
+    ]);
+  });
+
+  it("scope=following without occurrence_at deletes the parent", async () => {
+    mockGet.mockResolvedValue(sourceDaily());
+    mockDelete.mockResolvedValue({ id: "ce_1" });
+    const res = await delReq("ce_1", { scope: "following" });
+    expect(res.status).toBe(200);
+    expect(mockDelete).toHaveBeenCalledWith({}, "ce_1", "ws1");
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("scope=following with occurrence_at on the next fire deletes the parent", async () => {
+    mockGet.mockResolvedValue(sourceDaily());
+    mockDelete.mockResolvedValue({ id: "ce_1" });
+    const res = await delReq("ce_1", {
+      scope: "following",
+      occurrence_at: "2026-04-17T09:00:00.000Z",
+    });
+    expect(res.status).toBe(200);
+    expect(mockDelete).toHaveBeenCalledWith({}, "ce_1", "ws1");
+  });
+
+  it("scope=following with a future occurrence_at clips repeat_stop_at 1ms earlier", async () => {
+    mockGet.mockResolvedValue(sourceDaily());
+    mockUpdate.mockResolvedValue({ id: "ce_1" });
+    const res = await delReq("ce_1", {
+      scope: "following",
+      occurrence_at: "2026-04-20T09:00:00.000Z",
+    });
+    expect(res.status).toBe(200);
+    expect(mockUpdate).toHaveBeenCalledWith({}, "ce_1", "ws1", {
+      repeatStopAt: "2026-04-20T08:59:59.999Z",
+    });
+    expect(mockDelete).not.toHaveBeenCalled();
+  });
+
+  it("400s on a malformed body", async () => {
+    mockGet.mockResolvedValue(sourceDaily());
+    const res = await delReq("ce_1", { scope: "bogus" });
     expect(res.status).toBe(400);
   });
 });

@@ -71,6 +71,15 @@ export interface UpdateCalendarEventRequest {
   occurrence_at?: string;
 }
 
+export interface DeleteCalendarEventRequest {
+  scope?: "this" | "following";
+  /**
+   * ISO of the occurrence being deleted. Defaults to the parent's
+   * current `scheduled_at` (next fire) when omitted.
+   */
+  occurrence_at?: string;
+}
+
 export interface CreateWorkspaceRequest {
   name: string;
 }

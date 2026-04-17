@@ -256,6 +256,21 @@ export const UpdateCalendarEventRequestSchema = z
       v.repeat_stop_date !== undefined,
     { message: "at least one field is required" }
   );
+
+export const DeleteCalendarEventRequestSchema = z.object({
+  scope: z.enum(["this", "following"]).optional(),
+  occurrence_at: z
+    .string()
+    .min(1)
+    .refine((s) => !Number.isNaN(Date.parse(s)), {
+      message: "occurrence_at must be a valid ISO datetime",
+    })
+    .optional(),
+});
+export type DeleteCalendarEventRequestInput = z.infer<
+  typeof DeleteCalendarEventRequestSchema
+>;
+
 export type UpdateCalendarEventRequestInput = z.infer<
   typeof UpdateCalendarEventRequestSchema
 >;

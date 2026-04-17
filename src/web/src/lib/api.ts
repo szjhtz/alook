@@ -6,6 +6,7 @@ import type {
   CreateAgentRequest,
   CreateCalendarEventRequest,
   UpdateCalendarEventRequest,
+  DeleteCalendarEventRequest,
   UpdateAgentRequest,
   Email,
   LoginResponse,
@@ -270,9 +271,19 @@ export const updateCalendarEvent = (
     body: JSON.stringify(patch),
   });
 
-export const deleteCalendarEvent = (id: string, workspaceId: string) =>
+export const deleteCalendarEvent = (
+  id: string,
+  workspaceId: string,
+  body?: DeleteCalendarEventRequest
+) =>
   apiFetch<CalendarEvent>(`/api/calendar/${id}${wsQuery(workspaceId)}`, {
     method: "DELETE",
+    ...(body && body.scope
+      ? {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }
+      : {}),
   });
 
 // Auth (Better Auth — redirect helpers only, actual auth via Better Auth client)

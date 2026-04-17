@@ -3,6 +3,7 @@ import {
   RepeatIntervalSchema,
   CreateCalendarEventRequestSchema,
   UpdateCalendarEventRequestSchema,
+  DeleteCalendarEventRequestSchema,
   CalendarEventApiSchema,
 } from "../src/schemas";
 
@@ -217,6 +218,51 @@ describe("UpdateCalendarEventRequestSchema", () => {
     expect(() =>
       UpdateCalendarEventRequestSchema.parse({
         title: "t",
+        occurrence_at: "not a date",
+      })
+    ).toThrow();
+  });
+});
+
+describe("DeleteCalendarEventRequestSchema", () => {
+  it("accepts an empty body (legacy full delete)", () => {
+    expect(DeleteCalendarEventRequestSchema.parse({})).toEqual({});
+  });
+
+  it("accepts scope: 'this' with no occurrence_at", () => {
+    expect(
+      DeleteCalendarEventRequestSchema.parse({ scope: "this" })
+    ).toMatchObject({ scope: "this" });
+  });
+
+  it("accepts scope + occurrence_at", () => {
+    const payload = {
+      scope: "this" as const,
+      occurrence_at: "2026-04-20T09:00:00.000Z",
+    };
+    expect(DeleteCalendarEventRequestSchema.parse(payload)).toMatchObject(
+      payload
+    );
+  });
+
+  it("accepts scope: 'following'", () => {
+    expect(
+      DeleteCalendarEventRequestSchema.parse({ scope: "following" })
+    ).toMatchObject({ scope: "following" });
+  });
+
+  it("rejects a malformed scope", () => {
+    expect(() =>
+      DeleteCalendarEventRequestSchema.parse({
+        scope: "all" as unknown,
+      })
+    ).toThrow();
+  });
+
+  it("rejects a malformed occurrence_at", () => {
+    expect(() =>
+      DeleteCalendarEventRequestSchema.parse({
+        scope: "this",
         occurrence_at: "not a date",
       })
     ).toThrow();

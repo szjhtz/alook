@@ -3,7 +3,8 @@
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent, Agent } from "@alook/shared";
-import { agentChipOutline } from "./calendar-month-grid";
+import { Repeat } from "lucide-react";
+import { agentDot, agentInk } from "./calendar-month-grid";
 
 export interface CalendarDayPopoverProps {
   events: CalendarEvent[];
@@ -61,30 +62,44 @@ export function CalendarDayPopover({
             {dateLabel}
           </p>
           <div className="flex flex-col gap-1">
-            {sorted.map((ev) => (
-              <button
-                key={`${ev.id}@${ev.occurrence_at}`}
-                type="button"
-                onClick={() => {
-                  onOpenChange(false);
-                  onSelectEvent(ev);
-                }}
-                className={cn(
-                  "border flex items-center gap-2 rounded-sm px-1.5 py-1 text-left text-[11px] font-medium transition-colors",
-                  agentChipOutline(ev.agent_id)
-                )}
-                title={`${ev.title}${
-                  agentNameById.get(ev.agent_id)
-                    ? ` — ${agentNameById.get(ev.agent_id)}`
-                    : ""
-                }`}
-              >
-                <span className="shrink-0 text-[10px] opacity-70 tabular-nums">
-                  {timeLabel(ev.scheduled_at)}
-                </span>
-                <span className="truncate">{ev.title}</span>
-              </button>
-            ))}
+            {sorted.map((ev) => {
+              const isRecurring = Boolean(ev.repeat_interval);
+              return (
+                <button
+                  key={`${ev.id}@${ev.occurrence_at}`}
+                  type="button"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onSelectEvent(ev);
+                  }}
+                  className="flex items-center gap-2 rounded-sm px-1.5 py-1 text-left text-[11px] font-medium text-foreground/85 hover:bg-accent/60 transition-colors"
+                  title={`${isRecurring ? "Recurring · " : ""}${ev.title}${
+                    agentNameById.get(ev.agent_id)
+                      ? ` — ${agentNameById.get(ev.agent_id)}`
+                      : ""
+                  }`}
+                >
+                  {isRecurring ? (
+                    <Repeat
+                      aria-hidden
+                      className={cn("size-3 shrink-0", agentInk(ev.agent_id))}
+                    />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "size-1.5 shrink-0 rounded-full",
+                        agentDot(ev.agent_id)
+                      )}
+                    />
+                  )}
+                  <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
+                    {timeLabel(ev.scheduled_at)}
+                  </span>
+                  <span className="truncate">{ev.title}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </PopoverContent>
