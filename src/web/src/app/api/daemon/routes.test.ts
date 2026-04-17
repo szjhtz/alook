@@ -269,6 +269,9 @@ describe("daemon route body validation", () => {
       vi.doMock("@/lib/services/sweep", () => ({
         sweepStaleState: vi.fn().mockResolvedValue(undefined),
       }));
+      vi.doMock("@/lib/services/calendar", () => ({
+        promoteDueCalendarEventsForWorkspace: vi.fn().mockResolvedValue(0),
+      }));
       vi.doMock("@/lib/broadcast", () => ({
         broadcastToUser: vi.fn().mockResolvedValue(undefined),
       }));

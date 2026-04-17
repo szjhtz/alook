@@ -50,8 +50,29 @@ export interface Conversation {
   id: string;
   agent_id: string;
   title: string;
+  type: string;
   created_at: string;
   message_count?: number;
+}
+
+export interface CalendarEvent {
+  id: string;
+  agent_id: string;
+  workspace_id: string;
+  title: string;
+  description: string | null;
+  scheduled_at: string;
+  /**
+   * For non-recurring events, equal to `scheduled_at`. For recurring events
+   * expanded by the server, this is the ISO of the specific occurrence the
+   * row represents.
+   */
+  occurrence_at: string;
+  repeat_interval: string | null;
+  repeat_stop_at: string | null;
+  last_triggered_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Message {

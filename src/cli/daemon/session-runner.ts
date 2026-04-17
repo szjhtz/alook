@@ -20,6 +20,7 @@ import {
 import { buildPrompt } from "./prompt.js";
 import { log } from "../lib/logger.js";
 import type { SessionRunnerInput } from "./types.js";
+import { TASK_TYPES } from "@alook/shared";
 
 export async function runSession(input: SessionRunnerInput): Promise<void> {
   const { task, provider, cliPath, model, serverURL, token, workspacesRoot, agentTimeout } = input;
@@ -33,7 +34,10 @@ export async function runSession(input: SessionRunnerInput): Promise<void> {
     task,
   );
 
-  const resumeSessionId = findResumableSessionId(timelineDir, task.type) ?? undefined;
+  const resumeSessionId =
+    task.type === TASK_TYPES.USER_DM_MESSAGE
+      ? findResumableSessionId(timelineDir, task.type) ?? undefined
+      : undefined;
   if (resumeSessionId) {
     log.info(`Task ${task.id} resuming session ${resumeSessionId}`);
   }
@@ -53,7 +57,7 @@ export async function runSession(input: SessionRunnerInput): Promise<void> {
   const earlySessionId = await session.sessionId;
   await initEntryAsync(
     timelineDir,
-    createTimelineEntry(task.id, task.prompt, earlySessionId, process.pid),
+    createTimelineEntry(task.id, task.prompt, task.type, earlySessionId, process.pid),
   );
 
   // Message batching

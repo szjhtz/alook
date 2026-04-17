@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Message } from "@alook/shared";
-import { sortMessages, mergeMessages } from "./page";
+import { sortMessages, mergeMessages } from "./agent-chat-view";
 
 function msg(id: string, created_at: string, role: "user" | "assistant" = "user", content = ""): Message {
   return { id, conversation_id: "conv1", role, content, task_id: null, created_at };

@@ -1,8 +1,11 @@
 import type {
   Agent,
   AgentRuntime,
+  CalendarEvent,
   Conversation,
   CreateAgentRequest,
+  CreateCalendarEventRequest,
+  UpdateCalendarEventRequest,
   UpdateAgentRequest,
   Email,
   LoginResponse,
@@ -234,6 +237,42 @@ export const sendEmail = (
   apiFetch<Email>(`/api/email/send${wsQuery(workspaceId)}`, {
     method: "POST",
     body: JSON.stringify({ agentId, to, subject, htmlBody, attachments }),
+  });
+
+// Calendar events
+export const listCalendarEvents = (
+  workspaceId: string,
+  opts?: { agentId?: string; from?: string; to?: string }
+) => {
+  const extra: Record<string, string> = {};
+  if (opts?.agentId) extra.agentId = opts.agentId;
+  if (opts?.from) extra.from = opts.from;
+  if (opts?.to) extra.to = opts.to;
+  return apiFetch<CalendarEvent[]>(`/api/calendar${wsQuery(workspaceId, extra)}`);
+};
+
+export const createCalendarEvent = (
+  req: CreateCalendarEventRequest,
+  workspaceId: string
+) =>
+  apiFetch<CalendarEvent>(`/api/calendar${wsQuery(workspaceId)}`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+
+export const updateCalendarEvent = (
+  id: string,
+  patch: UpdateCalendarEventRequest,
+  workspaceId: string
+) =>
+  apiFetch<CalendarEvent>(`/api/calendar/${id}${wsQuery(workspaceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+
+export const deleteCalendarEvent = (id: string, workspaceId: string) =>
+  apiFetch<CalendarEvent>(`/api/calendar/${id}${wsQuery(workspaceId)}`, {
+    method: "DELETE",
   });
 
 // Auth (Better Auth — redirect helpers only, actual auth via Better Auth client)

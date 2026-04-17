@@ -190,6 +190,7 @@ export function updateEntry(
 export function createTimelineEntry(
   taskId: string,
   prompt: string,
+  type: string,
   sessionId?: string,
   pid?: number,
 ): ContextTimelineEntry {
@@ -199,7 +200,7 @@ export function createTimelineEntry(
     pid: pid ?? null,
     status: "running",
     datetime: localISOString(),
-    type: "user_dm_message",
+    type,
     prompt,
     agent_responses: [],
     errmsg: null,

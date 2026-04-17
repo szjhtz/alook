@@ -26,6 +26,14 @@ export const TaskStatus = {
 
 export type TaskStatusType = (typeof TaskStatus)[keyof typeof TaskStatus];
 
+export const TASK_TYPES = {
+  USER_DM_MESSAGE: "user_dm_message",
+  EMAIL_NOTIFICATION: "email_notification",
+  CALENDAR_EVENT: "calendar_event",
+} as const;
+
+export type TaskType = (typeof TASK_TYPES)[keyof typeof TASK_TYPES];
+
 export const MessageRole = {
   USER: "user",
   ASSISTANT: "assistant",

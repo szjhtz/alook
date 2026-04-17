@@ -44,7 +44,7 @@ Each line of a timeline JSONL is a JSON object with these fields:
 - "pid" — daemon process ID (present while running, null when done)
 - "status" — "running", "completed", or "failed"
 - "datetime" — when the task started (local timezone)
-- "type" — always "user_dm_message"
+- "type" — source of the task: "user_dm_message", "email_notification", or "calendar_event"
 - "prompt" — what the user asked
 - "agent_responses" — assistant text outputs during execution
 - "errmsg" — error message (null unless status is "failed")
@@ -73,11 +73,13 @@ ${task.agent.instructions}
 `;
   }
 
-  if (task.agent?.emailHandle) {
-    content += `\n## Alook CLI Tools
+  content += `\n## Alook CLI Tools
 You can communicate with the world through Alook CLI.
 Your alook agent id is '${task.agentId}'. remember this, most of alook cli will requires you input your agent id.
-Your email address is '${toAlookAddress(task.agent.emailHandle)}'.
+`;
+
+  if (task.agent?.emailHandle) {
+    content += `Your email address is '${toAlookAddress(task.agent.emailHandle)}'.
 ${task.agent.userEmail ? `Your owner's email address is '${task.agent.userEmail}'.` : ""}
 
 ### Emails
@@ -94,6 +96,44 @@ Before starting to process an email, mark it as read:
 ---
 `;
   }
+
+  content += `\n### Calendar
+Schedule future tasks for yourself. At the scheduled time, a new task is dispatched to you with the event as the prompt (task type 'calendar_event').
+---
+Create a one-off event:
+- Run 'npx @alook/cli calendar set --agent_id ${task.agentId} --event_title "<PROMPT_TEXT>" --datetime <YYYY-MM-DDTHH:MM>'
+  - '--datetime' is LOCAL time, format 'YYYY-MM-DDTHH:MM' (e.g. '2026-04-17T09:30'). Do NOT pass UTC / ISO strings with 'Z'.
+  - '--event_title' becomes the task prompt when the event fires — write it as the instruction you want future-you to receive.
+  - Optional '--description "<text>"' — longer notes/context shown alongside the event in the web UI. Use it for anything that wouldn't fit cleanly in the title.
+
+Create a repeating event:
+- Add '--repeat <interval>' where interval is like '1day', '2hour', '1week', '1month'.
+- Optionally add '--repeat_stop_date <YYYY-MM-DD>' to stop the recurrence (local date).
+- Example: 'npx @alook/cli calendar set --agent_id ${task.agentId} --event_title "daily standup summary" --datetime 2026-04-18T09:00 --repeat 1day --repeat_stop_date 2026-05-18'
+
+List upcoming events:
+- Run 'npx @alook/cli calendar list --agent_id ${task.agentId}' (defaults: next 30 days, past 0 days).
+- Tune the window with '--future_days <N>' and '--past_days <N>'. Add '--json' for machine-readable output.
+- 'list' shows a '[has description]' badge instead of the full description — use 'show' (below) to read it.
+
+Show full detail of one event (use this to read the description):
+- Run 'npx @alook/cli calendar show --agent_id ${task.agentId} --event_id <EVENT_ID>'
+- Add '--json' for machine-readable output.
+
+Edit an existing event (preserves event id and recurring state):
+- Run 'npx @alook/cli calendar update --agent_id ${task.agentId} --event_id <EVENT_ID> [flags]'
+- Supply only the fields you want to change. Available flags:
+  - '--event_title "<t>"' — rename the event / change the fire-time prompt
+  - '--description "<d>"' to set, or '--clear_description' to remove
+  - '--datetime <YYYY-MM-DDTHH:MM>' — reschedule (local time)
+  - '--repeat <interval>' to set, or '--clear_repeat' to convert into a one-off
+  - '--repeat_stop_date <YYYY-MM-DD>' to set, or '--clear_repeat_stop_date' to remove
+- Passing no mutating flag is an error. Do NOT use 'delete' + 'set' to edit — that loses the event id and the recurring 'last fired' state.
+
+Delete an event:
+- Run 'npx @alook/cli calendar delete --agent_id ${task.agentId} --event_id <EVENT_ID>'
+---
+`;
 
   return content;
 }

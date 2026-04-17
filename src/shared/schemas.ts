@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TASK_TYPES } from "./constants";
 
 // ---------------------------------------------------------------------------
 // Task status
@@ -28,7 +29,7 @@ export const ClaimedTaskRowSchema = z.object({
   priority: z.coerce.number(),
   result: z.unknown().nullable(),
   context: z.unknown().nullable(),
-  type: z.string().default("user_dm_message"),
+  type: z.string().default(TASK_TYPES.USER_DM_MESSAGE),
   sessionId: z.string().nullable(),
   createdAt: z.coerce.date(),
   dispatchedAt: z.coerce.date().nullable(),

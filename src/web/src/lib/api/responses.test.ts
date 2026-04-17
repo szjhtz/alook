@@ -9,6 +9,7 @@ import {
   runtimeToResponse,
   machineTokenToResponse,
   emailToResponse,
+  calendarEventToResponse,
 } from "./responses";
 
 const ts = new Date("2024-06-01T12:00:00.456Z");
@@ -337,9 +338,21 @@ describe("AgentResponse shape", () => {
 });
 
 describe("ConversationResponse shape", () => {
-  it("has expected keys: id, agent_id, title, created_at", () => {
+  it("has expected keys: id, agent_id, title, type, created_at", () => {
+    const res = conversationToResponse({ id: "c1", agentId: "a1", title: "Chat", type: "user_dm_message", createdAt: ts });
+    expect(Object.keys(res).sort()).toEqual(["agent_id", "created_at", "id", "title", "type"]);
+  });
+
+  it("defaults type to user_dm_message when the column is absent", () => {
     const res = conversationToResponse({ id: "c1", agentId: "a1", title: "Chat", createdAt: ts });
-    expect(Object.keys(res).sort()).toEqual(["agent_id", "created_at", "id", "title"]);
+    expect((res as { type: string }).type).toBe("user_dm_message");
+  });
+
+  it("surfaces email_notification and calendar_event types", () => {
+    const r1 = conversationToResponse({ id: "c1", agentId: "a1", title: "", type: "email_notification", createdAt: ts });
+    const r2 = conversationToResponse({ id: "c2", agentId: "a1", title: "", type: "calendar_event", createdAt: ts });
+    expect((r1 as { type: string }).type).toBe("email_notification");
+    expect((r2 as { type: string }).type).toBe("calendar_event");
   });
 });
 
@@ -417,6 +430,36 @@ describe("all response mappers strip milliseconds from timestamps", () => {
     const res = machineTokenToResponse({ id: "mt1", name: "T", lastUsedAt: ts, createdAt: ts });
     expect(res.created_at).toBe(tsFormatted);
     expect(res.last_used_at).toBe(tsFormatted);
+  });
+});
+
+describe("calendarEventToResponse", () => {
+  const base = {
+    id: "ce_1",
+    agentId: "ag_1",
+    workspaceId: "ws_1",
+    title: "standup",
+    scheduledAt: ts,
+    repeatInterval: null,
+    repeatStopAt: null,
+    lastTriggeredAt: null,
+    createdAt: ts,
+    updatedAt: ts,
+  };
+
+  it("maps description when present", () => {
+    const res = calendarEventToResponse({ ...base, description: "<p>hi</p>" });
+    expect(res.description).toBe("<p>hi</p>");
+  });
+
+  it("defaults description to null when the column is null", () => {
+    const res = calendarEventToResponse({ ...base, description: null });
+    expect(res.description).toBeNull();
+  });
+
+  it("defaults description to null when the column is absent", () => {
+    const res = calendarEventToResponse(base);
+    expect(res.description).toBeNull();
   });
 });
 

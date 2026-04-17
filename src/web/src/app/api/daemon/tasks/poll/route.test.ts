@@ -52,6 +52,11 @@ vi.mock("@/lib/services/sweep", () => ({
   sweepStaleState: (...args: unknown[]) => mockSweepStaleState(...args),
 }));
 
+const mockPromoteDue = vi.fn(async () => 0);
+vi.mock("@/lib/services/calendar", () => ({
+  promoteDueCalendarEventsForWorkspace: (...args: unknown[]) => mockPromoteDue(...args),
+}));
+
 vi.mock("@/lib/broadcast", () => ({
   broadcastToUser: (...args: unknown[]) => mockBroadcastToUser(...args),
 }));
@@ -202,5 +207,37 @@ describe("POST /api/daemon/tasks/poll", () => {
     await POST(postReq({ daemon_id: "d1" }));
 
     expect(mockClaimTasksForRuntimes).toHaveBeenCalledWith(["r1"], 1, "w1");
+  });
+
+  it("invokes calendar promotion between sweep and task claim", async () => {
+    mockUpsertMachine.mockResolvedValue({});
+    mockGetRuntimeIdsByDaemon.mockResolvedValue(["r1"]);
+    mockSweepStaleState.mockResolvedValue(undefined);
+    mockBroadcastToUser.mockResolvedValue(undefined);
+    mockClaimTasksForRuntimes.mockResolvedValue([]);
+    mockPromoteDue.mockResolvedValue(2);
+
+    await POST(postReq({ daemon_id: "d1" }));
+
+    expect(mockPromoteDue).toHaveBeenCalledWith({}, "w1");
+    // Calendar promotion is scoped per-call to the authenticated workspace.
+    const promoteOrder = mockPromoteDue.mock.invocationCallOrder[0]!;
+    const sweepOrder = mockSweepStaleState.mock.invocationCallOrder[0]!;
+    const claimOrder = mockClaimTasksForRuntimes.mock.invocationCallOrder[0]!;
+    expect(sweepOrder).toBeLessThan(promoteOrder);
+    expect(promoteOrder).toBeLessThan(claimOrder);
+  });
+
+  it("does not fail the poll when calendar promotion throws", async () => {
+    mockUpsertMachine.mockResolvedValue({});
+    mockGetRuntimeIdsByDaemon.mockResolvedValue(["r1"]);
+    mockSweepStaleState.mockResolvedValue(undefined);
+    mockBroadcastToUser.mockResolvedValue(undefined);
+    mockClaimTasksForRuntimes.mockResolvedValue([]);
+    mockPromoteDue.mockRejectedValue(new Error("D1 write failed"));
+
+    const res = await POST(postReq({ daemon_id: "d1" }));
+    expect(res.status).toBe(200);
+    expect(mockClaimTasksForRuntimes).toHaveBeenCalled();
   });
 });

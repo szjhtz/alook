@@ -31,13 +31,19 @@ vi.mock("./execenv/index.js", () => ({
 const mockInitEntryAsync = vi.fn(async () => {});
 const mockUpdateEntry = vi.fn();
 const mockCreateTimelineEntry = vi.fn(
-  (taskId: string, prompt: string, sessionId?: string, pid?: number) => ({
+  (
+    taskId: string,
+    prompt: string,
+    type: string,
+    sessionId?: string,
+    pid?: number,
+  ) => ({
     task_id: taskId,
     session_id: sessionId || null,
     pid: pid ?? null,
     status: "running",
     datetime: "2026-04-16T10:00:00-05:00",
-    type: "user_dm_message",
+    type,
     prompt,
     agent_responses: [],
     errmsg: null,
@@ -201,6 +207,7 @@ describe("session-runner runSession", () => {
     expect(mockCreateTimelineEntry).toHaveBeenCalledWith(
       "t1",
       "do the thing",
+      "user_dm_message",
       "sess-1",
       process.pid,
     );
@@ -313,7 +320,7 @@ describe("session-runner runSession", () => {
     expect(totalReported).toBe(25);
   });
 
-  it("uses findResumableSessionId and passes to backend", async () => {
+  it("uses findResumableSessionId and passes to backend for user_dm_message tasks", async () => {
     mockFindResumableSessionId.mockReturnValueOnce("prev-session-123");
 
     setupBackend([], {
@@ -334,6 +341,70 @@ describe("session-runner runSession", () => {
       expect.any(String),
       expect.objectContaining({ resumeSessionId: "prev-session-123" }),
     );
+  });
+
+  it("skips findResumableSessionId entirely for calendar_event tasks (always fresh session)", async () => {
+    setupBackend([], {
+      status: "completed",
+      output: "Done",
+      error: "",
+      durationMs: 100,
+      sessionId: "sess-2",
+    });
+
+    await runSession(
+      makeInput({
+        task: {
+          id: "t2",
+          agentId: "a1",
+          runtimeId: "rt1",
+          conversationId: "c2",
+          workspaceId: "ws1",
+          prompt: "Run daily standup",
+          status: "dispatched",
+          priority: 0,
+          type: "calendar_event",
+          createdAt: "2026-04-17T09:00:00Z",
+        },
+      }),
+    );
+
+    expect(mockFindResumableSessionId).not.toHaveBeenCalled();
+    expect(mockBackendExecute).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ resumeSessionId: undefined }),
+    );
+  });
+
+  it("writes timeline entries with task.type (calendar_event) for calendar tasks", async () => {
+    setupBackend([], {
+      status: "completed",
+      output: "Done",
+      error: "",
+      durationMs: 100,
+      sessionId: "sess-3",
+    });
+
+    await runSession(
+      makeInput({
+        task: {
+          id: "t3",
+          agentId: "a1",
+          runtimeId: "rt1",
+          conversationId: "c3",
+          workspaceId: "ws1",
+          prompt: "scheduled work",
+          status: "dispatched",
+          priority: 0,
+          type: "calendar_event",
+          createdAt: "2026-04-17T09:00:00Z",
+        },
+      }),
+    );
+
+    // The 3rd positional arg to createTimelineEntry is the type.
+    const typeArg = mockCreateTimelineEntry.mock.calls[0]![2];
+    expect(typeArg).toBe("calendar_event");
   });
 
   it("passes branchName through to completeTask (forward-compat)", async () => {

@@ -2,6 +2,7 @@ import { eq, and, desc, asc, inArray, notInArray, count, lt } from "drizzle-orm"
 import { agentTaskQueue } from "../schema";
 import type { Database } from "../index";
 import { ClaimedTaskRowSchema } from "../../schemas";
+import { TASK_TYPES } from "../../constants";
 
 export async function createTask(
   db: Database,
@@ -23,7 +24,7 @@ export async function createTask(
       workspaceId: data.workspaceId,
       conversationId: data.conversationId,
       prompt: data.prompt,
-      type: data.type ?? "user_dm_message",
+      type: data.type ?? TASK_TYPES.USER_DM_MESSAGE,
       priority: data.priority ?? 0,
     })
     .returning();

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@alook/shared", () => ({
+  TASK_TYPES: {
+    USER_DM_MESSAGE: "user_dm_message",
+    EMAIL_NOTIFICATION: "email_notification",
+    CALENDAR_EVENT: "calendar_event",
+  },
   queries: {
     task: {
       createTask: vi.fn(),

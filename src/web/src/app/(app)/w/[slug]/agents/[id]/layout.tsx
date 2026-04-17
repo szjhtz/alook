@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { AgentEditForm } from "@/components/agent-edit-form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { Mail, MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import { CalendarDays, Mail, MessageSquare, Pencil, Trash2, X } from "lucide-react";
 
 export default function AgentDetailLayout({ children }: { children: ReactNode }) {
   const params = useParams();
@@ -18,7 +18,7 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
   const pathname = usePathname();
   const { slug } = useWorkspace();
   const agentId = params.id as string;
-  const isOnChat = pathname.includes(`/agents/${agentId}/chat`);
+  const isOnEmail = pathname.includes(`/agents/${agentId}/email`);
   const { agents, runtimes, handleDeleteAgent, handleUpdateAgent } = useAgentContext();
 
   const agent = agents.find((a) => a.id === agentId);
@@ -52,7 +52,7 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
           )}
           {agent ? (
             <Link
-              href={`/w/${slug}/agents/${agentId}/chat`}
+              href={`/w/${slug}/agents/${agentId}`}
               onClick={() => setEditing(false)}
               className="text-sm font-medium truncate hover:text-foreground/80 transition-colors"
             >
@@ -64,7 +64,7 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
             <Skeleton className="h-3.5 w-24" />
           )}
           <span className="text-xs text-muted-foreground">
-            / {editing ? "Settings" : isOnChat ? "Chat" : "Email"}
+            / {editing ? "Settings" : isOnEmail ? "Email" : "Chat"}
           </span>
         </div>
         {agent ? (
@@ -81,7 +81,15 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
               </Button>
             ) : (
               <>
-                {isOnChat ? (
+                {isOnEmail ? (
+                  <Link
+                    href={`/w/${slug}/agents/${agentId}`}
+                    className="inline-flex items-center rounded-lg text-xs text-muted-foreground h-7 gap-1 px-2 hover:bg-muted hover:text-foreground transition-all"
+                  >
+                    <MessageSquare className="size-3" />
+                    Chat
+                  </Link>
+                ) : (
                   <Link
                     href={`/w/${slug}/agents/${agentId}/email`}
                     className="inline-flex items-center rounded-lg text-xs text-muted-foreground h-7 gap-1 px-2 hover:bg-muted hover:text-foreground transition-all"
@@ -89,15 +97,14 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
                     <Mail className="size-3" />
                     Email
                   </Link>
-                ) : (
-                  <Link
-                    href={`/w/${slug}/agents/${agentId}/chat`}
-                    className="inline-flex items-center rounded-lg text-xs text-muted-foreground h-7 gap-1 px-2 hover:bg-muted hover:text-foreground transition-all"
-                  >
-                    <MessageSquare className="size-3" />
-                    Chat
-                  </Link>
                 )}
+                <Link
+                  href={`/w/${slug}/calendar?agents=${agentId}`}
+                  className="inline-flex items-center rounded-lg text-xs text-muted-foreground h-7 gap-1 px-2 hover:bg-muted hover:text-foreground transition-all"
+                >
+                  <CalendarDays className="size-3" />
+                  Calendar
+                </Link>
                 <Button
                   variant="ghost"
                   size="sm"

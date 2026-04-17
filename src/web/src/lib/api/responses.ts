@@ -2,7 +2,7 @@ import {
   formatTimestamp,
   formatTimestampNullable,
 } from "@/lib/middleware/helpers";
-import { TaskApiBaseSchema, isOnline } from "@alook/shared";
+import { TaskApiBaseSchema, isOnline, TASK_TYPES } from "@alook/shared";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -88,7 +88,7 @@ export function taskToResponse(t: {
     conversation_id: t.conversationId,
     workspace_id: t.workspaceId,
     prompt: t.prompt,
-    type: t.type ?? "user_dm_message",
+    type: t.type ?? TASK_TYPES.USER_DM_MESSAGE,
     status: t.status,
     priority: t.priority,
     dispatched_at: formatTimestampNullable(t.dispatchedAt),
@@ -105,6 +105,7 @@ export function conversationToResponse(c: any) {
     id: c.id,
     agent_id: c.agentId,
     title: c.title,
+    type: c.type ?? TASK_TYPES.USER_DM_MESSAGE,
     created_at: formatTimestamp(c.createdAt),
   };
   if (c.messageCount !== undefined) {
@@ -168,5 +169,24 @@ export function machineTokenToResponse(mt: any) {
     name: mt.name,
     last_used_at: formatTimestampNullable(mt.lastUsedAt),
     created_at: formatTimestamp(mt.createdAt),
+  };
+}
+
+export function calendarEventToResponse(e: any) {
+  const scheduled = formatTimestamp(e.scheduledAt);
+  const occurrence = e.occurrenceAt ? formatTimestamp(e.occurrenceAt) : scheduled;
+  return {
+    id: e.id,
+    agent_id: e.agentId,
+    workspace_id: e.workspaceId,
+    title: e.title,
+    description: e.description ?? null,
+    scheduled_at: scheduled,
+    occurrence_at: occurrence,
+    repeat_interval: e.repeatInterval ?? null,
+    repeat_stop_at: formatTimestampNullable(e.repeatStopAt),
+    last_triggered_at: formatTimestampNullable(e.lastTriggeredAt),
+    created_at: formatTimestamp(e.createdAt),
+    updated_at: formatTimestamp(e.updatedAt),
   };
 }

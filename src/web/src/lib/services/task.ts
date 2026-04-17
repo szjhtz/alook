@@ -1,5 +1,5 @@
 import type { Database } from "@alook/shared";
-import { queries } from "@alook/shared";
+import { queries, TASK_TYPES } from "@alook/shared";
 import { log } from "@/lib/logger";
 
 const taskQueries = queries.task;
@@ -14,7 +14,7 @@ export class TaskService {
     conversationId: string,
     workspaceId: string,
     prompt: string,
-    type: string = "user_dm_message",
+    type: string = TASK_TYPES.USER_DM_MESSAGE,
   ) {
     const agent = await agentQueries.getAgent(this.db, agentId, workspaceId);
     if (!agent) {

@@ -13,6 +13,7 @@ export type {
   EmailAttachment,
   LoginResponse,
   CreateAgentRequest,
+  CalendarEvent,
   WsMessage,
 } from "./types";
 
@@ -35,6 +36,10 @@ export type {
   GetTaskResponse,
   ListTaskMessagesResponse,
   ListMachineTokensResponse,
+  ListCalendarEventsResponse,
+  GetCalendarEventResponse,
+  CreateCalendarEventRequest,
+  UpdateCalendarEventRequest,
   CreateWorkspaceRequest,
   UpdateAgentRequest,
   SendMessageRequest,
@@ -47,6 +52,7 @@ export {
   AgentStatus,
   RuntimeStatus,
   TaskStatus,
+  TASK_TYPES,
   MessageRole,
   POLL_INTERVAL_MS,
   OFFLINE_THRESHOLD_MS,
@@ -61,6 +67,7 @@ export type {
   AgentStatusType,
   RuntimeStatusType,
   TaskStatusType,
+  TaskType,
   MessageRoleType,
 } from "./constants";
 
@@ -83,6 +90,10 @@ export {
   FailTaskRequestSchema,
   MessageItemSchema,
   ReportMessagesRequestSchema,
+  RepeatIntervalSchema,
+  CreateCalendarEventRequestSchema,
+  UpdateCalendarEventRequestSchema,
+  CalendarEventApiSchema,
 } from "./schemas";
 
 export type {
@@ -102,6 +113,9 @@ export type {
   FailTaskRequest,
   MessageItem,
   ReportMessagesRequest,
+  CreateCalendarEventRequestInput,
+  UpdateCalendarEventRequestInput,
+  CalendarEventApi,
 } from "./schemas";
 
 // Database
@@ -113,6 +127,14 @@ export * as queries from "./db/queries-index";
 // Logger
 export { Logger, createLogger } from "./logger"
 export type { LogLevel, LoggerOptions } from "./logger"
+
+// Lib
+export { isEmptyHtml } from "./lib/html";
+export {
+  addRepeatInterval,
+  computeNextScheduledAt,
+  expandOccurrences,
+} from "./db/queries/calendar-event";
 
 // Utils
 export { parseEmailHandle, toAlookAddress, isValidHandle } from "./utils/email";

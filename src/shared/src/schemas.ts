@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TASK_TYPES } from "./constants";
 
 // ---------------------------------------------------------------------------
 // Task status
@@ -28,7 +29,7 @@ export const ClaimedTaskRowSchema = z.object({
   priority: z.coerce.number(),
   result: z.unknown().nullable(),
   context: z.unknown().nullable(),
-  type: z.string().default("user_dm_message"),
+  type: z.string().default(TASK_TYPES.USER_DM_MESSAGE),
   sessionId: z.string().nullable(),
   createdAt: z.coerce.date(),
   dispatchedAt: z.coerce.date().nullable(),
@@ -177,3 +178,100 @@ export const ReportMessagesRequestSchema = z.object({
   messages: z.array(MessageItemSchema),
 });
 export type ReportMessagesRequest = z.infer<typeof ReportMessagesRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// Calendar event schemas
+// ---------------------------------------------------------------------------
+
+export const RepeatIntervalSchema = z
+  .string()
+  .regex(/^\d+(min|hour|day|week|month)$/, {
+    message:
+      "repeat_interval must match <positive_integer><min|hour|day|week|month>",
+  });
+
+export const CreateCalendarEventRequestSchema = z
+  .object({
+    agent_id: z.string().min(1),
+    title: z.string().min(1),
+    description: z.string().max(20_000).optional(),
+    scheduled_at: z
+      .string()
+      .min(1)
+      .refine((s) => !Number.isNaN(Date.parse(s)), {
+        message: "scheduled_at must be a valid ISO datetime",
+      }),
+    repeat_interval: RepeatIntervalSchema.optional(),
+    repeat_stop_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      !data.repeat_stop_date || !!data.repeat_interval,
+    {
+      message: "repeat_stop_date requires repeat_interval",
+      path: ["repeat_stop_date"],
+    }
+  );
+export type CreateCalendarEventRequestInput = z.infer<
+  typeof CreateCalendarEventRequestSchema
+>;
+
+export const UpdateCalendarEventRequestSchema = z
+  .object({
+    title: z.string().min(1).optional(),
+    description: z.string().max(20_000).nullable().optional(),
+    agent_id: z.string().min(1).optional(),
+    scheduled_at: z
+      .string()
+      .min(1)
+      .refine((s) => !Number.isNaN(Date.parse(s)), {
+        message: "scheduled_at must be a valid ISO datetime",
+      })
+      .optional(),
+    repeat_interval: RepeatIntervalSchema.nullable().optional(),
+    repeat_stop_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional(),
+    scope: z.enum(["this", "following"]).optional(),
+    occurrence_at: z
+      .string()
+      .min(1)
+      .refine((s) => !Number.isNaN(Date.parse(s)), {
+        message: "occurrence_at must be a valid ISO datetime",
+      })
+      .optional(),
+  })
+  .refine(
+    (v) =>
+      v.title !== undefined ||
+      v.description !== undefined ||
+      v.agent_id !== undefined ||
+      v.scheduled_at !== undefined ||
+      v.repeat_interval !== undefined ||
+      v.repeat_stop_date !== undefined,
+    { message: "at least one field is required" }
+  );
+export type UpdateCalendarEventRequestInput = z.infer<
+  typeof UpdateCalendarEventRequestSchema
+>;
+
+export const CalendarEventApiSchema = z.object({
+  id: z.string(),
+  agent_id: z.string(),
+  workspace_id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  scheduled_at: z.string(),
+  occurrence_at: z.string(),
+  repeat_interval: z.string().nullable(),
+  repeat_stop_at: z.string().nullable(),
+  last_triggered_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type CalendarEventApi = z.infer<typeof CalendarEventApiSchema>;

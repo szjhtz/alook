@@ -8,6 +8,7 @@ vi.mock("../../../lib/logger.js", () => ({
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+import { TASK_TYPES } from "@alook/shared";
 import {
   initEntry,
   updateEntry,
@@ -43,7 +44,7 @@ describe("timeline", () => {
   }
 
   it("initEntry creates file if it doesn't exist and appends valid JSON line", () => {
-    const entry = createTimelineEntry("t_abc", "do something");
+    const entry = createTimelineEntry("t_abc", "do something", TASK_TYPES.USER_DM_MESSAGE);
     initEntry(dir, entry);
 
     const entries = readEntries();
@@ -59,7 +60,7 @@ describe("timeline", () => {
   });
 
   it("createTimelineEntry stores sessionId and pid when provided", () => {
-    const entry = createTimelineEntry("t_xyz", "test", "sess_1", 99999);
+    const entry = createTimelineEntry("t_xyz", "test", TASK_TYPES.USER_DM_MESSAGE, "sess_1", 99999);
     initEntry(dir, entry);
 
     const entries = readEntries();
@@ -68,7 +69,7 @@ describe("timeline", () => {
   });
 
   it("updateEntry finds entry by task_id and updates steps", () => {
-    const entry = createTimelineEntry("t_abc", "do something");
+    const entry = createTimelineEntry("t_abc", "do something", TASK_TYPES.USER_DM_MESSAGE);
     initEntry(dir, entry);
 
     updateEntry(dir, "t_abc", (e) => {
@@ -80,7 +81,7 @@ describe("timeline", () => {
   });
 
   it("updateEntry sets completion fields correctly", () => {
-    const entry = createTimelineEntry("t_abc", "do something");
+    const entry = createTimelineEntry("t_abc", "do something", TASK_TYPES.USER_DM_MESSAGE);
     initEntry(dir, entry);
 
     updateEntry(dir, "t_abc", (e) => {
@@ -97,7 +98,7 @@ describe("timeline", () => {
   });
 
   it("updateEntry sets failure fields correctly", () => {
-    const entry = createTimelineEntry("t_fail", "will fail");
+    const entry = createTimelineEntry("t_fail", "will fail", TASK_TYPES.USER_DM_MESSAGE);
     initEntry(dir, entry);
 
     updateEntry(dir, "t_fail", (e) => {
@@ -113,9 +114,9 @@ describe("timeline", () => {
   });
 
   it("multiple entries for different task_ids coexist in same file", () => {
-    initEntry(dir, createTimelineEntry("t_1", "first task"));
-    initEntry(dir, createTimelineEntry("t_2", "second task"));
-    initEntry(dir, createTimelineEntry("t_3", "third task"));
+    initEntry(dir, createTimelineEntry("t_1", "first task", TASK_TYPES.USER_DM_MESSAGE));
+    initEntry(dir, createTimelineEntry("t_2", "second task", TASK_TYPES.USER_DM_MESSAGE));
+    initEntry(dir, createTimelineEntry("t_3", "third task", TASK_TYPES.USER_DM_MESSAGE));
 
     const entries = readEntries();
     expect(entries).toHaveLength(3);
@@ -123,8 +124,8 @@ describe("timeline", () => {
   });
 
   it("updateEntry only modifies the matching task_id", () => {
-    initEntry(dir, createTimelineEntry("t_1", "first task"));
-    initEntry(dir, createTimelineEntry("t_2", "second task"));
+    initEntry(dir, createTimelineEntry("t_1", "first task", TASK_TYPES.USER_DM_MESSAGE));
+    initEntry(dir, createTimelineEntry("t_2", "second task", TASK_TYPES.USER_DM_MESSAGE));
 
     updateEntry(dir, "t_2", (e) => {
       e.agent_responses.push("Working on second task");
@@ -141,7 +142,7 @@ describe("timeline", () => {
   });
 
   it("updateEntry is a no-op when task_id not found", () => {
-    initEntry(dir, createTimelineEntry("t_1", "task"));
+    initEntry(dir, createTimelineEntry("t_1", "task", TASK_TYPES.USER_DM_MESSAGE));
 
     updateEntry(dir, "t_nonexistent", (e) => {
       e.agent_responses.push("should not happen");
@@ -185,7 +186,7 @@ describe("timeline", () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const filename = _filenameForDate(yesterday);
-    const entry = createTimelineEntry("t_old", "old task");
+    const entry = createTimelineEntry("t_old", "old task", TASK_TYPES.USER_DM_MESSAGE);
     const filePath = join(dir, filename);
     writeFileSync(filePath, JSON.stringify(entry) + "\n");
 
@@ -206,8 +207,8 @@ describe("timeline", () => {
     const todayFile = join(dir, _todayFilename());
     const yesterdayFile = join(dir, _filenameForDate(yesterday));
 
-    const entryToday = createTimelineEntry("t_dup", "today version");
-    const entryYesterday = createTimelineEntry("t_dup", "yesterday version");
+    const entryToday = createTimelineEntry("t_dup", "today version", TASK_TYPES.USER_DM_MESSAGE);
+    const entryYesterday = createTimelineEntry("t_dup", "yesterday version", TASK_TYPES.USER_DM_MESSAGE);
     writeFileSync(todayFile, JSON.stringify(entryToday) + "\n");
     writeFileSync(yesterdayFile, JSON.stringify(entryYesterday) + "\n");
 
@@ -228,8 +229,8 @@ describe("timeline", () => {
     // Write entries for today and yesterday with different task_ids
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    writeFileSync(join(dir, _todayFilename()), JSON.stringify(createTimelineEntry("t_a", "a")) + "\n");
-    writeFileSync(join(dir, _filenameForDate(yesterday)), JSON.stringify(createTimelineEntry("t_b", "b")) + "\n");
+    writeFileSync(join(dir, _todayFilename()), JSON.stringify(createTimelineEntry("t_a", "a", TASK_TYPES.USER_DM_MESSAGE)) + "\n");
+    writeFileSync(join(dir, _filenameForDate(yesterday)), JSON.stringify(createTimelineEntry("t_b", "b", TASK_TYPES.USER_DM_MESSAGE)) + "\n");
 
     // Should not throw, just silently no-op
     updateEntry(dir, "t_nonexistent", (e) => {

@@ -7,6 +7,7 @@ import type {
   Message,
   TaskMessage,
   MachineToken,
+  CalendarEvent,
 } from "./types";
 import type { TaskApi } from "./schemas";
 
@@ -45,6 +46,30 @@ export type GetTaskResponse = ApiResponse<TaskApi>;
 export type ListTaskMessagesResponse = ApiListResponse<TaskMessage>;
 
 export type ListMachineTokensResponse = ApiListResponse<MachineToken>;
+
+export type ListCalendarEventsResponse = ApiListResponse<CalendarEvent>;
+export type GetCalendarEventResponse = ApiResponse<CalendarEvent>;
+
+export interface CreateCalendarEventRequest {
+  agent_id: string;
+  title: string;
+  description?: string;
+  scheduled_at: string;
+  repeat_interval?: string;
+  repeat_stop_date?: string;
+}
+
+export interface UpdateCalendarEventRequest {
+  title?: string;
+  description?: string | null;
+  agent_id?: string;
+  scheduled_at?: string;
+  repeat_interval?: string | null;
+  repeat_stop_date?: string | null;
+  scope?: "this" | "following";
+  /** ISO of the occurrence being edited; only meaningful for scope="this". */
+  occurrence_at?: string;
+}
 
 export interface CreateWorkspaceRequest {
   name: string;

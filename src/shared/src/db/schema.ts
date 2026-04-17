@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { TASK_TYPES } from "../constants";
 
 // ---------------------------------------------------------------------------
 // Better Auth tables
@@ -190,6 +191,7 @@ export const conversation = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull().default(""),
+    type: text("type").notNull().default(TASK_TYPES.USER_DM_MESSAGE),
     createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   },
   (t) => [
@@ -226,7 +228,7 @@ export const agentTaskQueue = sqliteTable(
       .notNull()
       .references(() => conversation.id),
     prompt: text("prompt").notNull(),
-    type: text("type").notNull().default("user_dm_message"),
+    type: text("type").notNull().default(TASK_TYPES.USER_DM_MESSAGE),
     status: text("status").notNull().default("queued"),
     priority: integer("priority").notNull().default(0),
     result: text("result", { mode: "json" }),
@@ -286,6 +288,35 @@ export const emails = sqliteTable(
     createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   },
   (t) => [
+    foreignKey({
+      columns: [t.agentId, t.workspaceId],
+      foreignColumns: [agent.id, agent.workspaceId],
+    }).onDelete("cascade"),
+  ]
+);
+
+export const calendarEvent = sqliteTable(
+  "calendar_event",
+  {
+    id: text("id").primaryKey().$defaultFn(() => "ce_" + nanoid()),
+    agentId: text("agent_id").notNull(),
+    workspaceId: text("workspace_id").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    scheduledAt: text("scheduled_at").notNull(),
+    repeatInterval: text("repeat_interval"),
+    repeatStopAt: text("repeat_stop_at"),
+    lastTriggeredAt: text("last_triggered_at"),
+    exceptions: text("exceptions", { mode: "json" })
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'`),
+    createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+    updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+  },
+  (t) => [
+    index("idx_calendar_event_agent_ws").on(t.agentId, t.workspaceId),
+    index("idx_calendar_event_ws_scheduled").on(t.workspaceId, t.scheduledAt),
     foreignKey({
       columns: [t.agentId, t.workspaceId],
       foreignColumns: [agent.id, agent.workspaceId],

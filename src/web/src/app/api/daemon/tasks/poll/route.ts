@@ -6,7 +6,9 @@ import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
 import { taskToResponse } from "@/lib/api/responses";
 import { TaskService } from "@/lib/services/task";
 import { sweepStaleState } from "@/lib/services/sweep";
+import { promoteDueCalendarEventsForWorkspace } from "@/lib/services/calendar";
 import { broadcastToUser } from "@/lib/broadcast";
+import { log } from "@/lib/logger";
 
 export const POST = withAuth(async (req: NextRequest, ctx) => {
   const { env } = getCloudflareContext();
@@ -46,6 +48,23 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
 
   // 3. Housekeeping: sweep stale state
   await sweepStaleState(db, ctx.workspaceId);
+
+  // 3b. Promote due calendar events into queued tasks before task claiming so
+  // they are eligible in the same poll response.
+  try {
+    const enqueued = await promoteDueCalendarEventsForWorkspace(
+      db,
+      ctx.workspaceId,
+    );
+    if (enqueued > 0) {
+      log.info("calendar: enqueued", { workspaceId: ctx.workspaceId, enqueued });
+    }
+  } catch (err) {
+    log.warn("calendar: promote failed", {
+      workspaceId: ctx.workspaceId,
+      err: String(err),
+    });
+  }
 
   // 4. Task claiming
   const taskService = new TaskService(db);

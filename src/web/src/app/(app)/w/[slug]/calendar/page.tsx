@@ -1,0 +1,436 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { toast } from "sonner";
+import { useAgentContext } from "@/contexts/agent-context";
+import { useWorkspace } from "@/contexts/workspace-context";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import {
+  listCalendarEvents,
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} from "@/lib/api";
+import {
+  CalendarMonthGrid,
+  dateKey,
+  stepDate,
+} from "@/components/calendar/calendar-month-grid";
+import { CalendarAgenda } from "@/components/calendar/calendar-agenda";
+import {
+  CalendarViewSwitcher,
+  parseCalendarView,
+  type CalendarView,
+} from "@/components/calendar/calendar-view-switcher";
+import { CalendarAgentFilter } from "@/components/calendar/calendar-agent-filter";
+import { CalendarEventSheet } from "@/components/calendar/calendar-event-sheet";
+import type { CalendarEvent, UpdateCalendarEventRequest } from "@alook/shared";
+import { isTypingTarget } from "@/components/calendar/keyboard";
+
+function monthRangeIso(year: number, month: number) {
+  const from = new Date(year, month, 1, 0, 0, 0, 0);
+  const to = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+export default function CalendarPage() {
+  const { workspaceId } = useWorkspace();
+  const { agents } = useAgentContext();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const now = new Date();
+  const initialYear = Number(searchParams.get("y")) || now.getFullYear();
+  const initialMonth = searchParams.has("m")
+    ? Number(searchParams.get("m"))
+    : now.getMonth();
+  const initialView = parseCalendarView(searchParams.get("view"));
+
+  const [year, setYear] = useState(initialYear);
+  const [month, setMonth] = useState(initialMonth);
+  const [view, setView] = useState<CalendarView>(initialView);
+  const [selectedAgents, setSelectedAgents] = useState<Set<string>>(() => {
+    const param = searchParams.get("agents");
+    if (!param) return new Set();
+    return new Set(param.split(",").filter(Boolean));
+  });
+  // Default focus to today when the current view contains today, otherwise the
+  // 1st of the viewed month — keeps at least one day cell in the tab order.
+  const [focusedDate, setFocusedDate] = useState<Date>(() => {
+    const t = new Date();
+    if (t.getFullYear() === initialYear && t.getMonth() === initialMonth) return t;
+    return new Date(initialYear, initialMonth, 1);
+  });
+  const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
+
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDefault, setCreateDefault] = useState<Date | undefined>();
+  const [detail, setDetail] = useState<CalendarEvent | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const syncUrl = useCallback(
+    (
+      nextYear: number,
+      nextMonth: number,
+      agentSet: Set<string>,
+      nextView: CalendarView
+    ) => {
+      const params = new URLSearchParams();
+      params.set("y", String(nextYear));
+      params.set("m", String(nextMonth));
+      if (agentSet.size > 0) params.set("agents", [...agentSet].join(","));
+      if (nextView !== "month") params.set("view", nextView);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router]
+  );
+
+  const fetchEvents = useCallback(async () => {
+    const { from, to } = monthRangeIso(year, month);
+    setLoading(true);
+    try {
+      const list = await listCalendarEvents(workspaceId, { from, to });
+      setEvents(list);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load events");
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId, year, month]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  const visibleEvents = useMemo(() => {
+    if (selectedAgents.size === 0) return events;
+    return events.filter((ev) => selectedAgents.has(ev.agent_id));
+  }, [events, selectedAgents]);
+
+  const handlePrev = useCallback(() => {
+    const nm = month === 0 ? 11 : month - 1;
+    const ny = month === 0 ? year - 1 : year;
+    setMonth(nm);
+    setYear(ny);
+    setFocusedDate(new Date(ny, nm, 1));
+    syncUrl(ny, nm, selectedAgents, view);
+  }, [month, year, selectedAgents, view, syncUrl]);
+
+  const handleNext = useCallback(() => {
+    const nm = month === 11 ? 0 : month + 1;
+    const ny = month === 11 ? year + 1 : year;
+    setMonth(nm);
+    setYear(ny);
+    setFocusedDate(new Date(ny, nm, 1));
+    syncUrl(ny, nm, selectedAgents, view);
+  }, [month, year, selectedAgents, view, syncUrl]);
+
+  const handleToggleAgent = (agentId: string) => {
+    const next = new Set(selectedAgents);
+    if (next.has(agentId)) next.delete(agentId);
+    else next.add(agentId);
+    setSelectedAgents(next);
+    syncUrl(year, month, next, view);
+  };
+
+  const handleSelectDay = (date: Date) => {
+    setCreateDefault(date);
+    setCreateOpen(true);
+    setFocusedDate(date);
+  };
+
+  const handleSelectEvent = (ev: CalendarEvent) => {
+    setDetail(ev);
+    setDetailOpen(true);
+  };
+
+  const jumpToDate = useCallback(
+    (date: Date) => {
+      const ny = date.getFullYear();
+      const nm = date.getMonth();
+      setYear(ny);
+      setMonth(nm);
+      setFocusedDate(date);
+      syncUrl(ny, nm, selectedAgents, view);
+    },
+    [selectedAgents, view, syncUrl]
+  );
+
+  const handleJumpToToday = useCallback(() => {
+    jumpToDate(new Date());
+  }, [jumpToDate]);
+
+  const handleViewChange = useCallback(
+    (v: CalendarView) => {
+      setView(v);
+      syncUrl(year, month, selectedAgents, v);
+    },
+    [year, month, selectedAgents, syncUrl]
+  );
+
+  const handleCreate = async (values: {
+    agent_id: string;
+    title: string;
+    description?: string;
+    scheduled_at: string;
+    repeat_interval?: string;
+    repeat_stop_date?: string;
+  }) => {
+    setSubmitting(true);
+    try {
+      const created = await createCalendarEvent(values, workspaceId);
+      // Only surface the new event in local state if it falls inside the
+      // currently-fetched month window. Otherwise let the next month
+      // navigation refetch pick it up (avoids leaking out-of-range events
+      // into agenda view).
+      const d = new Date(created.scheduled_at);
+      if (d.getFullYear() === year && d.getMonth() === month) {
+        setEvents((prev) => [...prev, created]);
+      }
+      setCreateOpen(false);
+      toast.success("Event created");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to create event"
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdate = async (
+    event: CalendarEvent,
+    patch: UpdateCalendarEventRequest
+  ) => {
+    setSubmittingEdit(true);
+    try {
+      await updateCalendarEvent(event.id, patch, workspaceId);
+      // Recurring split may have created a detached row and advanced the
+      // parent — simplest to re-fetch the visible range rather than merge.
+      await fetchEvents();
+      setDetailOpen(false);
+      setDetail(null);
+      toast.success("Event updated");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update event"
+      );
+    } finally {
+      setSubmittingEdit(false);
+    }
+  };
+
+  const handleDelete = async (event: CalendarEvent) => {
+    setDeletingId(event.id);
+    try {
+      await deleteCalendarEvent(event.id, workspaceId);
+      setEvents((prev) => prev.filter((e) => e.id !== event.id));
+      setDetailOpen(false);
+      setDetail(null);
+      toast.success("Event deleted");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete event"
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Global keyboard handler — month view only. Page-level so `n`/`t` fire even
+  // when the grid isn't focused. Arrow keys only move focus if it's already in
+  // the grid.
+  const createOpenRef = useRef(createOpen);
+  const detailOpenRef = useRef(detailOpen);
+  createOpenRef.current = createOpen;
+  detailOpenRef.current = detailOpen;
+
+  // Memoize events-per-day for quick lookup in the keyboard handler.
+  const hiddenCountForDate = useCallback(
+    (d: Date) => {
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      let count = 0;
+      for (const ev of visibleEvents) {
+        const ed = new Date(ev.scheduled_at);
+        const k = `${ed.getFullYear()}-${String(ed.getMonth() + 1).padStart(2, "0")}-${String(ed.getDate()).padStart(2, "0")}`;
+        if (k === key) count++;
+      }
+      return Math.max(0, count - 3);
+    },
+    [visibleEvents]
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (createOpenRef.current || detailOpenRef.current) return;
+      if (isTypingTarget(e.target)) return;
+
+      // `t` and `n` fire in every view.
+      if (e.key === "t") {
+        e.preventDefault();
+        const today = new Date();
+        if (today.getFullYear() !== year || today.getMonth() !== month) {
+          jumpToDate(today);
+        } else {
+          setFocusedDate(today);
+        }
+        return;
+      }
+
+      if (e.key === "n") {
+        e.preventDefault();
+        const target = focusedDate;
+        setCreateDefault(target);
+        setCreateOpen(true);
+        return;
+      }
+
+      // Arrow / Enter / Page / Home / End are month-view-only.
+      if (view !== "month") return;
+
+      const focusInGrid =
+        document.activeElement?.getAttribute("role") === "gridcell";
+
+      if (e.key === "Enter") {
+        if (!focusInGrid) return;
+        e.preventDefault();
+        const hidden = hiddenCountForDate(focusedDate);
+        if (hidden > 0) {
+          const key = `${focusedDate.getFullYear()}-${String(focusedDate.getMonth() + 1).padStart(2, "0")}-${String(focusedDate.getDate()).padStart(2, "0")}`;
+          setOpenPopoverKey(key);
+        } else {
+          setCreateDefault(focusedDate);
+          setCreateOpen(true);
+        }
+        return;
+      }
+
+      // Escape is handled by base-ui popover / dialog primitives internally.
+
+      if (!focusInGrid) return;
+
+      const stepped = stepDate(focusedDate, e.key);
+      if (!stepped) return;
+      e.preventDefault();
+      const inView =
+        stepped.getFullYear() === year && stepped.getMonth() === month;
+      if (inView) {
+        setFocusedDate(stepped);
+      } else {
+        jumpToDate(stepped);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [view, year, month, focusedDate, jumpToDate, hiddenCountForDate]);
+
+  // When focusedDate changes, move DOM focus onto that cell — but only if
+  // focus is already inside the grid (don't steal focus on page load).
+  useEffect(() => {
+    if (view !== "month") return;
+    const active = document.activeElement;
+    if (!active || active.getAttribute("role") !== "gridcell") return;
+    const sel = `[data-date="${dateKey(focusedDate)}"]`;
+    const el = document.querySelector<HTMLElement>(sel);
+    el?.focus();
+  }, [focusedDate, view, year, month]);
+
+  return (
+    <>
+      <div className="flex items-center justify-between border-b border-border/50 px-5 py-2.5 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <h1 className="text-sm font-medium">Calendar</h1>
+          <p className="text-xs text-muted-foreground hidden md:block">
+            Schedule recurring and one-time tasks for your agents.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <CalendarViewSwitcher view={view} onChange={handleViewChange} />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setCreateDefault(undefined);
+              setCreateOpen(true);
+            }}
+            disabled={agents.length === 0}
+          >
+            <Plus className="size-3.5" />
+            New event
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
+        <CalendarAgentFilter
+          agents={agents}
+          selected={selectedAgents}
+          onToggle={handleToggleAgent}
+        />
+
+        {view === "month" ? (
+          <CalendarMonthGrid
+            year={year}
+            month={month}
+            events={visibleEvents}
+            agents={agents}
+            loading={loading}
+            focusedDate={focusedDate}
+            openPopoverKey={openPopoverKey}
+            onPopoverChange={setOpenPopoverKey}
+            onPrev={handlePrev}
+            onNext={handleNext}
+            onJumpToToday={handleJumpToToday}
+            onJumpToDate={jumpToDate}
+            onSelectDay={handleSelectDay}
+            onSelectEvent={handleSelectEvent}
+          />
+        ) : (
+          <CalendarAgenda
+            events={visibleEvents}
+            agents={agents}
+            loading={loading}
+            onSelectEvent={handleSelectEvent}
+          />
+        )}
+
+        {view === "month" &&
+          !loading &&
+          events.length > 0 &&
+          visibleEvents.length === 0 && (
+            <p className="text-center text-xs text-muted-foreground py-4">
+              No events for selected agents.
+            </p>
+          )}
+      </div>
+
+      <CalendarEventSheet
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        agents={agents}
+        defaultDate={createDefault}
+        submitting={submitting}
+        onCreate={handleCreate}
+      />
+
+      <CalendarEventSheet
+        event={detail}
+        agents={agents}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onDelete={handleDelete}
+        onUpdate={handleUpdate}
+        deleting={deletingId === detail?.id}
+        saving={submittingEdit}
+      />
+    </>
+  );
+}

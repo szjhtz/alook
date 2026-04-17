@@ -1,6 +1,7 @@
 import { eq, and, desc, count } from "drizzle-orm";
 import { conversation, message } from "../schema";
 import type { Database } from "../index";
+import { TASK_TYPES, type TaskType } from "../../constants";
 
 export async function createConversation(
   db: Database,
@@ -9,6 +10,7 @@ export async function createConversation(
     agentId: string;
     userId: string;
     title: string;
+    type?: TaskType;
   }
 ) {
   const rows = await db
@@ -18,6 +20,7 @@ export async function createConversation(
       agentId: data.agentId,
       userId: data.userId,
       title: data.title,
+      type: data.type ?? TASK_TYPES.USER_DM_MESSAGE,
     })
     .returning();
   return rows[0]!;
@@ -96,7 +99,9 @@ export async function getOrCreateAgentConversation(
   userId: string,
   agentId: string
 ) {
-  // Find the most recent conversation for this user+agent+workspace
+  // Find the most recent user-DM conversation for this user+agent+workspace.
+  // Email- and calendar-originated conversations share the same table but must
+  // not surface as the agent's default chat — they have their own entry points.
   const rows = await db
     .select()
     .from(conversation)
@@ -104,7 +109,8 @@ export async function getOrCreateAgentConversation(
       and(
         eq(conversation.workspaceId, workspaceId),
         eq(conversation.userId, userId),
-        eq(conversation.agentId, agentId)
+        eq(conversation.agentId, agentId),
+        eq(conversation.type, TASK_TYPES.USER_DM_MESSAGE)
       )
     )
     .orderBy(desc(conversation.createdAt))
@@ -122,6 +128,7 @@ export async function getOrCreateAgentConversation(
       agentId,
       userId,
       title: "",
+      type: TASK_TYPES.USER_DM_MESSAGE,
     })
     .returning();
   return created[0]!;

@@ -5,7 +5,7 @@ import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
-import { Monitor, SunMoon, Plus, LayoutGrid } from "lucide-react";
+import { Monitor, SunMoon, Plus, LayoutGrid, CalendarDays } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "next-themes";
 import { NavUser } from "@/components/nav-user";
@@ -22,6 +22,7 @@ export function AppSidebar() {
 
   const prefix = `/w/${slug}`;
   const isRuntimes = pathname === `${prefix}/runtimes`;
+  const isCalendar = pathname === `${prefix}/calendar`;
   const isCreateAgent = pathname === `${prefix}/agents/new`;
 
   // Detect active agent from ?agent= param or /w/[slug]/agents/[id] route
@@ -107,6 +108,19 @@ export function AppSidebar() {
           )}
         >
           <Monitor className="size-4" />
+        </button>
+
+        <button
+          type="button"
+          title="Calendar"
+          onClick={() => router.push(`${prefix}/calendar`)}
+          className={cn(
+            "flex items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer",
+            "text-muted-foreground hover:text-foreground hover:bg-accent",
+            isCalendar && "bg-accent text-foreground"
+          )}
+        >
+          <CalendarDays className="size-4" />
         </button>
 
         <button

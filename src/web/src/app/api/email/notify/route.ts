@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { getCloudflareContext } from "@opennextjs/cloudflare"
-import { createDb, queries } from "@alook/shared"
+import { createDb, queries, TASK_TYPES } from "@alook/shared"
 import { writeJSON, writeError } from "@/lib/middleware/helpers"
 import { TaskService } from "@/lib/services/task"
 import { broadcastToUser } from "@/lib/broadcast"
@@ -31,9 +31,10 @@ export async function POST(req: NextRequest) {
       agentId: agent.id,
       userId: agent.ownerId!,
       title: `Email: ${body.subject}`.slice(0, 50),
+      type: TASK_TYPES.EMAIL_NOTIFICATION,
     })
     const taskService = new TaskService(db)
-    await taskService.enqueueTask(agent.id, conv.id, agent.workspaceId, `New email from ${body.from}: ${body.subject}`, "email_notification")
+    await taskService.enqueueTask(agent.id, conv.id, agent.workspaceId, `New email from ${body.from}: ${body.subject}`, TASK_TYPES.EMAIL_NOTIFICATION)
   }
 
   // Notify UI for all emails (whitelisted or not)
