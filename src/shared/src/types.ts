@@ -151,7 +151,7 @@ export interface CreateAgentRequest {
 
 /** WebSocket event types — single source of truth for the WS protocol. */
 export type WsMessage =
-  | { type: "runtime.registered"; daemonId: string; hostname: string }
+  | { type: "runtime.registered"; daemonId: string; hostname: string; workspaceId: string }
   | { type: "runtime.status"; daemonId: string; workspaceId: string; status: string }
   | { type: "runtime.deleted"; daemonId: string }
   | { type: "task.updated"; taskId: string; status: string }

@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     type: "runtime.registered",
     daemonId,
     hostname,
+    workspaceId: mt.workspaceId,
   }).catch(() => {});
 
   return writeJSON({

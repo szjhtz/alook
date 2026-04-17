@@ -31,6 +31,7 @@ import { useUserWs } from "@/lib/use-user-ws";
 type WsSubscriber = (msg: WsMessage) => void;
 
 interface AgentContextValue {
+  workspaceId: string;
   agents: Agent[];
   runtimes: Runtime[];
   loading: boolean;
@@ -116,6 +117,10 @@ export function AgentProvider({
       // AgentProvider only reloads agents/runtimes for runtime events
       switch (msg.type) {
         case "runtime.registered":
+          // Filter by workspaceId — ignore registrations in other workspaces
+          if (msg.workspaceId !== workspaceId) break;
+          reload();
+          break;
         case "runtime.deleted":
           reload();
           break;
@@ -214,6 +219,7 @@ export function AgentProvider({
   return (
     <AgentContext.Provider
       value={{
+        workspaceId,
         agents,
         runtimes,
         loading,

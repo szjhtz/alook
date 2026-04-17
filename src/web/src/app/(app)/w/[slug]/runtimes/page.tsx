@@ -129,7 +129,7 @@ function ConnectMachineSteps({
 }
 
 export default function RuntimesPage() {
-  const { runtimes, loading, handleGenerateToken, handleDeleteMachine, reload } =
+  const { runtimes, loading, handleGenerateToken, handleDeleteMachine, reload, subscribeWs, workspaceId } =
     useAgentContext();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -152,6 +152,17 @@ export default function RuntimesPage() {
       router.replace(pathname, { scroll: false });
     }
   }, [searchParams, router, pathname]);
+
+  // Close the sheet automatically when a daemon registers for this workspace
+  useEffect(() => {
+    return subscribeWs((msg) => {
+      if (msg.type === "runtime.registered" && msg.workspaceId === workspaceId) {
+        setSheetOpen(false);
+        setGeneratedToken("");
+        toast.success("Machine connected");
+      }
+    });
+  }, [subscribeWs, workspaceId]);
 
   const openConfirm = (
     title: string,
