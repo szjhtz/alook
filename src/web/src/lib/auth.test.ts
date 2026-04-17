@@ -60,6 +60,12 @@ type AuthOptions = {
       set: (key: string, value: RateLimitValue) => Promise<void>
     }
   }
+  session?: {
+    cookieCache?: {
+      enabled?: boolean
+      maxAge?: number
+    }
+  }
 }
 
 async function loadCreateAuth(nodeEnv: "production" | "development" | "test") {
@@ -158,5 +164,25 @@ describe("createAuth rate limiting", () => {
     const kv = env.RATE_LIMIT_KV as ReturnType<typeof makeKv>
     await opts.rateLimit.customStorage.set("k", { count: 1, lastRequest: 0 })
     expect(kv.store.get("k")?.expirationTtl).toBe(180)
+  })
+})
+
+describe("createAuth session cookie cache", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  // The signed session-data cookie lets `auth.api.getSession()` validate without
+  // a D1 round-trip. Without it, the first request after a fresh OTP sign-up
+  // can 401 because the just-written `user` row hasn't replicated yet.
+  it("enables the signed session-data cookie with a positive maxAge", async () => {
+    const createAuth = await loadCreateAuth("production")
+    const opts = (createAuth(makeEnv() as never) as { __options: AuthOptions }).__options
+    expect(opts.session?.cookieCache?.enabled).toBe(true)
+    expect(opts.session?.cookieCache?.maxAge).toBeGreaterThan(0)
+  })
+
+  it("enables cookieCache in development too so local sign-up doesn't 401", async () => {
+    const createAuth = await loadCreateAuth("development")
+    const opts = (createAuth(makeEnv() as never) as { __options: AuthOptions }).__options
+    expect(opts.session?.cookieCache?.enabled).toBe(true)
   })
 })

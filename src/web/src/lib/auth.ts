@@ -29,6 +29,16 @@ export function createAuth(env: Env) {
     baseURL: env.BETTER_AUTH_URL,
     database: env.DB,
     secret: env.BETTER_AUTH_SECRET,
+    // Signed session-data cookie lets getSession() validate without hitting D1.
+    // Fixes first-login 401 for newly-registered users: the just-written user row
+    // may not yet be visible on a D1 read-replica, but the signed cookie carries
+    // the session payload set by the sign-in handler itself.
+    session: {
+      cookieCache: {
+        enabled: true,
+        maxAge: 5 * 60,
+      },
+    },
     emailAndPassword: {
       enabled: !isProd,
       requireEmailVerification: false,
