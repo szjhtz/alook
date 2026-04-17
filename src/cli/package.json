@@ -1,6 +1,6 @@
 {
   "name": "@alook/cli",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Alook CLI — register and run always-on AI coding agents.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/alookai/alook#readme",
@@ -38,7 +38,7 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target node --format esm --external citty --external commander --external postal-mime && node scripts/prepare-dist.mjs",
+    "build": "bun build src/index.ts --outdir dist --target node --format esm --external citty --external commander --external postal-mime && bun build daemon/session-runner.ts --outdir dist --target node --format esm --external citty --external commander --external postal-mime && node scripts/prepare-dist.mjs",
     "prepack": "pnpm run build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

@@ -7,9 +7,15 @@ import { loadCLIConfigForProfile, saveCLIConfigForProfile } from "../lib/config.
 import { log } from "../lib/logger.js";
 import { cmdPrefix } from "../lib/env.js";
 import { acquireDaemonPid, releaseDaemonPid } from "./pidfile.js";
+import { existsSync } from "fs";
 import { execSync, spawn, type ChildProcess } from "child_process";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+
+const _dir = dirname(fileURLToPath(import.meta.url));
+const sessionRunnerPath = existsSync(join(_dir, "session-runner.js"))
+  ? join(_dir, "session-runner.js")
+  : join(_dir, "session-runner.ts");
 
 interface WorkspaceState {
   workspaceId: string;
@@ -243,14 +249,9 @@ export async function startDaemon(
   await pollCycle();
 }
 
-const SESSION_RUNNER_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "session-runner.ts",
-);
-
 export function spawnSessionRunner(input: SessionRunnerInput): ChildProcess {
   const encoded = Buffer.from(JSON.stringify(input)).toString("base64");
-  const child = spawn("bun", ["run", SESSION_RUNNER_PATH, encoded], {
+  const child = spawn(process.execPath, [sessionRunnerPath, encoded], {
     detached: true,
     stdio: "ignore",
   });

@@ -86,6 +86,10 @@ vi.mock("child_process", () => {
   };
 });
 
+vi.mock("fs", () => ({
+  existsSync: vi.fn((p: string) => p.endsWith("session-runner.js")),
+}));
+
 vi.mock("url", () => ({
   fileURLToPath: vi.fn(() => "/fake/daemon.ts"),
 }));
@@ -150,9 +154,9 @@ import { startDaemon, spawnSessionRunner } from "./daemon.js";
 const mockReleaseDaemonPid = vi.mocked(releaseDaemonPid);
 
 function decodeSpawnInput(call: any[]): any {
-  // spawn('bun', ['run', path, encodedInput], opts)
+  // spawn(process.execPath, [sessionRunnerPath, encodedInput], opts)
   const args = call[1] as string[];
-  const encoded = args[2];
+  const encoded = args[1];
   return JSON.parse(Buffer.from(encoded, "base64").toString("utf-8"));
 }
 
@@ -211,9 +215,8 @@ describe("daemon session runner dispatch", () => {
 
     expect(spawn).toHaveBeenCalledTimes(1);
     const call = vi.mocked(spawn).mock.calls[0];
-    expect(call[0]).toBe("bun");
-    expect((call[1] as string[])[0]).toBe("run");
-    expect((call[1] as string[])[1]).toContain("session-runner.ts");
+    expect(call[0]).toBe(process.execPath);
+    expect((call[1] as string[])[0]).toContain("session-runner.js");
   });
 
   it("passes correct SessionRunnerInput to session runner", async () => {
@@ -795,14 +798,13 @@ describe("spawnSessionRunner", () => {
 
     expect(spawn).toHaveBeenCalledTimes(1);
     const call = vi.mocked(spawn).mock.calls[0];
-    expect(call[0]).toBe("bun");
+    expect(call[0]).toBe(process.execPath);
 
     const args = call[1] as string[];
-    expect(args[0]).toBe("run");
-    expect(args[1]).toContain("session-runner.ts");
+    expect(args[0]).toContain("session-runner.js");
 
     // Decode and verify
-    const decoded = JSON.parse(Buffer.from(args[2], "base64").toString("utf-8"));
+    const decoded = JSON.parse(Buffer.from(args[1], "base64").toString("utf-8"));
     expect(decoded.task.id).toBe("t1");
     expect(decoded.provider).toBe("claude");
     expect(decoded.token).toBe("test_token");
