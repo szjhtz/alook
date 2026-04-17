@@ -94,6 +94,13 @@ Each email is saved to '/tmp/alook-emails/<emailId>/' with:
 Before starting to process an email, mark it as read:
 - Run 'npx @alook/cli set --agent_id ${task.agentId} --email_id <EMAIL_ID> --status read'
 ---
+
+#### Sending email
+Write the HTML body to a file first, then send it. The body is forwarded as-is (HTML).
+- Run 'npx @alook/cli email send --agent_id ${task.agentId} --to <ADDRESS> --subject "<SUBJECT>" --body-file <PATH_TO_HTML>'
+- Attach files with '--attachment <PATH>' — repeat the flag for multiple attachments. Each file is uploaded before sending.
+- Example: 'npx @alook/cli email send --agent_id ${task.agentId} --to foo@bar.com --subject "Weekly report" --body-file /tmp/body.html --attachment /tmp/report.pdf --attachment /tmp/chart.png'
+---
 `;
   }
 

@@ -45,6 +45,25 @@ export class APIClient {
     return this.request("PATCH", path, body);
   }
 
+  async postMultipart<T>(path: string, form: FormData): Promise<T> {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.token}`,
+    };
+    if (this.workspaceId) headers["X-Workspace-ID"] = this.workspaceId;
+
+    const res = await fetch(this.baseURL + path, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text}`);
+    }
+    if (res.status === 204) return undefined as T;
+    return res.json();
+  }
+
   async getText(path: string): Promise<string> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.token}`,

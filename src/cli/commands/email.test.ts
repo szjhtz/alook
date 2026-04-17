@@ -2,6 +2,34 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "fs";
 import { join } from "path";
 import PostalMime from "postal-mime";
+import { Command } from "commander";
+
+const { postMultipartMock, postJSONMock } = vi.hoisted(() => ({
+  postMultipartMock: vi.fn(),
+  postJSONMock: vi.fn(),
+}));
+
+vi.mock("../lib/client.js", () => ({
+  APIClient: class {
+    postMultipart(...a: unknown[]) {
+      return postMultipartMock(...a);
+    }
+    postJSON(...a: unknown[]) {
+      return postJSONMock(...a);
+    }
+  },
+}));
+
+vi.mock("../lib/config.js", () => ({
+  loadCLIConfigForProfile: vi.fn(() => ({
+    server_url: "http://localhost:3000",
+    watched_workspaces: [
+      { id: "w1", token: "tok", agent_ids: ["ag_1"] },
+    ],
+  })),
+}));
+
+import { emailCommand } from "./email.js";
 
 // Test the PostalMime parsing and file writing logic in isolation
 // (CLI commands themselves depend on network + config which we don't mock here)
@@ -225,5 +253,179 @@ describe("email status validation", () => {
     expect(VALID_STATUSES.includes("deleted")).toBe(false);
     expect(VALID_STATUSES.includes("pending")).toBe(false);
     expect(VALID_STATUSES.includes("")).toBe(false);
+  });
+});
+
+describe("email send subcommand shape", () => {
+  const cmd = emailCommand();
+  const send = cmd.commands.find((c) => c.name() === "send")!;
+
+  it("is registered", () => {
+    expect(send).toBeDefined();
+  });
+
+  it("requires --agent_id, --to, --subject, --body-file", () => {
+    const opts = (send as unknown as { options: { long: string; mandatory?: boolean }[] }).options;
+    const mandatory = opts.filter((o) => o.mandatory).map((o) => o.long);
+    expect(mandatory).toContain("--agent_id");
+    expect(mandatory).toContain("--to");
+    expect(mandatory).toContain("--subject");
+    expect(mandatory).toContain("--body-file");
+  });
+
+  it("accepts --attachment and --workspace as optional", () => {
+    const opts = (send as unknown as { options: { long: string; mandatory?: boolean }[] }).options;
+    const longs = opts.map((o) => o.long);
+    const mandatory = opts.filter((o) => o.mandatory).map((o) => o.long);
+    expect(longs).toContain("--attachment");
+    expect(longs).toContain("--workspace");
+    expect(mandatory).not.toContain("--attachment");
+    expect(mandatory).not.toContain("--workspace");
+  });
+});
+
+describe("email send behavior", () => {
+  const SEND_TMP = "/tmp/alook-email-send-test";
+
+  async function runSend(args: string[]): Promise<{ out: string[]; err: string[]; exitCode: number | null }> {
+    const out: string[] = [];
+    const err: string[] = [];
+    let exitCode: number | null = null;
+    const logSpy = vi.spyOn(console, "log").mockImplementation((m: unknown) => {
+      out.push(String(m));
+    });
+    const errSpy = vi.spyOn(console, "error").mockImplementation((m: unknown) => {
+      err.push(String(m));
+    });
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
+      exitCode = code ?? 0;
+      throw new Error("__exit__");
+    }) as never);
+    try {
+      const program = new Command()
+        .name("alook")
+        .option("--server <url>", "Server URL")
+        .option("--profile <name>", "Profile name");
+      program.addCommand(emailCommand());
+      await program.parseAsync(["email", "send", ...args], { from: "user" });
+    } catch (e) {
+      if (!(e instanceof Error) || e.message !== "__exit__") throw e;
+    } finally {
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+    return { out, err, exitCode };
+  }
+
+  beforeEach(() => {
+    mkdirSync(SEND_TMP, { recursive: true });
+    postMultipartMock.mockReset();
+    postJSONMock.mockReset();
+  });
+
+  afterEach(() => {
+    rmSync(SEND_TMP, { recursive: true, force: true });
+  });
+
+  it("uploads each attachment then sends", async () => {
+    const bodyPath = join(SEND_TMP, "body.html");
+    const att1 = join(SEND_TMP, "report.pdf");
+    const att2 = join(SEND_TMP, "chart.png");
+    writeFileSync(bodyPath, "<p>Hi</p>");
+    writeFileSync(att1, Buffer.from("pdf-bytes"));
+    writeFileSync(att2, Buffer.from("png-bytes"));
+
+    postMultipartMock
+      .mockResolvedValueOnce({ key: "emails/drafts/abc/report.pdf", filename: "report.pdf", size: 9, contentType: "application/pdf" })
+      .mockResolvedValueOnce({ key: "emails/drafts/def/chart.png", filename: "chart.png", size: 9, contentType: "image/png" });
+    postJSONMock.mockResolvedValueOnce({ id: "em_1", to_email: "foo@bar.com" });
+
+    const { out, exitCode } = await runSend([
+      "--agent_id", "ag_1",
+      "--to", "foo@bar.com",
+      "--subject", "Weekly report",
+      "--body-file", bodyPath,
+      "--attachment", att1,
+      "--attachment", att2,
+    ]);
+
+    expect(exitCode).toBeNull();
+    expect(postMultipartMock).toHaveBeenCalledTimes(2);
+    expect(postMultipartMock.mock.calls[0][0]).toBe("/api/email/upload");
+    expect(postMultipartMock.mock.calls[0][1]).toBeInstanceOf(FormData);
+    const form1 = postMultipartMock.mock.calls[0][1] as FormData;
+    const file1 = form1.get("file") as File;
+    expect(file1).toBeInstanceOf(Blob);
+    // Blob.type carries our guessed content-type
+    expect(file1.type).toBe("application/pdf");
+
+    expect(postJSONMock).toHaveBeenCalledTimes(1);
+    expect(postJSONMock.mock.calls[0][0]).toBe("/api/email/send");
+    const payload = postJSONMock.mock.calls[0][1] as {
+      agentId: string;
+      to: string;
+      subject: string;
+      htmlBody: string;
+      attachments: Array<{ key: string; filename: string; contentType: string }>;
+    };
+    expect(payload.agentId).toBe("ag_1");
+    expect(payload.to).toBe("foo@bar.com");
+    expect(payload.subject).toBe("Weekly report");
+    expect(payload.htmlBody).toBe("<p>Hi</p>");
+    expect(payload.attachments).toHaveLength(2);
+    expect(payload.attachments[0].key).toBe("emails/drafts/abc/report.pdf");
+    expect(payload.attachments[1].key).toBe("emails/drafts/def/chart.png");
+
+    expect(out.join("\n")).toContain("Sent email to foo@bar.com");
+  });
+
+  it("sends with empty attachments when none provided", async () => {
+    const bodyPath = join(SEND_TMP, "body.html");
+    writeFileSync(bodyPath, "<p>No attachments</p>");
+    postJSONMock.mockResolvedValueOnce({ id: "em_2", to_email: "a@b.com" });
+
+    const { exitCode } = await runSend([
+      "--agent_id", "ag_1",
+      "--to", "a@b.com",
+      "--subject", "Hi",
+      "--body-file", bodyPath,
+    ]);
+
+    expect(exitCode).toBeNull();
+    expect(postMultipartMock).not.toHaveBeenCalled();
+    const payload = postJSONMock.mock.calls[0][1] as { attachments: unknown[] };
+    expect(payload.attachments).toEqual([]);
+  });
+
+  it("errors when body file does not exist", async () => {
+    const { err, exitCode } = await runSend([
+      "--agent_id", "ag_1",
+      "--to", "a@b.com",
+      "--subject", "Hi",
+      "--body-file", join(SEND_TMP, "missing.html"),
+    ]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("cannot read body file");
+    expect(postMultipartMock).not.toHaveBeenCalled();
+    expect(postJSONMock).not.toHaveBeenCalled();
+  });
+
+  it("errors when body file is empty", async () => {
+    const bodyPath = join(SEND_TMP, "empty.html");
+    writeFileSync(bodyPath, "");
+
+    const { err, exitCode } = await runSend([
+      "--agent_id", "ag_1",
+      "--to", "a@b.com",
+      "--subject", "Hi",
+      "--body-file", bodyPath,
+    ]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("is empty");
+    expect(postMultipartMock).not.toHaveBeenCalled();
+    expect(postJSONMock).not.toHaveBeenCalled();
   });
 });

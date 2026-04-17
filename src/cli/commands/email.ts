@@ -1,6 +1,6 @@
 import { Command } from "commander";
-import { writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
+import { writeFileSync, mkdirSync, readFileSync, statSync } from "fs";
+import { basename, join } from "path";
 import PostalMime from "postal-mime";
 import { APIClient } from "../lib/client.js";
 import { loadCLIConfigForProfile } from "../lib/config.js";
@@ -24,6 +24,46 @@ interface EmailResponse {
 
 const VALID_STATUSES = ["unread", "read", "archived"];
 const EMAIL_DIR = "/tmp/alook-emails";
+
+const MIME_BY_EXT: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".txt": "text/plain",
+  ".html": "text/html",
+  ".htm": "text/html",
+  ".json": "application/json",
+  ".csv": "text/csv",
+  ".md": "text/markdown",
+  ".zip": "application/zip",
+};
+
+function guessContentType(filename: string): string {
+  const idx = filename.lastIndexOf(".");
+  if (idx < 0) return "application/octet-stream";
+  const ext = filename.slice(idx).toLowerCase();
+  return MIME_BY_EXT[ext] ?? "application/octet-stream";
+}
+
+function collectRepeated(value: string, previous: string[]): string[] {
+  return previous.concat([value]);
+}
+
+interface AttachmentDescriptor {
+  key: string;
+  filename: string;
+  size: number;
+  contentType: string;
+}
+
+interface SendResponse {
+  id: string;
+  to_email: string;
+}
 
 function resolveClientOpts(command: Command, opts: { workspace?: string; agentId?: string }) {
   const parentOpts = command.parent?.parent?.opts() || {};
@@ -203,6 +243,91 @@ export function emailCommand(): Command {
           status: opts.status,
         });
         console.log(`Email ${opts.email_id} status set to ${opts.status}`);
+      } catch (err) {
+        console.error(`Error: ${err instanceof Error ? err.message : err}`);
+        process.exit(1);
+      }
+    });
+
+  cmd
+    .command("send")
+    .description("Send an email from the agent")
+    .requiredOption("--agent_id <id>", "Agent ID")
+    .requiredOption("--to <addr>", "Recipient email address")
+    .requiredOption("--subject <s>", "Subject line")
+    .requiredOption("--body-file <path>", "Path to HTML body file")
+    .option(
+      "--attachment <path>",
+      "Path to a file to attach (repeatable)",
+      collectRepeated,
+      [] as string[],
+    )
+    .option("--workspace <id>", "Workspace ID")
+    .action(async (opts, command) => {
+      const { serverUrl, token, workspaceId } = resolveClientOpts(command, {
+        workspace: opts.workspace,
+        agentId: opts.agent_id,
+      });
+      const client = new APIClient(serverUrl, token, workspaceId);
+
+      let htmlBody: string;
+      try {
+        htmlBody = readFileSync(opts.bodyFile, "utf-8");
+      } catch (err) {
+        console.error(
+          `Error: cannot read body file "${opts.bodyFile}": ${err instanceof Error ? err.message : err}`,
+        );
+        process.exit(1);
+      }
+      if (!htmlBody) {
+        console.error(`Error: body file "${opts.bodyFile}" is empty`);
+        process.exit(1);
+      }
+
+      const attachmentPaths: string[] = opts.attachment ?? [];
+      const attachments: AttachmentDescriptor[] = [];
+
+      try {
+        for (const path of attachmentPaths) {
+          let bytes: Buffer;
+          let size: number;
+          try {
+            bytes = readFileSync(path);
+            size = statSync(path).size;
+          } catch (err) {
+            console.error(
+              `Error: cannot read attachment "${path}": ${err instanceof Error ? err.message : err}`,
+            );
+            process.exit(1);
+          }
+          const filename = basename(path);
+          const contentType = guessContentType(filename);
+          const form = new FormData();
+          form.append(
+            "file",
+            new Blob([new Uint8Array(bytes)], { type: contentType }),
+            filename,
+          );
+          const uploaded = await client.postMultipart<AttachmentDescriptor>(
+            "/api/email/upload",
+            form,
+          );
+          attachments.push({
+            key: uploaded.key,
+            filename: uploaded.filename,
+            size: uploaded.size ?? size,
+            contentType: uploaded.contentType ?? contentType,
+          });
+        }
+
+        const res = await client.postJSON<SendResponse>("/api/email/send", {
+          agentId: opts.agent_id,
+          to: opts.to,
+          subject: opts.subject,
+          htmlBody,
+          attachments,
+        });
+        console.log(`Sent email to ${res.to_email} (id: ${res.id})`);
       } catch (err) {
         console.error(`Error: ${err instanceof Error ? err.message : err}`);
         process.exit(1);
