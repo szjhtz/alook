@@ -2,7 +2,7 @@ import { vi, describe, it, expect, afterEach } from "vitest";
 import { hostname } from "os";
 import { join } from "path";
 import { homedir } from "os";
-import { loadDaemonConfig, normalizeServerBaseURL, daemonLogFilePath, daemonLogDir } from "./config.js";
+import { loadDaemonConfig, normalizeServerBaseURL, daemonLogFilePath, daemonLogDir, sessionRunnerLogDir } from "./config.js";
 
 const DAEMON_ENV_KEYS = [
   "ALOOK_SERVER_URL",
@@ -150,5 +150,21 @@ describe("workspacesRoot profile handling", () => {
     process.env.ALOOK_WORKSPACES_ROOT = "/custom/path";
     const cfg = loadDaemonConfig();
     expect(cfg.workspacesRoot).toBe("/custom/path");
+  });
+});
+
+describe("sessionRunnerLogDir", () => {
+  it("returns <configDir>/daemon/session-runners", () => {
+    expect(sessionRunnerLogDir()).toBe(
+      join(homedir(), ".alook", "daemon", "session-runners"),
+    );
+  });
+
+  it("honours ALOOK_PROJECT_ROOT in dev mode", () => {
+    process.env.ALOOK_SERVER_URL = "http://localhost:3000";
+    process.env.ALOOK_PROJECT_ROOT = "/tmp/proj";
+    expect(sessionRunnerLogDir()).toBe(
+      join("/tmp/proj", ".alook", "daemon", "session-runners"),
+    );
   });
 });

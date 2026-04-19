@@ -36,6 +36,7 @@ vi.mock("./config.js", () => ({
     workspacesRoot: "/tmp/ws",
     cliVersion: "0.1.0",
   })),
+  sessionRunnerLogDir: vi.fn(() => "/tmp/alook/daemon/session-runners"),
 }));
 
 vi.mock("./health.js", () => ({
@@ -86,8 +87,23 @@ vi.mock("child_process", () => {
   };
 });
 
+const mockOpenSync = vi.fn(() => 42);
+const mockCloseSync = vi.fn();
+const mockRenameSync = vi.fn();
+const mockMkdirSync = vi.fn();
+const mockReaddirSync = vi.fn(() => [] as string[]);
+const mockStatSync = vi.fn(() => ({ mtimeMs: 0 }));
+const mockUnlinkSync = vi.fn();
+
 vi.mock("fs", () => ({
   existsSync: vi.fn((p: string) => p.endsWith("session-runner.js")),
+  openSync: (...args: any[]) => mockOpenSync(...args),
+  closeSync: (...args: any[]) => mockCloseSync(...args),
+  renameSync: (...args: any[]) => mockRenameSync(...args),
+  mkdirSync: (...args: any[]) => mockMkdirSync(...args),
+  readdirSync: (...args: any[]) => mockReaddirSync(...args),
+  statSync: (...args: any[]) => mockStatSync(...args),
+  unlinkSync: (...args: any[]) => mockUnlinkSync(...args),
 }));
 
 vi.mock("url", () => ({
@@ -149,7 +165,7 @@ vi.spyOn(globalThis, "clearInterval").mockImplementation(((timer: any) => {
 import { spawn } from "child_process";
 import { loadCLIConfigForProfile, saveCLIConfigForProfile } from "../lib/config.js";
 import { releaseDaemonPid } from "./pidfile.js";
-import { startDaemon, spawnSessionRunner } from "./daemon.js";
+import { startDaemon, spawnSessionRunner, pruneSessionRunnerLogs } from "./daemon.js";
 
 const mockReleaseDaemonPid = vi.mocked(releaseDaemonPid);
 
@@ -169,6 +185,7 @@ describe("daemon session runner dispatch", () => {
     nextPid = 50000;
     vi.clearAllMocks();
     mockProcessExit.mockImplementation((() => {}) as any);
+    mockOpenSync.mockReturnValue(42);
   });
 
   afterEach(() => {
@@ -283,7 +300,7 @@ describe("daemon session runner dispatch", () => {
     expect(input.model).toBe("opus");
   });
 
-  it("spawns with detached: true and calls unref()", async () => {
+  it("spawns with detached: true, log file stdio, and calls unref()", async () => {
     setupTaskClaim();
 
     await startDaemon();
@@ -291,7 +308,7 @@ describe("daemon session runner dispatch", () => {
 
     const call = vi.mocked(spawn).mock.calls[0];
     expect((call[2] as any).detached).toBe(true);
-    expect((call[2] as any).stdio).toBe("ignore");
+    expect((call[2] as any).stdio).toEqual(["ignore", 42, 42]);
     expect(spawnedChildren[0].unref).toHaveBeenCalled();
   });
 
@@ -359,6 +376,7 @@ describe("daemon with multi-workspace config", () => {
     nextPid = 50000;
     vi.clearAllMocks();
     mockProcessExit.mockImplementation((() => {}) as any);
+    mockOpenSync.mockReturnValue(42);
 
     // Configure two workspaces
     vi.mocked(loadCLIConfigForProfile).mockReturnValue({
@@ -826,10 +844,11 @@ describe("spawnSessionRunner", () => {
     spawnedChildren.length = 0;
     nextPid = 50000;
     vi.clearAllMocks();
+    mockOpenSync.mockReturnValue(42);
   });
 
-  it("encodes input as base64 and passes to bun run", () => {
-    const input = {
+  function makeSpawnInput() {
+    return {
       task: { id: "t1", agentId: "a1", runtimeId: "rt1", conversationId: "c1", workspaceId: "ws1", prompt: "test", status: "dispatched", priority: 0, type: "user_dm_message", createdAt: "2026-01-01T00:00:00Z" },
       provider: "claude",
       cliPath: "claude",
@@ -838,9 +857,11 @@ describe("spawnSessionRunner", () => {
       token: "test_token",
       workspacesRoot: "/tmp/ws",
       agentTimeout: 7200000,
-      };
+    };
+  }
 
-    const child = spawnSessionRunner(input as any);
+  it("encodes input as base64 and passes to bun run", () => {
+    const child = spawnSessionRunner(makeSpawnInput() as any);
 
     expect(spawn).toHaveBeenCalledTimes(1);
     const call = vi.mocked(spawn).mock.calls[0];
@@ -849,14 +870,96 @@ describe("spawnSessionRunner", () => {
     const args = call[1] as string[];
     expect(args[0]).toContain("session-runner.js");
 
-    // Decode and verify
     const decoded = JSON.parse(Buffer.from(args[1], "base64").toString("utf-8"));
     expect(decoded.task.id).toBe("t1");
     expect(decoded.provider).toBe("claude");
     expect(decoded.token).toBe("test_token");
 
     expect((call[2] as any).detached).toBe(true);
-    expect((call[2] as any).stdio).toBe("ignore");
     expect(child.unref).toHaveBeenCalled();
+  });
+
+  it("opens a log file fd and passes it as stdio [ignore, fd, fd]", () => {
+    spawnSessionRunner(makeSpawnInput() as any);
+
+    expect(mockMkdirSync).toHaveBeenCalledWith(
+      "/tmp/alook/daemon/session-runners",
+      { recursive: true },
+    );
+    expect(mockOpenSync).toHaveBeenCalledWith(
+      "/tmp/alook/daemon/session-runners/t1.log",
+      "a",
+    );
+
+    const call = vi.mocked(spawn).mock.calls[0];
+    expect((call[2] as any).stdio).toEqual(["ignore", 42, 42]);
+  });
+
+  it("closes the fd after spawn", () => {
+    spawnSessionRunner(makeSpawnInput() as any);
+    expect(mockCloseSync).toHaveBeenCalledWith(42);
+  });
+
+  it("renames the temp log file to PID.log after spawn", () => {
+    spawnSessionRunner(makeSpawnInput() as any);
+
+    expect(mockRenameSync).toHaveBeenCalledWith(
+      "/tmp/alook/daemon/session-runners/t1.log",
+      "/tmp/alook/daemon/session-runners/50000.log",
+    );
+  });
+});
+
+describe("pruneSessionRunnerLogs", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("handles missing directory gracefully", () => {
+    mockReaddirSync.mockImplementation(() => { throw new Error("ENOENT"); });
+    expect(() => pruneSessionRunnerLogs()).not.toThrow();
+    expect(mockUnlinkSync).not.toHaveBeenCalled();
+  });
+
+  it("handles empty directory gracefully", () => {
+    mockReaddirSync.mockReturnValue([]);
+    pruneSessionRunnerLogs();
+    expect(mockUnlinkSync).not.toHaveBeenCalled();
+  });
+
+  it("does not delete when at or below limit", () => {
+    const files = Array.from({ length: 50 }, (_, i) => `${i}.log`);
+    mockReaddirSync.mockReturnValue(files);
+    pruneSessionRunnerLogs();
+    expect(mockUnlinkSync).not.toHaveBeenCalled();
+  });
+
+  it("deletes oldest files when over limit, keeping newest 50", () => {
+    const files = Array.from({ length: 55 }, (_, i) => `${i}.log`);
+    mockReaddirSync.mockReturnValue(files);
+    mockStatSync.mockImplementation((p: string) => {
+      const name = p.split("/").pop()!;
+      const idx = parseInt(name);
+      return { mtimeMs: idx * 1000 };
+    });
+
+    pruneSessionRunnerLogs();
+
+    expect(mockUnlinkSync).toHaveBeenCalledTimes(5);
+    // Files 0-4 are the oldest (lowest mtime), they should be deleted
+    for (let i = 0; i < 5; i++) {
+      expect(mockUnlinkSync).toHaveBeenCalledWith(
+        `/tmp/alook/daemon/session-runners/${i}.log`,
+      );
+    }
+  });
+
+  it("ignores non-.log files", () => {
+    const files = ["1.log", "2.log", ".DS_Store", "readme.txt"];
+    mockReaddirSync.mockReturnValue(files);
+    mockStatSync.mockReturnValue({ mtimeMs: 0 });
+    pruneSessionRunnerLogs();
+    // Only 2 .log files, well under 50 limit
+    expect(mockUnlinkSync).not.toHaveBeenCalled();
   });
 });

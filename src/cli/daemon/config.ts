@@ -11,6 +11,10 @@ export function daemonLogDir(): string {
   return join(configDir(), "daemon", "logs");
 }
 
+export function sessionRunnerLogDir(): string {
+  return join(configDir(), "daemon", "session-runners");
+}
+
 export function daemonLogFilePath(date: Date = new Date()): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");

@@ -1,5 +1,5 @@
 import { DaemonClient } from "./client.js";
-import { type DaemonConfig, loadDaemonConfig } from "./config.js";
+import { type DaemonConfig, loadDaemonConfig, sessionRunnerLogDir } from "./config.js";
 import { createHealthServer } from "./health.js";
 import { detectVersion } from "./agent/index.js";
 import { type Task, type SessionRunnerInput, fromApiTask } from "./types.js";
@@ -7,7 +7,7 @@ import { loadCLIConfigForProfile, saveCLIConfigForProfile } from "../lib/config.
 import { log } from "../lib/logger.js";
 import { cmdPrefix } from "../lib/env.js";
 import { acquireDaemonPid, releaseDaemonPid } from "./pidfile.js";
-import { existsSync } from "fs";
+import { existsSync, mkdirSync, openSync, closeSync, renameSync, readdirSync, statSync, unlinkSync } from "fs";
 import { execSync, spawn, type ChildProcess } from "child_process";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -38,10 +38,43 @@ function isCommandAvailable(cmd: string): boolean {
   }
 }
 
+const MAX_SESSION_RUNNER_LOGS = 50;
+
+export function pruneSessionRunnerLogs(): void {
+  const logDir = sessionRunnerLogDir();
+  let entries: string[];
+  try {
+    entries = readdirSync(logDir).filter((f) => f.endsWith(".log"));
+  } catch {
+    return;
+  }
+  if (entries.length <= MAX_SESSION_RUNNER_LOGS) return;
+
+  const withMtime = entries.map((name) => {
+    const full = join(logDir, name);
+    try {
+      return { name, mtime: statSync(full).mtimeMs };
+    } catch {
+      return { name, mtime: 0 };
+    }
+  });
+  withMtime.sort((a, b) => b.mtime - a.mtime);
+
+  for (const entry of withMtime.slice(MAX_SESSION_RUNNER_LOGS)) {
+    try {
+      unlinkSync(join(logDir, entry.name));
+    } catch {
+      // best-effort
+    }
+  }
+}
+
 export async function startDaemon(
   profile?: string,
   serverUrl?: string,
 ): Promise<void> {
+  pruneSessionRunnerLogs();
+
   if (!acquireDaemonPid(profile)) {
     process.exit(1);
   }
@@ -251,11 +284,24 @@ export async function startDaemon(
 
 export function spawnSessionRunner(input: SessionRunnerInput): ChildProcess {
   const encoded = Buffer.from(JSON.stringify(input)).toString("base64");
+
+  const logDir = sessionRunnerLogDir();
+  mkdirSync(logDir, { recursive: true });
+  const tmpLogPath = join(logDir, `${input.task.id}.log`);
+  const fd = openSync(tmpLogPath, "a");
+
   const child = spawn(process.execPath, [sessionRunnerPath, encoded], {
     detached: true,
-    stdio: "ignore",
+    stdio: ["ignore", fd, fd],
   });
   child.unref();
+  closeSync(fd);
+
+  if (child.pid) {
+    const pidLogPath = join(logDir, `${child.pid}.log`);
+    renameSync(tmpLogPath, pidLogPath);
+  }
+
   return child;
 }
 
