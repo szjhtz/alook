@@ -23,12 +23,14 @@ interface AgentEditFormProps {
   agent?: Agent;
   runtimes: Runtime[];
   defaultRuntimeId?: string;
+  modelOptions?: Record<string, string[]>;
   onSave: (data: {
     name: string;
     description: string;
     instructions: string;
     runtime_id: string;
     email_handle?: string;
+    runtime_config?: Record<string, unknown>;
   }) => Promise<boolean>;
   onCancel: () => void;
   saving: boolean;
@@ -40,6 +42,7 @@ export function AgentEditForm({
   agent,
   runtimes,
   defaultRuntimeId = "",
+  modelOptions,
   onSave,
   onCancel,
   saving,
@@ -53,6 +56,17 @@ export function AgentEditForm({
     agent?.runtime_id ?? defaultRuntimeId
   );
   const [emailHandle, setEmailHandle] = useState(agent?.email_handle ?? "");
+  const [model, setModel] = useState(
+    () => {
+      const rc = agent?.runtime_config;
+      return typeof rc?.model === "string" ? rc.model : "";
+    }
+  );
+
+  const selectedRuntime = runtimes.find((r) => r.id === runtimeId);
+  const providerModels = selectedRuntime && modelOptions
+    ? modelOptions[selectedRuntime.provider] ?? []
+    : [];
 
   const derivedHandle = nameToHandle(name);
   const effectiveHandle = emailHandle || derivedHandle;
@@ -69,6 +83,7 @@ export function AgentEditForm({
       instructions,
       runtime_id: runtimeId,
       email_handle: emailHandle || derivedHandle || undefined,
+      runtime_config: model ? { model } : {},
     });
   };
 
@@ -134,6 +149,27 @@ export function AgentEditForm({
             placeholder="System prompt or instructions..."
             rows={6}
           />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="agent-model">Model</Label>
+          <Input
+            id="agent-model"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="Default (runtime model)"
+            list="agent-model-options"
+          />
+          {providerModels.length > 0 && (
+            <datalist id="agent-model-options">
+              {providerModels.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          )}
+          <p className="text-xs text-muted-foreground/70">
+            Optional. Leave blank to use the runtime&apos;s default model.
+          </p>
         </div>
 
         {!agent && (

@@ -292,12 +292,14 @@ async function handleTask(
       : provider === "codex"
         ? config.codexPath
         : config.opencodePath;
-  const model =
+  const configModel =
     provider === "claude"
       ? config.claudeModel
       : provider === "codex"
         ? config.codexModel
         : config.opencodeModel;
+  const agentModel = task.agent?.runtimeConfig?.model;
+  const model = (typeof agentModel === "string" && agentModel) ? agentModel : configModel;
 
   const input: SessionRunnerInput = {
     task,

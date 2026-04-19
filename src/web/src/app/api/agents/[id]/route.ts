@@ -49,12 +49,22 @@ export const PATCH = withAuth(async (req, ctx) => {
   if (typeof body.description === "string") data.description = body.description;
   if (typeof body.instructions === "string") data.instructions = body.instructions;
   if (typeof body.runtime_id === "string") data.runtimeId = body.runtime_id;
+  if (body.runtime_config !== undefined) {
+    if (typeof body.runtime_config === "object" && body.runtime_config !== null && !Array.isArray(body.runtime_config)) {
+      const rc = body.runtime_config as Record<string, unknown>;
+      const sanitized: Record<string, unknown> = {};
+      if (typeof rc.model === "string" && rc.model.length <= 100) {
+        sanitized.model = rc.model;
+      }
+      data.runtimeConfig = sanitized;
+    }
+  }
 
   if (Object.keys(data).length === 0) {
     return writeError("no fields to update", 400);
   }
 
-  const updated = await queries.agent.updateAgent(db, id, ws.workspaceId, data as { name?: string; description?: string; instructions?: string; runtimeId?: string });
+  const updated = await queries.agent.updateAgent(db, id, ws.workspaceId, data as { name?: string; description?: string; instructions?: string; runtimeId?: string; runtimeConfig?: unknown });
   if (!updated) {
     return writeError("agent not found", 404);
   }

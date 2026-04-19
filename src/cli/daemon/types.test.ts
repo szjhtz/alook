@@ -1,0 +1,57 @@
+import { describe, it, expect } from "vitest";
+import { fromApiTask } from "./types.js";
+import type { TaskApi } from "@alook/shared";
+
+describe("fromApiTask", () => {
+  const baseTask: TaskApi = {
+    id: "t1",
+    agent_id: "a1",
+    runtime_id: "rt1",
+    conversation_id: "c1",
+    workspace_id: "ws1",
+    prompt: "hello",
+    status: "dispatched",
+    priority: 0,
+    dispatched_at: null,
+    started_at: null,
+    completed_at: null,
+    result: null,
+    error: null,
+    created_at: "2026-01-01T00:00:00Z",
+    type: "user_dm_message",
+    agent: null,
+  };
+
+  it("maps runtime_config from agent data", () => {
+    const task: TaskApi = {
+      ...baseTask,
+      agent: {
+        name: "Agent 1",
+        instructions: "be helpful",
+        runtime_config: { model: "custom-model" },
+      },
+    };
+
+    const result = fromApiTask(task);
+    expect(result.agent?.runtimeConfig).toEqual({ model: "custom-model" });
+  });
+
+  it("sets runtimeConfig to empty object when runtime_config is empty", () => {
+    const task: TaskApi = {
+      ...baseTask,
+      agent: {
+        name: "Agent 1",
+        instructions: "be helpful",
+        runtime_config: {},
+      },
+    };
+
+    const result = fromApiTask(task);
+    expect(result.agent?.runtimeConfig).toEqual({});
+  });
+
+  it("handles missing agent gracefully", () => {
+    const result = fromApiTask(baseTask);
+    expect(result.agent).toBeUndefined();
+  });
+});

@@ -145,4 +145,42 @@ describe("PATCH /api/agents/[id]", () => {
     expect(body.error).toBe("invalid request body");
   });
 
+  it("accepts and persists runtime_config", async () => {
+    mockUpdateAgent.mockResolvedValue({ id: "a1", name: "Agent" });
+
+    const req = new NextRequest("http://localhost/api/agents/a1", {
+      method: "PATCH",
+      body: JSON.stringify({ name: "Agent", runtime_config: { model: "claude-sonnet-4-6" } }),
+    });
+    const ctx = { params: Promise.resolve({ id: "a1" }) };
+    const res = await PATCH(req, ctx);
+
+    expect(res.status).toBe(200);
+    expect(mockUpdateAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      "a1",
+      "w1",
+      expect.objectContaining({ runtimeConfig: { model: "claude-sonnet-4-6" } }),
+    );
+  });
+
+  it("runtime_config alone is a valid update", async () => {
+    mockUpdateAgent.mockResolvedValue({ id: "a1", name: "Agent" });
+
+    const req = new NextRequest("http://localhost/api/agents/a1", {
+      method: "PATCH",
+      body: JSON.stringify({ runtime_config: { model: "x" } }),
+    });
+    const ctx = { params: Promise.resolve({ id: "a1" }) };
+    const res = await PATCH(req, ctx);
+
+    expect(res.status).toBe(200);
+    expect(mockUpdateAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      "a1",
+      "w1",
+      expect.objectContaining({ runtimeConfig: { model: "x" } }),
+    );
+  });
+
 });

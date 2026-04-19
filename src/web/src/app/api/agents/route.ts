@@ -77,6 +77,15 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     return writeError("runtime not found in workspace", 404);
   }
 
+  let sanitizedRc: Record<string, unknown> | null = null;
+  if (typeof body.runtime_config === "object" && body.runtime_config !== null && !Array.isArray(body.runtime_config)) {
+    const rc = body.runtime_config as Record<string, unknown>;
+    sanitizedRc = {};
+    if (typeof rc.model === "string" && rc.model.length <= 100) {
+      sanitizedRc.model = rc.model;
+    }
+  }
+
   const newAgent = await queries.agent.createAgent(db, {
     workspaceId: ws.workspaceId,
     name,
@@ -84,7 +93,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     instructions: body.instructions || "",
     runtimeId,
     runtimeMode: runtime.runtimeMode,
-    runtimeConfig: body.runtime_config ?? null,
+    runtimeConfig: sanitizedRc,
     visibility: "private",
     maxConcurrentTasks,
     ownerId: ctx.userId,

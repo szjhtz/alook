@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { AgentEditForm } from "@/components/agent-edit-form";
+import { fetchModelOptions } from "@/lib/api";
 
 export default function CreateAgentPage() {
   const router = useRouter();
@@ -16,6 +17,11 @@ export default function CreateAgentPage() {
   } = useAgentContext();
 
   const [saving, setSaving] = useState(false);
+  const [modelOptions, setModelOptions] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    fetchModelOptions().then(setModelOptions).catch(() => {});
+  }, []);
 
   return (
     <>
@@ -26,6 +32,7 @@ export default function CreateAgentPage() {
       <AgentEditForm
         runtimes={runtimes}
         defaultRuntimeId={getFirstOnlineRuntimeId()}
+        modelOptions={modelOptions}
         saving={saving}
         submitLabel="Create"
         savingLabel="Creating..."
@@ -39,6 +46,7 @@ export default function CreateAgentPage() {
               instructions: data.instructions || undefined,
               runtime_id: data.runtime_id,
               email_handle: data.email_handle || undefined,
+              runtime_config: data.runtime_config,
             });
             if (agent) {
               router.push(`/w/${slug}/agents/${agent.id}/chat`);

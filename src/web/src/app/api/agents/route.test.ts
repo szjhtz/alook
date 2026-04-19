@@ -162,4 +162,26 @@ describe("POST /api/agents", () => {
     expect(mockReconcileAgentStatus).not.toHaveBeenCalled();
     expect(body).toEqual({ id: "a1", name: "New Agent" });
   });
+
+  it("passes runtime_config through to createAgent", async () => {
+    mockGetAgentRuntimeForWorkspace.mockResolvedValue({ machineLastSeenAt: null, runtimeMode: "local" });
+    mockCreateAgent.mockResolvedValue({ id: "a1", name: "New Agent" });
+
+    const req = new NextRequest("http://localhost/api/agents", {
+      method: "POST",
+      body: JSON.stringify({
+        ...validBody,
+        runtime_config: { model: "claude-sonnet-4-6" },
+      }),
+    });
+    const res = await POST(req, {});
+
+    expect(res.status).toBe(201);
+    expect(mockCreateAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        runtimeConfig: { model: "claude-sonnet-4-6" },
+      }),
+    );
+  });
 });

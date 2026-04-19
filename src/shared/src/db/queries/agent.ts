@@ -83,6 +83,7 @@ export async function updateAgent(
     description?: string;
     instructions?: string;
     runtimeId?: string | null;
+    runtimeConfig?: unknown;
   }
 ) {
   const rows = await db

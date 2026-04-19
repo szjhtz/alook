@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAgentContext } from "@/contexts/agent-context";
@@ -11,6 +11,7 @@ import { AgentEditForm } from "@/components/agent-edit-form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { CalendarDays, Mail, MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import { fetchModelOptions } from "@/lib/api";
 
 export default function AgentDetailLayout({ children }: { children: ReactNode }) {
   const params = useParams();
@@ -29,6 +30,11 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
   const [saving, setSaving] = useState(false);
   const [agentConfirmOpen, setAgentConfirmOpen] = useState(false);
   const [agentDeleting, setAgentDeleting] = useState(false);
+  const [modelOptions, setModelOptions] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    fetchModelOptions().then(setModelOptions).catch(() => {});
+  }, []);
 
   return (
     <>
@@ -136,6 +142,7 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
         <AgentEditForm
           agent={agent}
           runtimes={runtimes}
+          modelOptions={modelOptions}
           saving={saving}
           onCancel={() => setEditing(false)}
           onSave={async (data) => {

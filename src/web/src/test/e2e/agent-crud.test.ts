@@ -77,6 +77,27 @@ describe("agent CRUD", () => {
     expect(data.description).toBe("Updated")
   })
 
+  it("PATCH /api/agents/:id persists runtime_config.model", async () => {
+    const patchRes = await tokenRequest(
+      `/api/agents/${createdAgentId}?workspace_id=${seed.workspaceId}`,
+      seed.machineToken,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ runtime_config: { model: "test-model" } }),
+      },
+    )
+    expect(patchRes.status).toBe(200)
+
+    const getRes = await tokenRequest(
+      `/api/agents/${createdAgentId}?workspace_id=${seed.workspaceId}`,
+      seed.machineToken,
+    )
+    expect(getRes.status).toBe(200)
+    const data = await getRes.json() as Record<string, unknown>
+    expect((data.runtime_config as Record<string, unknown>)?.model).toBe("test-model")
+  })
+
   it("DELETE /api/agents/:id deletes agent", async () => {
     const res = await tokenRequest(
       `/api/agents/${createdAgentId}?workspace_id=${seed.workspaceId}`,

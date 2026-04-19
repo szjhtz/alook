@@ -237,6 +237,52 @@ describe("daemon session runner dispatch", () => {
     expect(input.agentTimeout).toBe(7200000);
   });
 
+  it("uses runtime_config.model when set on agent", async () => {
+    const fakeTask = {
+      id: "t1",
+      agent_id: "a1",
+      runtime_id: "rt1",
+      conversation_id: "c1",
+      workspace_id: "ws1",
+      prompt: "do stuff",
+      status: "dispatched",
+      priority: 0,
+      dispatched_at: null,
+      started_at: null,
+      completed_at: null,
+      created_at: "2026-01-01T00:00:00Z",
+      type: "user_dm_message",
+      result: null,
+      error: null,
+      agent: { name: "Agent 1", instructions: "be helpful", runtime_config: { model: "custom-model" } },
+    };
+
+    let claimed = false;
+    mockClientInstance.poll.mockImplementation(async () => {
+      if (!claimed) {
+        claimed = true;
+        return [fakeTask];
+      }
+      return [];
+    });
+
+    await startDaemon();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const input = decodeSpawnInput(vi.mocked(spawn).mock.calls[0]);
+    expect(input.model).toBe("custom-model");
+  });
+
+  it("falls back to config model when runtime_config.model is empty", async () => {
+    setupTaskClaim();
+
+    await startDaemon();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const input = decodeSpawnInput(vi.mocked(spawn).mock.calls[0]);
+    expect(input.model).toBe("opus");
+  });
+
   it("spawns with detached: true and calls unref()", async () => {
     setupTaskClaim();
 

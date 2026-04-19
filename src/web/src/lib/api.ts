@@ -97,6 +97,10 @@ function wsQuery(workspaceId: string, extra?: Record<string, string>): string {
   return `?${params.toString()}`;
 }
 
+// Config
+export const fetchModelOptions = () =>
+  apiFetch<Record<string, string[]>>("/api/config/model-options");
+
 // Agents
 export const listAgents = (workspaceId: string) =>
   apiFetch<Agent[]>(`/api/agents${wsQuery(workspaceId)}`);
