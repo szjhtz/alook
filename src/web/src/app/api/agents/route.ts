@@ -100,6 +100,10 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     emailHandle: emailHandle || null,
   });
 
+  if (emailHandle && ctx.email) {
+    await queries.whitelist.addWhitelist(db, newAgent.id, ws.workspaceId, ctx.email.toLowerCase());
+  }
+
   if (isOnline(runtime.machineLastSeenAt)) {
     const taskService = new TaskService(db);
     await taskService.reconcileAgentStatus(newAgent.id, ws.workspaceId);

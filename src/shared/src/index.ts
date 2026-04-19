@@ -96,6 +96,7 @@ export {
   UpdateCalendarEventRequestSchema,
   DeleteCalendarEventRequestSchema,
   CalendarEventApiSchema,
+  AddWhitelistRequestSchema,
 } from "./schemas";
 
 export type {
@@ -119,6 +120,7 @@ export type {
   UpdateCalendarEventRequestInput,
   DeleteCalendarEventRequestInput,
   CalendarEventApi,
+  AddWhitelistRequest,
 } from "./schemas";
 
 // Database

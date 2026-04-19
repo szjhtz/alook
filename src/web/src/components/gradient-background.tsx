@@ -18,6 +18,12 @@ export function GradientBackground() {
       <div className="gradient-blob gradient-blob-3" />
       {/* Blob 4 — warm sand, bottom-left → center */}
       <div className="gradient-blob gradient-blob-4" />
+      {/* Blob 5 — warm amber, center-left */}
+      <div className="gradient-blob gradient-blob-5" />
+      {/* Blob 6 — cool periwinkle, center */}
+      <div className="gradient-blob gradient-blob-6" />
+      {/* Blob 7 — cream rose, center-right */}
+      <div className="gradient-blob gradient-blob-7" />
       {/* Noise texture overlay */}
       <svg className="absolute inset-0 w-full h-full opacity-[0.25] mix-blend-multiply dark:mix-blend-overlay pointer-events-none">
         <filter id={filterId}>

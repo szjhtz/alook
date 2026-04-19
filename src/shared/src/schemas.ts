@@ -291,3 +291,12 @@ export const CalendarEventApiSchema = z.object({
   updated_at: z.string(),
 });
 export type CalendarEventApi = z.infer<typeof CalendarEventApiSchema>;
+
+// ---------------------------------------------------------------------------
+// Whitelist request schema
+// ---------------------------------------------------------------------------
+
+export const AddWhitelistRequestSchema = z.object({
+  email: z.string().email(),
+});
+export type AddWhitelistRequest = z.infer<typeof AddWhitelistRequestSchema>;

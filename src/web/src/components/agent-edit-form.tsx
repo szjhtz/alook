@@ -1,16 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Sheet,
+  SheetTrigger,
+  SheetContent,
+  SheetTitle,
+  SheetBody,
+} from "@/components/ui/sheet";
 import { RuntimeSelect } from "@/components/runtime-select";
 import type { Agent } from "@alook/shared";
 import { isValidHandle } from "@alook/shared";
 import type { AgentRuntime as Runtime } from "@alook/shared";
 import { cn } from "@/lib/utils";
-import { LockIcon } from "lucide-react";
+import { LockIcon, XIcon, ChevronRightIcon } from "lucide-react";
+import { useWorkspace } from "@/contexts/workspace-context";
+import {
+  listWhitelist,
+  addWhitelistEmail,
+  removeWhitelistEmail,
+  type WhitelistEntry,
+} from "@/lib/api";
 
 function nameToHandle(name: string): string {
   return name
@@ -189,6 +203,25 @@ export function AgentEditForm({
           />
         </div>
 
+        {agent && agent.email_handle && (
+          <WhitelistTrigger agentId={agent.id} />
+        )}
+
+        {agent && (
+          <div className="rounded-lg border border-border/50 bg-muted/30 px-4 py-3">
+            <div className="mb-2.5 flex items-center gap-1.5">
+              <LockIcon className="size-3 text-muted-foreground/60" />
+              <span className="text-xs font-medium text-muted-foreground/60">Set at creation</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Email</span>
+              <span className="text-xs text-muted-foreground">
+                {agent.email_handle ? `${agent.email_handle}@alook.ai` : "Not configured"}
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 pt-2">
           <Button
             type="button"
@@ -206,22 +239,162 @@ export function AgentEditForm({
             {saving ? savingLabel : submitLabel}
           </Button>
         </div>
-
-        {agent && (
-          <div className="rounded-lg border border-border/50 bg-muted/30 px-4 py-3">
-            <div className="mb-2.5 flex items-center gap-1.5">
-              <LockIcon className="size-3 text-muted-foreground/60" />
-              <span className="text-xs font-medium text-muted-foreground/60">Set at creation</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Email</span>
-              <span className="text-xs text-muted-foreground">
-                {agent.email_handle ? `${agent.email_handle}@alook.ai` : "Not configured"}
-              </span>
-            </div>
-          </div>
-        )}
       </form>
     </div>
+  );
+}
+
+function WhitelistTrigger({ agentId }: { agentId: string }) {
+  const { workspaceId } = useWorkspace();
+  const [open, setOpen] = useState(false);
+  const [whitelist, setWhitelist] = useState<WhitelistEntry[]>([]);
+  const [newEmail, setNewEmail] = useState("");
+  const [loadingWhitelist, setLoadingWhitelist] = useState(true);
+  const [addingEmail, setAddingEmail] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoadingWhitelist(true);
+    listWhitelist(agentId, workspaceId)
+      .then((entries) => {
+        if (!cancelled) setWhitelist(entries);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Failed to load whitelist");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingWhitelist(false);
+      });
+    return () => { cancelled = true; };
+  }, [agentId, workspaceId, open]);
+
+  const isValidEmail = newEmail.includes("@") && newEmail.trim().length > 0;
+
+  const handleAdd = async () => {
+    if (!isValidEmail || addingEmail) return;
+    setAddingEmail(true);
+    setError(null);
+    try {
+      const entry = await addWhitelistEmail(agentId, newEmail.toLowerCase(), workspaceId);
+      setWhitelist((prev) => [...prev, entry]);
+      setNewEmail("");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to add email";
+      setError(msg);
+    } finally {
+      setAddingEmail(false);
+    }
+  };
+
+  const handleRemove = async (entryId: string) => {
+    const prev = whitelist;
+    setWhitelist((wl) => wl.filter((w) => w.id !== entryId));
+    setError(null);
+    try {
+      await removeWhitelistEmail(agentId, entryId, workspaceId);
+    } catch {
+      setWhitelist(prev);
+      setError("Failed to remove email");
+    }
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger
+        render={
+          <button
+            type="button"
+            className="flex w-full items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-4 py-3 text-left transition-colors hover:bg-muted/50"
+          />
+        }
+      >
+        <div>
+          <span className="text-sm font-medium">Allowed Senders</span>
+          <p className="text-xs text-muted-foreground">
+            {whitelist.length > 0
+              ? `${whitelist.length} email${whitelist.length !== 1 ? "s" : ""} whitelisted`
+              : "All inbound emails will be forwarded"}
+          </p>
+        </div>
+        <ChevronRightIcon className="size-4 text-muted-foreground" />
+      </SheetTrigger>
+      <SheetContent
+        side="right"
+        className="data-[side=right]:inset-y-2 data-[side=right]:right-2 data-[side=right]:h-auto data-[side=right]:rounded-xl data-[side=right]:border data-[side=right]:border-l"
+      >
+        <SheetTitle className="sr-only">Allowed Senders</SheetTitle>
+        <SheetBody className="px-8 pt-10 pb-6">
+          <div className="space-y-4">
+            <div>
+              <h2 className="font-heading text-lg font-semibold">Allowed Senders</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Only emails from these addresses will trigger the agent.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAdd();
+                  }
+                }}
+                placeholder="user@example.com"
+                type="email"
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={!isValidEmail || addingEmail}
+                onClick={handleAdd}
+              >
+                {addingEmail ? "Adding..." : "Add"}
+              </Button>
+            </div>
+            {error && (
+              <p className="text-xs text-destructive">{error}</p>
+            )}
+            {loadingWhitelist ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <span
+                    key={i}
+                    className="block h-8 animate-pulse rounded-md bg-muted"
+                  />
+                ))}
+              </div>
+            ) : whitelist.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                No allowed senders — all inbound emails will be forwarded.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {whitelist.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between rounded-md border border-border/50 px-3 py-2"
+                  >
+                    <span className="text-sm">{entry.email}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(entry.id)}
+                      className="rounded-full p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    >
+                      <XIcon className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </SheetBody>
+      </SheetContent>
+    </Sheet>
   );
 }

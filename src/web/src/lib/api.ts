@@ -296,6 +296,27 @@ export const deleteCalendarEvent = (
       : {}),
   });
 
+// Whitelist
+export interface WhitelistEntry {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
+export const listWhitelist = (agentId: string, workspaceId: string) =>
+  apiFetch<WhitelistEntry[]>(`/api/agents/${agentId}/whitelist${wsQuery(workspaceId)}`);
+
+export const addWhitelistEmail = (agentId: string, email: string, workspaceId: string) =>
+  apiFetch<WhitelistEntry>(`/api/agents/${agentId}/whitelist${wsQuery(workspaceId)}`, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+
+export const removeWhitelistEmail = (agentId: string, whitelistId: string, workspaceId: string) =>
+  apiFetch<void>(`/api/agents/${agentId}/whitelist/${whitelistId}${wsQuery(workspaceId)}`, {
+    method: "DELETE",
+  });
+
 // Auth (Better Auth — redirect helpers only, actual auth via Better Auth client)
 export const signOut = async () => {
   if (typeof window !== "undefined") {

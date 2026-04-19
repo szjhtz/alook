@@ -12,6 +12,7 @@ export interface TestSeed {
   /** Raw machine token (starts with al_) */
   machineToken: string
   machineTokenId: string
+  whitelistId: string
 }
 
 function nanoid() {
@@ -46,7 +47,7 @@ export function seedTestData(): TestSeed {
   sql(`INSERT INTO machine_token (id, user_id, workspace_id, token, name, status, created_at) VALUES ('${machineTokenId}', '${userId}', '${workspaceId}', '${rawToken}', 'test-token', 'active', '${now}')`)
   sql(`INSERT INTO agent_whitelist (id, agent_id, workspace_id, email, created_at) VALUES ('${whitelistId}', '${agentId}', '${workspaceId}', '${userId}@test.local', '${now}')`)
 
-  return { userId, workspaceId, memberId, runtimeId, daemonId, agentId, agentEmailHandle: emailHandle, machineToken: rawToken, machineTokenId }
+  return { userId, workspaceId, memberId, runtimeId, daemonId, agentId, agentEmailHandle: emailHandle, machineToken: rawToken, machineTokenId, whitelistId }
 }
 
 /**

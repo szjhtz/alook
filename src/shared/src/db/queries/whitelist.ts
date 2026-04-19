@@ -18,8 +18,18 @@ export async function addWhitelist(db: Database, agentId: string, workspaceId: s
   return rows[0] ?? null;
 }
 
-export async function removeWhitelist(db: Database, id: string) {
-  await db.delete(agentWhitelist).where(eq(agentWhitelist.id, id));
+export async function removeWhitelist(db: Database, id: string, agentId: string, workspaceId: string) {
+  const rows = await db
+    .delete(agentWhitelist)
+    .where(
+      and(
+        eq(agentWhitelist.id, id),
+        eq(agentWhitelist.agentId, agentId),
+        eq(agentWhitelist.workspaceId, workspaceId),
+      )
+    )
+    .returning();
+  return rows[0] ?? null;
 }
 
 export async function isWhitelisted(db: Database, agentId: string, workspaceId: string, email: string): Promise<boolean> {
