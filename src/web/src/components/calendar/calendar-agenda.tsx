@@ -3,7 +3,8 @@
 import { cn } from "@/lib/utils";
 import type { CalendarEvent, Agent } from "@alook/shared";
 import { Skeleton } from "@/components/ui/skeleton";
-import { agentColor, dateKey } from "./calendar-month-grid";
+import { agentColor } from "./calendar-colors";
+import { dateKey } from "./calendar-month-grid";
 import { formatRepeatDisplay } from "./repeat-interval-utils";
 
 export interface CalendarAgendaProps {

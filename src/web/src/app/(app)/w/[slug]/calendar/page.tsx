@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import {
   stepDate,
 } from "@/components/calendar/calendar-month-grid";
 import { CalendarAgenda } from "@/components/calendar/calendar-agenda";
+import { CalendarWeekGrid } from "@/components/calendar/calendar-week-grid";
 import {
   CalendarViewSwitcher,
   parseCalendarView,
@@ -27,6 +29,7 @@ import {
 } from "@/components/calendar/calendar-view-switcher";
 import { CalendarAgentFilter } from "@/components/calendar/calendar-agent-filter";
 import { CalendarEventSheet } from "@/components/calendar/calendar-event-sheet";
+import { getWeekStart, weekRangeIso } from "@/components/calendar/calendar-week-utils";
 import type { CalendarEvent, UpdateCalendarEventRequest } from "@alook/shared";
 import { isTypingTarget } from "@/components/calendar/keyboard";
 
@@ -90,6 +93,13 @@ export default function CalendarPage() {
     if (t.getFullYear() === initialYear && t.getMonth() === initialMonth) return t;
     return new Date(initialYear, initialMonth, 1);
   });
+  const [weekAnchor, setWeekAnchor] = useState<Date>(() => {
+    if (initialView === "week" && searchParams.has("d")) {
+      const d = Number(searchParams.get("d"));
+      return getWeekStart(new Date(initialYear, initialMonth, d));
+    }
+    return getWeekStart(new Date());
+  });
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -107,20 +117,27 @@ export default function CalendarPage() {
       nextYear: number,
       nextMonth: number,
       agentSet: Set<string>,
-      nextView: CalendarView
+      nextView: CalendarView,
+      weekAnchorDate?: Date | null
     ) => {
       const params = new URLSearchParams();
       params.set("y", String(nextYear));
       params.set("m", String(nextMonth));
       if (agentSet.size > 0) params.set("agents", [...agentSet].join(","));
       if (nextView !== "month") params.set("view", nextView);
+      if (nextView === "week" && weekAnchorDate) {
+        params.set("d", String(weekAnchorDate.getDate()));
+      }
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     },
     [pathname, router]
   );
 
   const fetchEvents = useCallback(async () => {
-    const { from, to } = gridRangeIso(year, month);
+    const { from, to } =
+      view === "week"
+        ? weekRangeIso(weekAnchor)
+        : gridRangeIso(year, month);
     setLoading(true);
     try {
       const list = await listCalendarEvents(workspaceId, { from, to });
@@ -130,7 +147,7 @@ export default function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, year, month]);
+  }, [workspaceId, year, month, view, weekAnchor]);
 
   useEffect(() => {
     fetchEvents();
@@ -159,12 +176,28 @@ export default function CalendarPage() {
     syncUrl(ny, nm, selectedAgents, view);
   }, [month, year, selectedAgents, view, syncUrl]);
 
+  const handlePrevWeek = useCallback(() => {
+    const prev = new Date(weekAnchor);
+    prev.setDate(prev.getDate() - 7);
+    setWeekAnchor(prev);
+    setFocusedDate(prev);
+    syncUrl(prev.getFullYear(), prev.getMonth(), selectedAgents, "week", prev);
+  }, [weekAnchor, selectedAgents, syncUrl]);
+
+  const handleNextWeek = useCallback(() => {
+    const next = new Date(weekAnchor);
+    next.setDate(next.getDate() + 7);
+    setWeekAnchor(next);
+    setFocusedDate(next);
+    syncUrl(next.getFullYear(), next.getMonth(), selectedAgents, "week", next);
+  }, [weekAnchor, selectedAgents, syncUrl]);
+
   const handleToggleAgent = (agentId: string) => {
     const next = new Set(selectedAgents);
     if (next.has(agentId)) next.delete(agentId);
     else next.add(agentId);
     setSelectedAgents(next);
-    syncUrl(year, month, next, view);
+    syncUrl(year, month, next, view, view === "week" ? weekAnchor : null);
   };
 
   const handleSelectDay = (date: Date) => {
@@ -185,21 +218,47 @@ export default function CalendarPage() {
       setYear(ny);
       setMonth(nm);
       setFocusedDate(date);
-      syncUrl(ny, nm, selectedAgents, view);
+      if (view === "week") {
+        const anchor = getWeekStart(date);
+        setWeekAnchor(anchor);
+        syncUrl(ny, nm, selectedAgents, view, anchor);
+      } else {
+        syncUrl(ny, nm, selectedAgents, view);
+      }
     },
     [selectedAgents, view, syncUrl]
   );
 
   const handleJumpToToday = useCallback(() => {
-    jumpToDate(new Date());
-  }, [jumpToDate]);
+    const today = new Date();
+    if (view === "week") {
+      const anchor = getWeekStart(today);
+      setWeekAnchor(anchor);
+      setFocusedDate(today);
+      syncUrl(anchor.getFullYear(), anchor.getMonth(), selectedAgents, "week", anchor);
+    } else {
+      jumpToDate(today);
+    }
+  }, [jumpToDate, view, selectedAgents, syncUrl]);
 
   const handleViewChange = useCallback(
     (v: CalendarView) => {
       setView(v);
-      syncUrl(year, month, selectedAgents, v);
+      if (v === "week") {
+        const anchor = getWeekStart(focusedDate);
+        setWeekAnchor(anchor);
+        syncUrl(year, month, selectedAgents, v, anchor);
+      } else if (view === "week") {
+        const ny = weekAnchor.getFullYear();
+        const nm = weekAnchor.getMonth();
+        setYear(ny);
+        setMonth(nm);
+        syncUrl(ny, nm, selectedAgents, v);
+      } else {
+        syncUrl(year, month, selectedAgents, v);
+      }
     },
-    [year, month, selectedAgents, syncUrl]
+    [year, month, selectedAgents, syncUrl, focusedDate, view, weekAnchor]
   );
 
   const handleCreate = async (values: {
@@ -213,11 +272,10 @@ export default function CalendarPage() {
     setSubmitting(true);
     try {
       const created = await createCalendarEvent(values, workspaceId);
-      // Only surface the new event in local state if it falls inside the
-      // currently-fetched grid window (the 42-cell span may reach into
-      // adjacent months). Otherwise let the next navigation refetch pick it
-      // up so out-of-range events don't leak into the agenda.
-      const { from, to } = gridRangeIso(year, month);
+      const { from, to } =
+        view === "week"
+          ? weekRangeIso(weekAnchor)
+          : gridRangeIso(year, month);
       const createdAt = new Date(created.scheduled_at).getTime();
       if (
         createdAt >= new Date(from).getTime() &&
@@ -317,7 +375,12 @@ export default function CalendarPage() {
       if (e.key === "t") {
         e.preventDefault();
         const today = new Date();
-        if (today.getFullYear() !== year || today.getMonth() !== month) {
+        if (view === "week") {
+          const anchor = getWeekStart(today);
+          setWeekAnchor(anchor);
+          setFocusedDate(today);
+          syncUrl(anchor.getFullYear(), anchor.getMonth(), selectedAgents, "week", anchor);
+        } else if (today.getFullYear() !== year || today.getMonth() !== month) {
           jumpToDate(today);
         } else {
           setFocusedDate(today);
@@ -333,8 +396,50 @@ export default function CalendarPage() {
         return;
       }
 
-      // Arrow / Enter / Page / Home / End are month-view-only.
-      if (view !== "month") return;
+      // Arrow / Enter / Page / Home / End are for month and week views only.
+      if (view !== "month" && view !== "week") return;
+
+      if (view === "week") {
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          const next = new Date(focusedDate);
+          next.setDate(next.getDate() - 1);
+          setFocusedDate(next);
+          const anchor = getWeekStart(next);
+          if (anchor.getTime() !== weekAnchor.getTime()) {
+            setWeekAnchor(anchor);
+            syncUrl(anchor.getFullYear(), anchor.getMonth(), selectedAgents, "week", anchor);
+          }
+          return;
+        }
+        if (e.key === "ArrowRight") {
+          e.preventDefault();
+          const next = new Date(focusedDate);
+          next.setDate(next.getDate() + 1);
+          setFocusedDate(next);
+          const anchor = getWeekStart(next);
+          if (anchor.getTime() !== weekAnchor.getTime()) {
+            setWeekAnchor(anchor);
+            syncUrl(anchor.getFullYear(), anchor.getMonth(), selectedAgents, "week", anchor);
+          }
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          const next = new Date(focusedDate);
+          next.setHours(next.getHours() - 1);
+          setFocusedDate(next);
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          const next = new Date(focusedDate);
+          next.setHours(next.getHours() + 1);
+          setFocusedDate(next);
+          return;
+        }
+        return;
+      }
 
       const focusInGrid =
         document.activeElement?.getAttribute("role") === "gridcell";
@@ -370,7 +475,7 @@ export default function CalendarPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [view, year, month, focusedDate, jumpToDate, hiddenCountForDate]);
+  }, [view, year, month, focusedDate, jumpToDate, hiddenCountForDate, weekAnchor, selectedAgents, syncUrl]);
 
   // When focusedDate changes, move DOM focus onto that cell — but only if
   // focus is already inside the grid (don't steal focus on page load).
@@ -409,14 +514,17 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
+      <div className={cn(
+        "flex flex-1 flex-col gap-4 px-5 py-5",
+        view === "week" ? "min-h-0 overflow-hidden" : "overflow-y-auto"
+      )}>
         <CalendarAgentFilter
           agents={agents}
           selected={selectedAgents}
           onToggle={handleToggleAgent}
         />
 
-        {view === "month" ? (
+        {view === "month" && (
           <CalendarMonthGrid
             year={year}
             month={month}
@@ -433,7 +541,29 @@ export default function CalendarPage() {
             onSelectDay={handleSelectDay}
             onSelectEvent={handleSelectEvent}
           />
-        ) : (
+        )}
+
+        {view === "week" && (
+          <CalendarWeekGrid
+            weekStart={weekAnchor}
+            events={visibleEvents}
+            agents={agents}
+            loading={loading}
+            focusedDate={focusedDate}
+            onPrevWeek={handlePrevWeek}
+            onNextWeek={handleNextWeek}
+            onJumpToToday={handleJumpToToday}
+            onJumpToDate={jumpToDate}
+            onSelectSlot={(date, hour) => {
+              const target = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour);
+              setCreateDefault(target);
+              setCreateOpen(true);
+            }}
+            onSelectEvent={handleSelectEvent}
+          />
+        )}
+
+        {view === "agenda" && (
           <CalendarAgenda
             events={visibleEvents}
             agents={agents}
@@ -442,7 +572,7 @@ export default function CalendarPage() {
           />
         )}
 
-        {view === "month" &&
+        {(view === "month" || view === "week") &&
           !loading &&
           events.length > 0 &&
           visibleEvents.length === 0 && (

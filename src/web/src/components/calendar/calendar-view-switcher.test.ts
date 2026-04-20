@@ -12,9 +12,13 @@ describe("parseCalendarView", () => {
     expect(parseCalendarView("agenda")).toBe("agenda");
   });
 
+  it("returns 'week' when explicitly set", () => {
+    expect(parseCalendarView("week")).toBe("week");
+  });
+
   it("clamps unknown values to 'month'", () => {
-    expect(parseCalendarView("week")).toBe("month");
     expect(parseCalendarView("bogus")).toBe("month");
     expect(parseCalendarView("MONTH")).toBe("month");
+    expect(parseCalendarView("WEEK")).toBe("month");
   });
 });

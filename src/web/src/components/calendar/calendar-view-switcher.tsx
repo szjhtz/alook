@@ -2,10 +2,12 @@
 
 import { cn } from "@/lib/utils";
 
-export type CalendarView = "month" | "agenda";
+export type CalendarView = "month" | "week" | "agenda";
 
 export function parseCalendarView(raw: string | null | undefined): CalendarView {
-  return raw === "agenda" ? "agenda" : "month";
+  if (raw === "week") return "week";
+  if (raw === "agenda") return "agenda";
+  return "month";
 }
 
 export interface CalendarViewSwitcherProps {
@@ -20,7 +22,7 @@ export function CalendarViewSwitcher({ view, onChange }: CalendarViewSwitcherPro
       aria-label="Calendar view"
       className="inline-flex items-center rounded-md border border-border bg-background p-0.5"
     >
-      {(["month", "agenda"] as const).map((v) => {
+      {(["month", "week", "agenda"] as const).map((v) => {
         const active = view === v;
         return (
           <button

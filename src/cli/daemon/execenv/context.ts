@@ -117,6 +117,8 @@ Schedule future tasks for yourself. At the scheduled time, a new task is dispatc
 
 !USE Calendar when you think the tasks are recurring or it should be conducted in the future.
 ---
+Keep the event title informative and concise, less than 20 words.
+Place the event details in description.
 Create a one-off event:
 - Run 'npx @alook/cli calendar set --agent_id ${task.agentId} --event_title "<TASK_TITLE>" --description "<TASK_BODY>" --datetime <YYYY-MM-DDTHH:MM>'
   - '--datetime' is LOCAL time, format 'YYYY-MM-DDTHH:MM' (e.g. '2026-04-17T09:30'). Do NOT pass UTC / ISO strings with 'Z'.
@@ -126,7 +128,7 @@ Create a repeating event:
 - Add '--repeat <interval>' where interval is like '1day', '2hour', '1week', '1month'.
 - Optionally add '--repeat_stop_date <YYYY-MM-DD>' to stop the recurrence (local date).
 - Example: 'npx @alook/cli calendar set --agent_id ${task.agentId} --event_title "<REPEAT_TASK_TITLE>" --description "<REPEAT_TASK_BODY>" --datetime 2026-04-18T09:00 --repeat 1day --repeat_stop_date 2026-05-18'
-
+---
 List upcoming events:
 - Run 'npx @alook/cli calendar list --agent_id ${task.agentId}' (defaults: next 30 days, past 0 days).
 - Tune the window with '--future_days <N>' and '--past_days <N>'. Add '--json' for machine-readable output.
