@@ -60,8 +60,10 @@ export function AgentChatView() {
   const pollFailures = useRef(0);
   const initialScrollDone = useRef(false);
   const loadingMoreRef = useRef(false);
+  const isNearBottom = useRef(true);
 
   const scrollToBottom = useCallback(() => {
+    isNearBottom.current = true;
     setTimeout(() => {
       scrollRef.current?.scrollTo({
         top: scrollRef.current.scrollHeight,
@@ -98,6 +100,14 @@ export function AgentChatView() {
     }
   }, [loading, messages.length]);
 
+  // Auto-scroll as new task steps arrive while running
+  const taskStatus = activeTask?.status;
+  useEffect(() => {
+    const isRunning = taskStatus === "running" || taskStatus === "queued";
+    if (isRunning && taskMessages.length > 0 && isNearBottom.current) {
+      scrollToBottom();
+    }
+  }, [taskMessages.length, taskStatus, scrollToBottom]);
 
   const loadOlderMessages = useCallback(async () => {
     if (!conversation || loadingMoreRef.current || !hasMore) return;
@@ -154,11 +164,12 @@ export function AgentChatView() {
     return () => cancelAnimationFrame(raf);
   }, [loading, hasMore, messages.length, loadOlderMessages]);
 
-  // Detect scroll to top for loading more
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
-    if (!el || loadingMore || !hasMore) return;
-    if (el.scrollTop < 80) {
+    if (!el) return;
+    isNearBottom.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+    if (!loadingMore && hasMore && el.scrollTop < 80) {
       loadOlderMessages();
     }
   }, [loadOlderMessages, loadingMore, hasMore]);
