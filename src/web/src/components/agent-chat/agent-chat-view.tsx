@@ -357,7 +357,6 @@ export function AgentChatView() {
 
           pollFailures.current = 0;
           setConnectionLost(false);
-          setActiveTask(task);
 
           if (tmsgs.length > 0) {
             setTaskMessages((prev) => {
@@ -375,27 +374,29 @@ export function AgentChatView() {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
 
+            const shouldScroll = isNearBottom.current;
             try {
-              // Fetch latest messages and merge with any older pagination-loaded messages.
-              // Keep taskMessages so the trace stays visible under the completed assistant reply.
-              const latest = await listMessages(conversationId, workspaceId);
+              const [latest, arts] = await Promise.all([
+                listMessages(conversationId, workspaceId),
+                listArtifacts(conversationId, workspaceId).catch(() => null),
+              ]);
+              // Batch all state updates together so content settles in one re-render
               setMessages((prev) => mergeMessages(prev, latest));
-              // Refresh artifacts to pick up any new ones from the completed task
-              try {
-                const arts = await listArtifacts(conversationId, workspaceId);
-                setArtifacts(arts);
-              } catch { /* best-effort */ }
-              if (isNearBottom.current) {
-                requestAnimationFrame(() => {
-                  scrollRef.current?.scrollTo({
-                    top: scrollRef.current.scrollHeight,
-                    behavior: "smooth",
-                  });
-                });
-              }
+              if (arts) setArtifacts(arts);
+              setActiveTask(task);
             } catch {
+              setActiveTask(task);
               toast.error("Failed to refresh messages");
             }
+            if (shouldScroll) {
+              requestAnimationFrame(() => {
+                scrollRef.current?.scrollTo({
+                  top: scrollRef.current.scrollHeight,
+                  behavior: "smooth",
+                });
+              });
+            }
+          } else {
             setActiveTask(task);
           }
         } catch {
@@ -411,7 +412,7 @@ export function AgentChatView() {
         }
       }, 3000);
     },
-    [workspaceId, scrollToBottom]
+    [workspaceId]
   );
   startPollingRef.current = startPolling;
 
