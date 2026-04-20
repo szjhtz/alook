@@ -6,6 +6,7 @@ import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { AgentEditForm } from "@/components/agent-edit-form";
 import { fetchModelOptions } from "@/lib/api";
+import { MobileSidebarLogo } from "@/components/mobile-sidebar-logo";
 
 export default function CreateAgentPage() {
   const router = useRouter();
@@ -25,7 +26,8 @@ export default function CreateAgentPage() {
 
   return (
     <>
-      <div className="flex items-center border-b border-border/50 px-5 py-2.5">
+      <div className="flex items-center gap-2 border-b border-border/50 px-3 md:px-5 py-2.5">
+        <MobileSidebarLogo />
         <h1 className="text-sm font-medium">Create Agent</h1>
       </div>
 

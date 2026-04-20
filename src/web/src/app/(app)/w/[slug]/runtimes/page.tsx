@@ -24,6 +24,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Monitor, Plus } from "lucide-react";
+import { MobileSidebarLogo } from "@/components/mobile-sidebar-logo";
 import type { AgentRuntime as Runtime } from "@alook/shared";
 import { semverGte } from "@alook/shared";
 import { CLI_CMD } from "@/lib/utils";
@@ -251,8 +252,9 @@ export default function RuntimesPage() {
     return (
       <>
         {/* Skeleton title bar */}
-        <div className="flex items-center justify-between border-b border-border/50 px-5 py-2.5">
+        <div className="flex items-center justify-between border-b border-border/50 px-3 md:px-5 py-2.5">
           <div className="flex items-center gap-3">
+            <MobileSidebarLogo />
             <Skeleton className="h-4 w-16" />
             <Skeleton className="h-3 w-52" />
           </div>
@@ -290,8 +292,9 @@ export default function RuntimesPage() {
   return (
     <>
       {/* Title bar */}
-      <div className="flex items-center justify-between border-b border-border/50 px-5 py-2.5">
+      <div className="flex items-center justify-between border-b border-border/50 px-3 md:px-5 py-2.5">
         <div className="flex items-center gap-3">
+          <MobileSidebarLogo />
           <h1 className="text-sm font-medium">Runtimes</h1>
           <p className="text-xs text-muted-foreground">
             Your machines and their agent runtimes.

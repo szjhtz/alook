@@ -11,6 +11,7 @@ import { AgentEditForm } from "@/components/agent-edit-form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { CalendarDays, Mail, MessageSquare, MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
+import { MobileSidebarLogo } from "@/components/mobile-sidebar-logo";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -46,8 +47,9 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
   return (
     <>
       {/* Top navbar */}
-      <div className="flex items-center justify-between border-b border-border/50 px-5 py-2.5">
+      <div className="flex items-center justify-between border-b border-border/50 px-3 md:px-5 py-2.5">
         <div className="flex items-center gap-2 min-w-0">
+          <MobileSidebarLogo />
           {agent ? (
             <Link
               href={`/w/${slug}/runtimes`}
