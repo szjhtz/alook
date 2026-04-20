@@ -7,9 +7,12 @@ vi.mock("@opennextjs/cloudflare", () => ({
 const mockGetAgent = vi.fn();
 const mockGetWhitelist = vi.fn();
 const mockAddWhitelist = vi.fn();
+const mockCreateConversation = vi.fn();
+const mockEnqueueTask = vi.fn();
 
 vi.mock("@alook/shared", () => ({
   createDb: vi.fn(() => ({})),
+  TASK_TYPES: { USER_DM_MESSAGE: "user_dm_message", EMAIL_NOTIFICATION: "email_notification", CALENDAR_EVENT: "calendar_event" },
   queries: {
     agent: {
       getAgent: (...args: unknown[]) => mockGetAgent(...args),
@@ -17,6 +20,9 @@ vi.mock("@alook/shared", () => ({
     whitelist: {
       getWhitelist: (...args: unknown[]) => mockGetWhitelist(...args),
       addWhitelist: (...args: unknown[]) => mockAddWhitelist(...args),
+    },
+    conversation: {
+      createConversation: (...args: unknown[]) => mockCreateConversation(...args),
     },
   },
   AddWhitelistRequestSchema: {
@@ -36,6 +42,12 @@ vi.mock("@/lib/middleware/auth", () => ({
 
 vi.mock("@/lib/middleware/workspace", () => ({
   withWorkspaceMember: vi.fn(async () => ({ workspaceId: "w1" })),
+}));
+
+vi.mock("@/lib/services/task", () => ({
+  TaskService: class {
+    enqueueTask(...args: unknown[]) { return mockEnqueueTask(...args); }
+  },
 }));
 
 import { GET, POST } from "./route";
@@ -187,5 +199,98 @@ describe("POST /api/agents/[id]/whitelist", () => {
 
     expect(res.status).toBe(404);
     expect(body.error).toBe("agent not found");
+  });
+
+  it("creates welcome email task when agent has runtime and emailHandle", async () => {
+    mockGetAgent.mockResolvedValue({ id: "a1", workspaceId: "w1", ownerId: "u1", runtimeId: "rt1", emailHandle: "myagent" });
+    mockAddWhitelist.mockResolvedValue({ id: "wl1", email: "bob@co.com", createdAt: "2024-01-01T00:00:00.000Z" });
+    mockCreateConversation.mockResolvedValue({ id: "conv1" });
+    mockEnqueueTask.mockResolvedValue({ id: "t1" });
+
+    const req = new NextRequest("http://localhost/api/agents/a1/whitelist", {
+      method: "POST",
+      body: JSON.stringify({ email: "bob@co.com" }),
+    });
+    const ctx = { params: Promise.resolve({ id: "a1" }) };
+    const res = await POST(req, ctx);
+
+    expect(res.status).toBe(201);
+    expect(mockCreateConversation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        workspaceId: "w1",
+        agentId: "a1",
+        userId: "u1",
+        type: "email_notification",
+      }),
+    );
+    expect(mockEnqueueTask).toHaveBeenCalledWith(
+      "a1", "conv1", "w1",
+      expect.stringContaining("bob@co.com"),
+      "email_notification",
+    );
+  });
+
+  it("skips welcome task when agent has no runtimeId", async () => {
+    mockGetAgent.mockResolvedValue({ id: "a1", workspaceId: "w1", ownerId: "u1", runtimeId: null, emailHandle: "myagent" });
+    mockAddWhitelist.mockResolvedValue({ id: "wl1", email: "bob@co.com", createdAt: "2024-01-01T00:00:00.000Z" });
+
+    const req = new NextRequest("http://localhost/api/agents/a1/whitelist", {
+      method: "POST",
+      body: JSON.stringify({ email: "bob@co.com" }),
+    });
+    const ctx = { params: Promise.resolve({ id: "a1" }) };
+    const res = await POST(req, ctx);
+
+    expect(res.status).toBe(201);
+    expect(mockCreateConversation).not.toHaveBeenCalled();
+    expect(mockEnqueueTask).not.toHaveBeenCalled();
+  });
+
+  it("skips welcome task when agent has no emailHandle", async () => {
+    mockGetAgent.mockResolvedValue({ id: "a1", workspaceId: "w1", ownerId: "u1", runtimeId: "rt1", emailHandle: null });
+    mockAddWhitelist.mockResolvedValue({ id: "wl1", email: "bob@co.com", createdAt: "2024-01-01T00:00:00.000Z" });
+
+    const req = new NextRequest("http://localhost/api/agents/a1/whitelist", {
+      method: "POST",
+      body: JSON.stringify({ email: "bob@co.com" }),
+    });
+    const ctx = { params: Promise.resolve({ id: "a1" }) };
+    const res = await POST(req, ctx);
+
+    expect(res.status).toBe(201);
+    expect(mockCreateConversation).not.toHaveBeenCalled();
+    expect(mockEnqueueTask).not.toHaveBeenCalled();
+  });
+
+  it("returns 201 even when welcome task creation fails", async () => {
+    mockGetAgent.mockResolvedValue({ id: "a1", workspaceId: "w1", ownerId: "u1", runtimeId: "rt1", emailHandle: "myagent" });
+    mockAddWhitelist.mockResolvedValue({ id: "wl1", email: "bob@co.com", createdAt: "2024-01-01T00:00:00.000Z" });
+    mockCreateConversation.mockRejectedValue(new Error("db error"));
+
+    const req = new NextRequest("http://localhost/api/agents/a1/whitelist", {
+      method: "POST",
+      body: JSON.stringify({ email: "bob@co.com" }),
+    });
+    const ctx = { params: Promise.resolve({ id: "a1" }) };
+    const res = await POST(req, ctx);
+
+    expect(res.status).toBe(201);
+  });
+
+  it("does not create welcome task for duplicate entries", async () => {
+    mockGetAgent.mockResolvedValue({ id: "a1", workspaceId: "w1", ownerId: "u1", runtimeId: "rt1", emailHandle: "myagent" });
+    mockAddWhitelist.mockResolvedValue(null);
+
+    const req = new NextRequest("http://localhost/api/agents/a1/whitelist", {
+      method: "POST",
+      body: JSON.stringify({ email: "bob@co.com" }),
+    });
+    const ctx = { params: Promise.resolve({ id: "a1" }) };
+    const res = await POST(req, ctx);
+
+    expect(res.status).toBe(409);
+    expect(mockCreateConversation).not.toHaveBeenCalled();
+    expect(mockEnqueueTask).not.toHaveBeenCalled();
   });
 });
