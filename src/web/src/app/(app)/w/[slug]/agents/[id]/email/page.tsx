@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Mail, Inbox, Send, Plus, Trash2, Forward, Reply, Paperclip, File as FileIcon, Copy, Check, ShieldX } from "lucide-react";
 import { ResizablePanels } from "@/components/ui/resizable-panels";
+import { EmailBodyFrame } from "@/components/email-body-frame";
 
 type Folder = "inbox" | "sent" | "rejected";
 
@@ -425,9 +426,9 @@ export default function AgentEmailPage() {
                       <p className="text-xs text-muted-foreground mb-2">{parent.subject}</p>
                       {threadBodies[parent.id] ? (
                         threadBodies[parent.id].isHtml ? (
-                          <div
-                            className="markdown max-w-full text-sm text-foreground"
-                            dangerouslySetInnerHTML={{ __html: threadBodies[parent.id].content }}
+                          <EmailBodyFrame
+                            html={threadBodies[parent.id].content}
+                            className="max-w-full text-sm"
                           />
                         ) : (
                           <div className="text-sm whitespace-pre-wrap leading-[1.65] text-foreground">
@@ -473,14 +474,14 @@ export default function AgentEmailPage() {
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
               </div>
             ) : selected.html_body ? (
-              <div
-                className="markdown max-w-full text-base text-foreground"
-                dangerouslySetInnerHTML={{ __html: selected.html_body }}
+              <EmailBodyFrame
+                html={selected.html_body}
+                className="max-w-full"
               />
             ) : body?.isHtml ? (
-              <div
-                className="markdown max-w-full text-base text-foreground"
-                dangerouslySetInnerHTML={{ __html: body.content }}
+              <EmailBodyFrame
+                html={body.content}
+                className="max-w-full"
               />
             ) : (
               <div className="text-sm whitespace-pre-wrap leading-[1.65] text-foreground">
