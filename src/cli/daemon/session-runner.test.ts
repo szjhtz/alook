@@ -38,8 +38,10 @@ const mockCreateTimelineEntry = vi.fn(
     sessionId?: string,
     pid?: number,
     provider?: string,
+    conversationId?: string,
   ) => ({
     task_id: taskId,
+    conversation_id: conversationId || null,
     session_id: sessionId || null,
     pid: pid ?? null,
     status: "running",
@@ -213,6 +215,7 @@ describe("session-runner runSession", () => {
       "sess-1",
       process.pid,
       "claude",
+      "c1",
     );
     expect(mockInitEntryAsync).toHaveBeenCalledWith(
       "/tmp/ws/ws1/agent1/workdir/.context_timeline",
@@ -340,6 +343,8 @@ describe("session-runner runSession", () => {
       "/tmp/ws/ws1/agent1/workdir/.context_timeline",
       "user_dm_message",
       "claude",
+      undefined,
+      "c1",
     );
     expect(mockBackendExecute).toHaveBeenCalledWith(
       expect.any(String),
@@ -576,6 +581,7 @@ describe("session-runner runSession", () => {
       "sess-1",
       process.pid,
       "codex",
+      "c1",
     );
   });
 
@@ -594,6 +600,8 @@ describe("session-runner runSession", () => {
       "/tmp/ws/ws1/agent1/workdir/.context_timeline",
       "user_dm_message",
       "codex",
+      undefined,
+      "c1",
     );
   });
 
@@ -633,6 +641,8 @@ describe("session-runner runSession", () => {
       "/tmp/ws/ws1/agent1/workdir/.context_timeline",
       "user_dm_message",
       "opencode",
+      undefined,
+      "c1",
     );
     expect(mockBackendExecute).toHaveBeenCalledWith(
       expect.any(String),

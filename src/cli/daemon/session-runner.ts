@@ -36,7 +36,7 @@ export async function runSession(input: SessionRunnerInput): Promise<void> {
 
   const resumeSessionId =
     task.type === TASK_TYPES.USER_DM_MESSAGE
-      ? findResumableSessionId(timelineDir, task.type, provider) ?? undefined
+      ? findResumableSessionId(timelineDir, task.type, provider, undefined, task.conversationId) ?? undefined
       : undefined;
   if (resumeSessionId) {
     log.info(`Task ${task.id} resuming session ${resumeSessionId}`);
@@ -57,7 +57,7 @@ export async function runSession(input: SessionRunnerInput): Promise<void> {
   const earlySessionId = await session.sessionId;
   await initEntryAsync(
     timelineDir,
-    createTimelineEntry(task.id, task.prompt, task.type, earlySessionId, process.pid, provider),
+    createTimelineEntry(task.id, task.prompt, task.type, earlySessionId, process.pid, provider, task.conversationId),
   );
 
   // Message batching

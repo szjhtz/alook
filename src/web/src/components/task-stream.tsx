@@ -359,15 +359,8 @@ export function TaskStream({
 
       {/* Text output zone */}
       {textItems.length > 0 && (
-        <div className="space-y-3">
-          {textItems.map((item) => (
-            <div
-              key={item.id}
-              className="markdown max-w-full min-w-0 px-1 py-1 text-base text-foreground"
-            >
-              <Streamdown controls={{ code: { copy: true, download: false }, table: { copy: true, download: false, fullscreen: true } }} linkSafety={{ enabled: false }}>{item.content}</Streamdown>
-            </div>
-          ))}
+        <div className="markdown max-w-full min-w-0 px-1 py-1 text-base text-foreground">
+          <Streamdown controls={{ code: { copy: true, download: false }, table: { copy: true, download: false, fullscreen: true } }} linkSafety={{ enabled: false }}>{textItems.map((item) => item.content).join("\n\n")}</Streamdown>
         </div>
       )}
 

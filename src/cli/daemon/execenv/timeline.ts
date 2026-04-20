@@ -22,6 +22,7 @@ function readJsonl(filePath: string): ContextTimelineEntry[] {
 
 export interface ContextTimelineEntry {
   task_id: string;
+  conversation_id: string | null;
   session_id: string | null;
   pid: number | null;
   status: "running" | "completed" | "failed" | "killed";
@@ -195,9 +196,11 @@ export function createTimelineEntry(
   sessionId?: string,
   pid?: number,
   provider?: string,
+  conversationId?: string,
 ): ContextTimelineEntry {
   return {
     task_id: taskId,
+    conversation_id: conversationId || null,
     session_id: sessionId || null,
     pid: pid ?? null,
     status: "running",
@@ -217,6 +220,7 @@ export function findResumableSessionId(
   type: string,
   provider: string,
   maxAgeMs: number = DEFAULT_RESUME_MAX_AGE_MS,
+  conversationId?: string,
 ): string | null {
   const now = new Date();
   const cutoff = new Date(now.getTime() - maxAgeMs);
@@ -236,7 +240,8 @@ export function findResumableSessionId(
       entry.type === type &&
       entry.provider === provider &&
       entry.session_id &&
-      new Date(entry.datetime) >= cutoff
+      new Date(entry.datetime) >= cutoff &&
+      (!conversationId || entry.conversation_id === conversationId)
     ) {
       return entry.session_id;
     }

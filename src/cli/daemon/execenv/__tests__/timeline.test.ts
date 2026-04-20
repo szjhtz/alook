@@ -253,6 +253,7 @@ describe("timeline", () => {
     function makeEntry(overrides: Partial<ContextTimelineEntry>): ContextTimelineEntry {
       return {
         task_id: "t_1",
+        conversation_id: null,
         session_id: null,
         pid: null,
         status: "running",
@@ -486,6 +487,72 @@ describe("timeline", () => {
 
       expect(findResumableSessionId(dir, "user_dm_message", "claude")).toBe("sess_claude");
       expect(findResumableSessionId(dir, "user_dm_message", "codex")).toBe("sess_codex");
+    });
+
+    it("createTimelineEntry includes conversation_id when provided", () => {
+      const entry = createTimelineEntry("t_c1", "test", "user_dm_message", "sess_1", 1234, "claude", "conv_abc");
+      expect(entry.conversation_id).toBe("conv_abc");
+    });
+
+    it("createTimelineEntry sets conversation_id to null when not provided", () => {
+      const entry = createTimelineEntry("t_c2", "test", "user_dm_message");
+      expect(entry.conversation_id).toBeNull();
+    });
+
+    it("filters by conversationId when provided", () => {
+      writeEntry(_todayFilename(), makeEntry({
+        task_id: "t_conv1",
+        status: "completed",
+        session_id: "sess_conv1",
+        conversation_id: "conv_1",
+        datetime: new Date().toISOString(),
+      }));
+      writeEntry(_todayFilename(), makeEntry({
+        task_id: "t_conv2",
+        status: "completed",
+        session_id: "sess_conv2",
+        conversation_id: "conv_2",
+        datetime: new Date().toISOString(),
+      }));
+
+      expect(findResumableSessionId(dir, "user_dm_message", "claude", undefined, "conv_1")).toBe("sess_conv1");
+      expect(findResumableSessionId(dir, "user_dm_message", "claude", undefined, "conv_2")).toBe("sess_conv2");
+    });
+
+    it("returns null when conversationId doesn't match any entry", () => {
+      writeEntry(_todayFilename(), makeEntry({
+        task_id: "t_conv1",
+        status: "completed",
+        session_id: "sess_conv1",
+        conversation_id: "conv_1",
+        datetime: new Date().toISOString(),
+      }));
+
+      expect(findResumableSessionId(dir, "user_dm_message", "claude", undefined, "conv_other")).toBeNull();
+    });
+
+    it("ignores conversationId filter when not provided (backward compat)", () => {
+      writeEntry(_todayFilename(), makeEntry({
+        task_id: "t_conv1",
+        status: "completed",
+        session_id: "sess_conv1",
+        conversation_id: "conv_1",
+        datetime: new Date().toISOString(),
+      }));
+
+      expect(findResumableSessionId(dir, "user_dm_message", "claude")).toBe("sess_conv1");
+    });
+
+    it("matches entries with null conversation_id when conversationId filter not provided", () => {
+      writeEntry(_todayFilename(), makeEntry({
+        task_id: "t_old",
+        status: "completed",
+        session_id: "sess_old",
+        conversation_id: null,
+        datetime: new Date().toISOString(),
+      }));
+
+      expect(findResumableSessionId(dir, "user_dm_message", "claude")).toBe("sess_old");
     });
   });
 });

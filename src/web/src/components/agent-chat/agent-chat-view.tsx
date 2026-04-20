@@ -12,13 +12,22 @@ import {
   getTask,
   getTaskMessages,
   getActiveTask,
+  deleteConversation,
 } from "@/lib/api";
 import type { Conversation, Message, TaskApi as Task, TaskMessage, WsMessage } from "@alook/shared";
 import { useAgentContext } from "@/contexts/agent-context";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { ArrowUp, Loader2, RotateCcw } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Streamdown } from "streamdown";
 
 const MESSAGE_LIMIT = 20;
@@ -331,6 +340,49 @@ export function AgentChatView() {
     }
   };
 
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetDontAsk, setResetDontAsk] = useState(false);
+
+  const RESET_SKIP_KEY = "chat-reset-skip-confirm";
+
+  const executeReset = async () => {
+    if (!conversation) return;
+    setResetting(true);
+    try {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      await deleteConversation(conversation.id, workspaceId);
+      const newConv = await getOrCreateAgentConversation(agentId, workspaceId);
+      setConversation(newConv);
+      setMessages([]);
+      setActiveTask(null);
+      setTaskMessages([]);
+      lastSeqRef.current = 0;
+      setConnectionLost(false);
+      setHasMore(false);
+      initialScrollDone.current = false;
+    } catch {
+      toast.error("Failed to reset conversation");
+    } finally {
+      setResetting(false);
+      setResetConfirmOpen(false);
+    }
+  };
+
+  const handleReset = () => {
+    if (!conversation || messages.length === 0) return;
+    const skip = typeof window !== "undefined" && localStorage.getItem(RESET_SKIP_KEY) === "true";
+    if (skip) {
+      executeReset();
+    } else {
+      setResetDontAsk(false);
+      setResetConfirmOpen(true);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -481,7 +533,21 @@ export function AgentChatView() {
                 "min-h-[38px] max-h-[200px] thin-scrollbar"
               )}
             />
-            <div className="flex items-center justify-end px-2 pb-2 pt-0.5">
+            <div className="flex items-center justify-between px-2 pb-2 pt-0.5">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleReset}
+                disabled={resetting || !conversation || messages.length === 0}
+                className="rounded-lg text-muted-foreground/60 hover:text-foreground transition-colors duration-200"
+                title="New conversation"
+              >
+                {resetting ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <RotateCcw className="size-3.5" />
+                )}
+              </Button>
               <Button
                 size="icon-sm"
                 onClick={handleSend}
@@ -501,6 +567,48 @@ export function AgentChatView() {
           </div>
         </div>
       </div>
+
+      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Start new conversation?</DialogTitle>
+            <DialogDescription>
+              This will clear the current conversation and start fresh. The agent won&apos;t remember context from this chat.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={resetDontAsk}
+              onChange={(e) => setResetDontAsk(e.target.checked)}
+              className="rounded"
+            />
+            Don&apos;t ask me next time
+          </label>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setResetConfirmOpen(false)}
+              disabled={resetting}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (resetDontAsk) {
+                  localStorage.setItem(RESET_SKIP_KEY, "true");
+                }
+                executeReset();
+              }}
+              disabled={resetting}
+            >
+              {resetting ? "Resetting..." : "Reset"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
