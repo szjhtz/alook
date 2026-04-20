@@ -36,20 +36,22 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     return writeJSON({ status: "ok" });
   }
 
-  for (const m of body.messages) {
-    queries.taskMessage.createTaskMessage(db, {
-      taskId,
-      seq: m.seq,
-      type: m.type,
-      tool: m.tool || "",
-      callId: m.call_id || "",
-      content: m.content || "",
-      input: m.input,
-      output: m.output || "",
-    }).catch((e) => {
-      log.warn("Failed to create task message", { taskId, err: e });
-    });
-  }
+  await Promise.all(
+    body.messages.map((m) =>
+      queries.taskMessage.createTaskMessage(db, {
+        taskId,
+        seq: m.seq,
+        type: m.type,
+        tool: m.tool || "",
+        callId: m.call_id || "",
+        content: m.content || "",
+        input: m.input,
+        output: m.output || "",
+      }).catch((e) => {
+        log.warn("Failed to create task message", { taskId, err: e });
+      })
+    )
+  );
 
   return writeJSON({ status: "ok" });
 });

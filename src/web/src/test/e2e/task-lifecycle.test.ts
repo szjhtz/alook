@@ -100,9 +100,6 @@ describe("task lifecycle", () => {
   })
 
   it("GET /api/daemon/tasks/:id/messages returns stored messages", async () => {
-    // Small delay to allow async message creation to complete
-    await new Promise(r => setTimeout(r, 500))
-
     const res = await tokenRequest(
       `/api/daemon/tasks/${taskId}/messages`,
       seed.machineToken,
