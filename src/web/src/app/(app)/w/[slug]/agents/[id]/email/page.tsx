@@ -623,6 +623,53 @@ export default function AgentEmailPage() {
     }
     return (
       <div className="flex flex-col h-full">
+        {mailboxes.length > 1 && (
+          <div className="relative px-3 pt-2 pb-1 border-b border-border/30">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setMailboxOpen(!mailboxOpen)}
+                className="flex items-center gap-1 text-left cursor-pointer min-w-0 flex-1"
+              >
+                <span className="text-xs text-muted-foreground truncate">{activeAddress}</span>
+                <ChevronDown className="size-2.5 text-muted-foreground shrink-0" />
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyAddress}
+                className="shrink-0 p-0.5"
+                title="Copy address"
+              >
+                {copied ? (
+                  <Check className="size-2.5 text-green-500" />
+                ) : (
+                  <Copy className="size-2.5 text-muted-foreground/40 hover:text-muted-foreground/80 transition-colors" />
+                )}
+              </button>
+            </div>
+            {mailboxOpen && (
+              <div className="absolute left-2 right-2 top-full mt-0.5 z-10 rounded-lg border border-border bg-popover shadow-md py-1">
+                {mailboxes.map((mb, i) => (
+                  <button
+                    key={mb.address}
+                    type="button"
+                    onClick={() => { setActiveMailboxIdx(i); setMailboxOpen(false); }}
+                    className={cn(
+                      "flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs transition-colors",
+                      i === activeMailboxIdx ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50"
+                    )}
+                  >
+                    <Mail className="size-3 shrink-0" />
+                    <span className="truncate">{mb.address}</span>
+                    {mb.type === "custom" && (
+                      <span className="text-[9px] text-muted-foreground/60 shrink-0">IMAP</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-1 border-b border-border/50 px-3 py-2">
           <div className="flex items-center gap-0.5 flex-1 min-w-0">
             {(["inbox", "sent", "rejected"] as Folder[]).map((f) => (
