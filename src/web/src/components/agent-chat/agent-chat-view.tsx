@@ -20,7 +20,8 @@ import { useAgentContext } from "@/contexts/agent-context";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowUp, Box, FileText, Loader2, Paperclip, RotateCcw, X } from "lucide-react";
+import { ArrowUp, Box, FileText, Loader2, Mic, Paperclip, RotateCcw, X } from "lucide-react";
+import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { ArtifactSheet, formatSize } from "@/components/agent-chat/artifact-sheet";
 import { isPreviewable, getArtifactUrl } from "@/components/artifact-content-renderer";
 import {
@@ -171,6 +172,11 @@ export function AgentChatView() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const pendingFilesMapRef = useRef<Map<string, File[]>>(new Map());
+
+  const handleSpeechResult = useCallback((text: string) => {
+    setInput((prev) => (prev ? prev + " " + text : text));
+  }, []);
+  const { listening, supported: speechSupported, toggle: toggleSpeech } = useSpeechRecognition(handleSpeechResult);
 
   const agentArtifacts = useMemo(() => artifacts.filter((a) => a.source === "agent"), [artifacts]);
 
@@ -881,6 +887,23 @@ export function AgentChatView() {
                 >
                   <Paperclip className="size-3.5" />
                 </Button>
+                {speechSupported && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={toggleSpeech}
+                    disabled={sending || isTaskActive}
+                    className={cn(
+                      "rounded-lg transition-colors duration-200",
+                      listening
+                        ? "text-red-500 hover:text-red-600 bg-red-500/10"
+                        : "text-muted-foreground/60 hover:text-foreground"
+                    )}
+                    title={listening ? "Stop recording" : "Voice input"}
+                  >
+                    <Mic className={cn("size-3.5", listening && "animate-pulse")} />
+                  </Button>
+                )}
                 <Button
                   size="icon-sm"
                   onClick={handleSend}
