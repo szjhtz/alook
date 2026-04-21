@@ -8,6 +8,11 @@ export function pidFilePath(profile?: string): string {
   return join(configDir(), name);
 }
 
+export function lastUpdateMarkerPath(profile?: string): string {
+  const name = profile ? `last_update_${profile}` : "last_update";
+  return join(configDir(), name);
+}
+
 export function daemonLogDir(): string {
   return join(configDir(), "daemon", "logs");
 }

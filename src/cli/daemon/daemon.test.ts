@@ -37,6 +37,9 @@ vi.mock("./config.js", () => ({
     cliVersion: "0.1.0",
   })),
   sessionRunnerLogDir: vi.fn(() => "/tmp/alook/daemon/session-runners"),
+  lastUpdateMarkerPath: vi.fn((profile?: string) =>
+    profile ? `/tmp/alook/last_update_${profile}` : "/tmp/alook/last_update",
+  ),
 }));
 
 vi.mock("./health.js", () => ({
@@ -66,6 +69,8 @@ vi.mock("./pidfile.js", () => ({
 vi.mock("./update-handler.js", () => ({
   handleCliUpdate: vi.fn(),
   isUpdating: vi.fn(() => false),
+  readUpdateMarker: vi.fn(() => null),
+  clearUpdateMarker: vi.fn(),
 }));
 
 // Track spawned children
@@ -170,7 +175,7 @@ vi.spyOn(globalThis, "clearInterval").mockImplementation(((timer: any) => {
 import { spawn } from "child_process";
 import { loadCLIConfigForProfile, saveCLIConfigForProfile } from "../lib/config.js";
 import { releaseDaemonPid } from "./pidfile.js";
-import { handleCliUpdate } from "./update-handler.js";
+import { handleCliUpdate, readUpdateMarker, clearUpdateMarker } from "./update-handler.js";
 import { startDaemon, spawnSessionRunner, pruneSessionRunnerLogs } from "./daemon.js";
 
 const mockReleaseDaemonPid = vi.mocked(releaseDaemonPid);
@@ -1187,7 +1192,29 @@ describe("daemon restart via update", () => {
 
     await startDaemon();
 
-    expect(handleCliUpdate).toHaveBeenCalledWith("2.0.0", expect.any(Function));
+    expect(handleCliUpdate).toHaveBeenCalledWith("2.0.0", expect.any(Function), undefined);
+  });
+
+  it("handleCliUpdate is not called when pending_update.version matches cliVersion", async () => {
+    vi.clearAllMocks();
+    mockProcessExit.mockImplementation((() => {}) as any);
+
+    vi.mocked(loadCLIConfigForProfile).mockReturnValue({
+      server_url: "",
+      watched_workspaces: [{ id: "ws1", name: "Test WS", token: "al_test_token" }],
+    });
+    mockClientInstance.register.mockResolvedValue({ runtimes: [{ id: "rt1" }] });
+
+    // pending_update version matches cliVersion (0.1.0 from config mock)
+    mockClientInstance.poll.mockResolvedValue({
+      tasks: [],
+      evicted: false,
+      pending_update: { version: "0.1.0" },
+    });
+
+    await startDaemon();
+
+    expect(handleCliUpdate).not.toHaveBeenCalled();
   });
 
   it("handleCliUpdate is not called when isUpdating returns true", async () => {
@@ -1211,5 +1238,41 @@ describe("daemon restart via update", () => {
 
     expect(handleCliUpdate).not.toHaveBeenCalled();
     vi.mocked(isUpdating).mockReturnValue(false);
+  });
+
+  it("clears update marker on startup when current version matches marker", async () => {
+    vi.clearAllMocks();
+    mockProcessExit.mockImplementation((() => {}) as any);
+
+    vi.mocked(readUpdateMarker).mockReturnValue("0.1.0"); // matches cliVersion
+
+    vi.mocked(loadCLIConfigForProfile).mockReturnValue({
+      server_url: "",
+      watched_workspaces: [{ id: "ws1", name: "Test WS", token: "al_test_token" }],
+    });
+    mockClientInstance.register.mockResolvedValue({ runtimes: [{ id: "rt1" }] });
+    mockClientInstance.poll.mockResolvedValue({ tasks: [], evicted: false });
+
+    await startDaemon();
+
+    expect(clearUpdateMarker).toHaveBeenCalled();
+  });
+
+  it("does not clear update marker when versions differ", async () => {
+    vi.clearAllMocks();
+    mockProcessExit.mockImplementation((() => {}) as any);
+
+    vi.mocked(readUpdateMarker).mockReturnValue("0.0.9"); // differs from cliVersion 0.1.0
+
+    vi.mocked(loadCLIConfigForProfile).mockReturnValue({
+      server_url: "",
+      watched_workspaces: [{ id: "ws1", name: "Test WS", token: "al_test_token" }],
+    });
+    mockClientInstance.register.mockResolvedValue({ runtimes: [{ id: "rt1" }] });
+    mockClientInstance.poll.mockResolvedValue({ tasks: [], evicted: false });
+
+    await startDaemon();
+
+    expect(clearUpdateMarker).not.toHaveBeenCalled();
   });
 });
