@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, type ReactNode } from "react"
+import { createContext, useContext, useEffect, type ReactNode } from "react"
 
 interface WorkspaceContextValue {
   workspaceId: string
@@ -20,6 +20,10 @@ export function WorkspaceProvider({
   slug,
   children,
 }: WorkspaceContextValue & { children: ReactNode }) {
+  useEffect(() => {
+    try { localStorage.setItem("lastWorkspace", slug) } catch {}
+  }, [slug])
+
   return (
     <WorkspaceContext.Provider value={{ workspaceId, slug }}>
       {children}
