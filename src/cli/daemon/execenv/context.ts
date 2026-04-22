@@ -135,6 +135,8 @@ Upload files for your owner to review in the app.
 - Your current conversation id is available via env var: $ALOOK_CONVERSATION_ID
 - Run 'npx @alook/cli sync upload-artifact --agent_id ${task.agentId} --conversation_id $ALOOK_CONVERSATION_ID --file <PATH>'
 - Use this after generating plans, reports, or any file the owner should review.
+- You response will be rendered in remote server, so don't output link format with local path in your response (cause user can click it and jump to nowheres)
+- If you think user may need to know any file detail, use upload-artifact tool to send the file to user.
 ---
 
 ### Attachments
