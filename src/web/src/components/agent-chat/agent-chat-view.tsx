@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { ArrowUp, Box, FileText, Loader2, Mic, Paperclip, RotateCcw, Square, X } from "lucide-react";
+import { ArrowUp, Box, FileText, Loader2, Mail, Mic, Paperclip, RotateCcw, Square, X } from "lucide-react";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { ArtifactSheet, formatSize } from "@/components/agent-chat/artifact-sheet";
 import { isPreviewable, getArtifactUrl } from "@/components/artifact-content-renderer";
@@ -157,7 +157,7 @@ function PendingFileChips({
 export function AgentChatView() {
   const params = useParams();
   const { workspaceId } = useWorkspace();
-  const { subscribeWs } = useAgentContext();
+  const { agents, activeTaskCounts, subscribeWs } = useAgentContext();
   const agentId = params.id as string;
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -838,11 +838,37 @@ export function AgentChatView() {
             </div>
           )}
 
-          {messages.length === 0 && !activeTask && (
-            <p className="text-center text-muted-foreground py-20 text-sm">
-              Send a message to start chatting with the agent.
-            </p>
-          )}
+          {messages.length === 0 && !activeTask && (() => {
+            const agent = agents.find(a => a.id === agentId);
+            const isNewAgent = agent?.created_at && (Date.now() - new Date(agent.created_at).getTime() < 5 * 60 * 1000);
+            const hasEmailTask = (activeTaskCounts[agentId] ?? 0) > 0;
+
+            if (isNewAgent && hasEmailTask) {
+              return (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 animate-[fade-up_400ms_ease-out_both]">
+                  <div className="relative animate-bounce">
+                    <Mail className="size-8 text-primary" />
+                    <span className="absolute -top-1 -right-1 flex size-3">
+                      <span className="animate-ping absolute inline-flex size-full rounded-full bg-primary/60" />
+                      <span className="relative inline-flex size-3 rounded-full bg-primary" />
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center max-w-xs">
+                    Your agent is sending you a welcome email.
+                  </p>
+                  <p className="text-xs text-muted-foreground/60 text-center max-w-xs">
+                    Wait for the email task in the top-left to complete, then check your inbox. Or send a message below to start chatting.
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <p className="text-center text-muted-foreground py-20 text-sm">
+                Send a message to start chatting with the agent.
+              </p>
+            );
+          })()}
 
           {timeline.map((item) => {
             if (item.kind === "artifact") {

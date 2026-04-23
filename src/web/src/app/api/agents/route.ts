@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare"
-import { queries, isValidHandle, isOnline, CreateAgentRequestSchema } from "@alook/shared"
+import { queries, isValidHandle, isOnline, CreateAgentRequestSchema, TASK_TYPES } from "@alook/shared"
 import { getDb } from "@/lib/db"
 import { withAuth } from "@/lib/middleware/auth";
 import { withWorkspaceMember } from "@/lib/middleware/workspace";
@@ -80,6 +80,29 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
 
   if (emailHandle && ctx.email) {
     await queries.whitelist.addWhitelist(db, newAgent.id, ws.workspaceId, ctx.email.toLowerCase());
+  }
+
+  // Send welcome email to owner
+  if (newAgent.runtimeId && newAgent.emailHandle && ctx.email && isOnline(runtime.machineLastSeenAt)) {
+    try {
+      const conv = await queries.conversation.createConversation(db, {
+        workspaceId: ws.workspaceId,
+        agentId: newAgent.id,
+        userId: ctx.userId,
+        title: `Welcome: ${ctx.email}`.slice(0, 50),
+        type: TASK_TYPES.EMAIL_NOTIFICATION,
+      });
+      const taskService = new TaskService(db);
+      await taskService.enqueueTask(
+        newAgent.id,
+        conv.id,
+        ws.workspaceId,
+        `You have just been created by your owner (${ctx.email}). Please send them a welcome email introducing yourself as "${name}". In the email: 1) Introduce yourself warmly — your name, your email address, and what you can help with. 2) Briefly introduce the Alook platform — a personal AI agent platform where agents can handle emails, schedule tasks, and work autonomously. 3) Let them know they can chat with you directly or email you anytime. Be warm, professional, and concise.`,
+        TASK_TYPES.EMAIL_NOTIFICATION,
+      );
+    } catch {
+      // Best-effort — don't fail agent creation
+    }
   }
 
   if (isOnline(runtime.machineLastSeenAt)) {

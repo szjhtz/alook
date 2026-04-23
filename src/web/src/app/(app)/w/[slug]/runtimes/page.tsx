@@ -331,17 +331,14 @@ export default function RuntimesPage() {
 
       <div className="flex-1 overflow-y-auto px-5 py-5">
         {runtimes.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center py-12">
+          <div className="flex flex-1 items-center justify-center min-h-[60vh]">
             <div className="text-center animate-[fade-up_400ms_ease-out_both]">
               <p className="text-muted-foreground text-sm">
-                No machines connected.
-              </p>
-              <p className="text-xs text-muted-foreground mt-2 max-w-xs mx-auto">
                 Connect a machine to start running agents locally.
               </p>
               <Button
                 size="sm"
-                className="mt-5"
+                className="mt-4 glow-border"
                 onClick={() => {
                   setGeneratedToken("");
                   setSheetOpen(true);
