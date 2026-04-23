@@ -18,6 +18,7 @@ import {
   createBufferedMessage,
   deleteBufferedMessage,
   cancelActiveTask,
+  getActiveTask,
 } from "@/lib/api";
 import type { Artifact, Conversation, Message, TaskApi as Task, TaskMessage, WsMessage } from "@alook/shared";
 import { useAgentContext } from "@/contexts/agent-context";
@@ -417,6 +418,26 @@ export function AgentChatView() {
                 });
               });
             }
+
+            // Fallback: if a follow-up was dispatched but the WebSocket
+            // message was lost, detect the new active task via API.
+            setTimeout(async () => {
+              if (pollRef.current) return;
+              try {
+                const nextTask = await getActiveTask(conversationId, workspaceId);
+                if (nextTask && nextTask.id !== taskId) {
+                  const [latestMsgs, latestBuffered] = await Promise.all([
+                    listMessages(conversationId, workspaceId),
+                    listBufferedMessages(conversationId, workspaceId),
+                  ]);
+                  setMessages((prev) => mergeMessages(prev, latestMsgs));
+                  setBufferedMessages(latestBuffered);
+                  setActiveTask(nextTask);
+                  setTaskMessages([]);
+                  startPollingRef.current(nextTask.id, conversationId);
+                }
+              } catch {}
+            }, 1000);
           } else if (!isStale) {
             setActiveTask(task);
           }
