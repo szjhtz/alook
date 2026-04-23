@@ -271,9 +271,25 @@ export function TaskStream({
       {/* Status badge */}
       <div className="flex items-center gap-2">
         {task.status === "running" ? (
-          <Badge variant="secondary" className="gap-1.5">
+          <Badge variant="secondary" className="gap-1.5 relative overflow-hidden">
             <span className="size-1.5 rounded-full bg-primary animate-pulse" />
             Working
+            <div
+              className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2s_ease-in-out_infinite]"
+              style={{
+                background: "linear-gradient(90deg, transparent 0%, var(--shimmer) 40%, var(--shimmer-peak) 50%, var(--shimmer) 60%, transparent 100%)",
+              }}
+            />
+          </Badge>
+        ) : isRunning ? (
+          <Badge variant="secondary" className="relative overflow-hidden">
+            {task.status}
+            <div
+              className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2s_ease-in-out_infinite]"
+              style={{
+                background: "linear-gradient(90deg, transparent 0%, var(--shimmer) 40%, var(--shimmer-peak) 50%, var(--shimmer) 60%, transparent 100%)",
+              }}
+            />
           </Badge>
         ) : (
           <Badge variant="secondary">{task.status}</Badge>

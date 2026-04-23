@@ -45,10 +45,7 @@ export function FollowUpBuffer({
           {bufferedMessages.map((msg, i) => {
             const fromBottom = count - 1 - i;
             const inStack = i >= count - visibleCount;
-            const stackFromTop = inStack ? fromBottom : visibleCount;
 
-            // Both states use bottom-based positioning.
-            // The last card (fromBottom=0) never moves.
             const collapsedBottom = inStack ? fromBottom * STACK_GAP : 0;
             const expandedBottom = fromBottom * (CARD_H + EXPANDED_GAP);
 
@@ -72,7 +69,7 @@ export function FollowUpBuffer({
                   className="h-full rounded-lg border bg-background/95 backdrop-blur-sm shadow-sm
                     flex items-center gap-2 px-3"
                 >
-                  <span className="shrink-0 text-[11px] text-muted-foreground/50 tabular-nums w-4 text-right">
+                  <span className="shrink-0 text-[11px] text-primary/60 tabular-nums w-4 text-center">
                     {i + 1}
                   </span>
                   <div className="min-w-0 flex-1 flex items-center gap-1.5">
