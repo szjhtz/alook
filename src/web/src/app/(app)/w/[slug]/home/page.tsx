@@ -49,10 +49,10 @@ export default function HomePage() {
       <div className="text-center animate-[fade-up_400ms_ease-out_both]">
         {runtimes.length === 0 ? (
           <>
-            <p className="text-muted-foreground text-sm">No machines yet.</p>
+            <p className="text-muted-foreground text-sm">Connect a machine to run your agents.</p>
             <Button
               size="sm"
-              className="mt-4"
+              className="mt-4 glow-border"
               onClick={() => router.push(`/w/${slug}/runtimes?connect`)}
             >
               Connect Machine
@@ -60,10 +60,10 @@ export default function HomePage() {
           </>
         ) : !hasOnline ? (
           <>
-            <p className="text-muted-foreground text-sm">No machines online.</p>
+            <p className="text-muted-foreground text-sm">Start the daemon on your machine to bring it online.</p>
             <Button
               size="sm"
-              className="mt-4"
+              className="mt-4 glow-border"
               onClick={() => router.push(`/w/${slug}/runtimes`)}
             >
               Bring Machine Online
@@ -71,10 +71,10 @@ export default function HomePage() {
           </>
         ) : (
           <>
-            <p className="text-muted-foreground text-sm">No agents yet.</p>
+            <p className="text-muted-foreground text-sm">Your machine is ready. Create your first agent to get started.</p>
             <Button
               size="sm"
-              className="mt-4"
+              className="mt-4 glow-border"
               onClick={() => router.push(`/w/${slug}/agents/new`)}
             >
               Create Agent
