@@ -35,7 +35,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       result,
       sessionId
     );
-    broadcastToUser(ctx.userId, { type: "task.updated", taskId, status: "completed" }).catch(() => {});
+    broadcastToUser(ctx.userId, { type: "task.updated", taskId, agentId: task.agentId, status: "completed" }).catch(() => {});
     return writeJSON(taskToResponse(task));
   } catch (e: unknown) {
     return writeError(e instanceof Error ? e.message : "Unknown error", 400);

@@ -198,7 +198,7 @@ export type WsMessage =
   | { type: "runtime.registered"; daemonId: string; hostname: string; workspaceId: string }
   | { type: "runtime.status"; daemonId: string; workspaceId: string; status: string }
   | { type: "runtime.deleted"; daemonId: string }
-  | { type: "task.updated"; taskId: string; status: string }
+  | { type: "task.updated"; taskId: string; agentId: string; status: string }
   | { type: "task.messages"; taskId: string; messages: TaskMessage[] }
   | { type: "email.received"; agentId: string }
   | { type: "artifact.uploaded"; conversationId: string; artifact: Artifact }

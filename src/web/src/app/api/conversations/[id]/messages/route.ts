@@ -162,7 +162,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         context: artifactIds.length > 0 ? { attachment_ids: artifactIds } : undefined,
       },
     );
-    broadcastToUser(ctx.userId, { type: "task.updated", taskId: task.id, status: "queued" }).catch(() => {});
+    broadcastToUser(ctx.userId, { type: "task.updated", taskId: task.id, agentId: task.agentId, status: "queued" }).catch(() => {});
     return writeJSON(
       { message: messageToResponse(message), task: taskToResponse(task) },
       201

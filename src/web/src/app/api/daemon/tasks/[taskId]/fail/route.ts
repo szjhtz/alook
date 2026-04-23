@@ -27,7 +27,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   const taskService = new TaskService(db);
   try {
     const task = await taskService.failTask(taskId, ctx.workspaceId, body.error);
-    broadcastToUser(ctx.userId, { type: "task.updated", taskId, status: "failed" }).catch(() => {});
+    broadcastToUser(ctx.userId, { type: "task.updated", taskId, agentId: task.agentId, status: "failed" }).catch(() => {});
     return writeJSON(taskToResponse(task));
   } catch (e: unknown) {
     return writeError(e instanceof Error ? e.message : "Unknown error", 400);

@@ -59,6 +59,7 @@ export const DELETE = withAuth(async (req, ctx) => {
   broadcastToUser(ctx.userId, {
     type: "task.updated",
     taskId: cancelled.id,
+    agentId: cancelled.agentId,
     status: "cancelled",
   }).catch(() => {});
 

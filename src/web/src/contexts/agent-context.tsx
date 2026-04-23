@@ -32,6 +32,7 @@ import type {
   WsMessage,
 } from "@alook/shared";
 import { useUserWs } from "@/lib/use-user-ws";
+import { sendTaskNotification } from "@/lib/browser-notification";
 
 type WsSubscriber = (msg: WsMessage) => void;
 
@@ -164,10 +165,14 @@ export function AgentProvider({
           break;
         case "task.updated":
           fetchTaskCounts();
+          if (msg.status === "completed" || msg.status === "failed") {
+            const agent = agents.find((a) => a.id === msg.agentId);
+            sendTaskNotification(msg.status, agent?.name);
+          }
           break;
       }
     },
-    [reload, debouncedReload, fetchTaskCounts, workspaceId]
+    [reload, debouncedReload, fetchTaskCounts, workspaceId, agents]
   );
   useUserWs(handleWsMessage);
 

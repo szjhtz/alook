@@ -23,7 +23,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   const taskService = new TaskService(db);
   try {
     const task = await taskService.supersedeTask(taskId, ctx.workspaceId);
-    broadcastToUser(ctx.userId, { type: "task.updated", taskId, status: "superseded" }).catch(() => {});
+    broadcastToUser(ctx.userId, { type: "task.updated", taskId, agentId: task.agentId, status: "superseded" }).catch(() => {});
     return writeJSON(taskToResponse(task));
   } catch (e: unknown) {
     return writeError(e instanceof Error ? e.message : "Unknown error", 400);
