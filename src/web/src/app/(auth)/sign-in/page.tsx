@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { signIn, signUp, authClient } from "@/lib/auth-client"
 import { parseRetryAfterSeconds } from "@/lib/retry-after"
 import { Button } from "@/components/ui/button"
@@ -25,8 +26,16 @@ import { TypewriterVisual, EMAILS_PLAYFUL } from "@/components/typewriter-visual
 const isProd = process.env.NODE_ENV === "production"
 
 const DEV_PASSWORD = "dev-password-000"
+const DEFAULT_POST_LOGIN = "/workspaces?auto"
 
-function SignInForm() {
+function safeRedirectUrl(redirect: string | null): string {
+  if (redirect && redirect.startsWith("/") && !redirect.startsWith("//")) {
+    return redirect
+  }
+  return DEFAULT_POST_LOGIN
+}
+
+function SignInForm({ postLoginUrl }: { postLoginUrl: string }) {
   const [email, setEmail] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -92,7 +101,7 @@ function SignInForm() {
         setError(error.message ?? "Invalid code")
         setCode("")
       } else {
-        window.location.href = "/workspaces?auto"
+        window.location.href = postLoginUrl
         return
       }
     } catch {
@@ -122,7 +131,7 @@ function SignInForm() {
         return
       }
     }
-    window.location.href = "/workspaces?auto"
+    window.location.href = postLoginUrl
   }
 
   const isCoolingDown = retryAfter != null
@@ -254,7 +263,7 @@ function SignInForm() {
           variant="outline"
           type="button"
           onClick={() =>
-            signIn.social({ provider: "github", callbackURL: "/workspaces?auto" })
+            signIn.social({ provider: "github", callbackURL: postLoginUrl })
           }
         >
           <SiGithub className="size-4" />
@@ -264,7 +273,7 @@ function SignInForm() {
           variant="outline"
           type="button"
           onClick={() =>
-            signIn.social({ provider: "google", callbackURL: "/workspaces?auto" })
+            signIn.social({ provider: "google", callbackURL: postLoginUrl })
           }
         >
           <SiGoogle className="size-4" />
@@ -276,6 +285,9 @@ function SignInForm() {
 }
 
 export default function SignInPage() {
+  const searchParams = useSearchParams()
+  const postLoginUrl = safeRedirectUrl(searchParams.get("redirect"))
+
   return (
     <div className="relative flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
       <GradientBackground />
@@ -284,7 +296,7 @@ export default function SignInPage() {
           <Card className="overflow-hidden p-0">
             <CardContent className="grid p-0 md:grid-cols-2">
               <div className="p-6 md:p-8 md:min-h-105 flex flex-col justify-center">
-                <SignInForm />
+                <SignInForm postLoginUrl={postLoginUrl} />
               </div>
               <div className="hidden bg-muted md:flex items-center justify-center overflow-visible min-h-80 pt-24">
                 <TypewriterVisual className="scale-[0.65] shrink-0" emails={EMAILS_PLAYFUL} blobScale={2.5} blobBottom="30%" />
