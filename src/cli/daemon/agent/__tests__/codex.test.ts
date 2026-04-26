@@ -881,17 +881,35 @@ describe("CodexBackend", () => {
     expect(result.status).toBe("completed");
   });
 
-  it("non-zero exit code before turn completes → status failed", async () => {
+  it("non-zero exit code before turn completes (no output) → status failed", async () => {
     const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     await completeHandshake();
     sendNotification("turn/started", { turn: { id: "turn_1" } });
-    // Process exits before turn/completed
+    // Process exits before turn/completed and without any agent output
     mock.proc.emit("close", 1);
 
     const result = await session.result;
     expect(result.status).toBe("failed");
+  });
+
+  it("non-zero exit code before turn completes but agent produced output → status completed", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake("thread_abc");
+    sendNotification("turn/started", { threadId: "thread_abc", turn: { id: "turn_1" } });
+    sendNotification("item/completed", {
+      threadId: "thread_abc",
+      item: { type: "agentMessage", id: "msg_1", text: "Hi. What can I help with?" },
+    });
+    // Process exits with non-zero code (e.g. MCP transport crash) without turn/completed
+    mock.proc.emit("close", 1);
+
+    const result = await session.result;
+    expect(result.status).toBe("completed");
+    expect(result.output).toBe("Hi. What can I help with?");
   });
 
   it("turn completed successfully + non-zero exit + turnError → status failed with turnError", async () => {

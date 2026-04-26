@@ -507,7 +507,11 @@ export class CodexBackend implements AgentBackend {
         if (timedOut) {
           resultStatus = "timeout";
         } else if (code !== 0 && resultStatus === "completed" && !turnCompletedSuccessfully) {
-          resultStatus = "failed";
+          // If agent already produced output, treat as completed despite non-zero exit
+          // (e.g. MCP transport errors can crash the process after a successful response)
+          if (!lastOutput) {
+            resultStatus = "failed";
+          }
         }
 
         const stderr = stderrChunks.join("").replace(/\x1b\[[0-9;]*m/g, "");
