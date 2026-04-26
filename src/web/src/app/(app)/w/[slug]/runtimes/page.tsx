@@ -386,10 +386,8 @@ export default function RuntimesPage() {
                       <CardTitle className="truncate">
                         {displayName}
                       </CardTitle>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
                       {machine.cliVersion && (
-                        <span className="text-xs text-muted-foreground/60">v{machine.cliVersion}</span>
+                        <span className="text-xs text-muted-foreground/60 shrink-0">v{machine.cliVersion}</span>
                       )}
                       <Badge
                         variant={
@@ -397,6 +395,7 @@ export default function RuntimesPage() {
                             ? "default"
                             : "outline"
                         }
+                        className="shrink-0"
                       >
                         {machine.status}
                       </Badge>
