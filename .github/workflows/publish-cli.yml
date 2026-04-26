@@ -2,10 +2,11 @@ name: Publish CLI
 
 on:
   push:
-    tags: ["cli/v*"]
+    branches: [main]
+    paths: [src/cli/package.json]
 
 concurrency:
-  group: publish-cli-${{ github.ref }}
+  group: publish-cli
   cancel-in-progress: false
 
 jobs:
@@ -17,58 +18,58 @@ jobs:
       id-token: write
       contents: write
     steps:
-      - name: Validate tag
-        run: |
-          if [[ ! "${GITHUB_REF_NAME}" =~ ^cli/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} does not match cli/vX.Y.Z[-prerelease]"
-            exit 1
-          fi
-          echo "VERSION=${GITHUB_REF_NAME#cli/v}" >> "$GITHUB_ENV"
-
       - uses: actions/checkout@v6
 
+      - name: Detect version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./src/cli/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=cli/v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if version already published
+        id: check
+        run: |
+          if npm view "@alook/cli@${{ steps.version.outputs.version }}" version >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::@alook/cli@${{ steps.version.outputs.version }} already on npm — skipping"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: pnpm/action-setup@v6
+        if: steps.check.outputs.skip == 'false'
 
       - uses: oven-sh/setup-bun@v2
+        if: steps.check.outputs.skip == 'false'
 
       - uses: actions/setup-node@v6
+        if: steps.check.outputs.skip == 'false'
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
           cache: pnpm
 
       - name: Upgrade npm for Trusted Publishers
-        # Install into a separate prefix so the running npm doesn't overwrite
-        # its own node_modules mid-install (npm/cli#7657).
+        if: steps.check.outputs.skip == 'false'
         run: |
           npm install -g --prefix="$RUNNER_TEMP/npm-new" npm@latest
           echo "$RUNNER_TEMP/npm-new/bin" >> "$GITHUB_PATH"
 
       - run: pnpm install --frozen-lockfile
-
-      - name: Set CLI package version
-        working-directory: src/cli
-        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+        if: steps.check.outputs.skip == 'false'
 
       - name: Build CLI bundle
+        if: steps.check.outputs.skip == 'false'
         run: pnpm -C src/cli run build
 
-      - name: Check if version already published
-        id: check_published
-        run: |
-          if npm view "@alook/cli@$VERSION" version >/dev/null 2>&1; then
-            echo "already_published=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::@alook/cli@$VERSION already on npm — skipping publish"
-          else
-            echo "already_published=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Publish to npm (OIDC)
-        if: steps.check_published.outputs.already_published == 'false'
+        if: steps.check.outputs.skip == 'false'
         working-directory: src/cli
         run: npm publish --access public
 
       - name: Create GitHub release
+        if: steps.check.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes --title "CLI v$VERSION"
+        run: gh release create "${{ steps.version.outputs.tag }}" --generate-notes --title "CLI v${{ steps.version.outputs.version }}"

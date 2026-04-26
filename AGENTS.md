@@ -14,6 +14,17 @@ Alook's main purpose is to make the cli agent always on, and give it a email add
 - service must be STATELESS! All the state must be in DB or local, never put important states in memory.
 - scope the queries before, not check the ownership after. don't query data then check if the data belongs to a workspace, use workspace id ahead to query the data.
 
+## Release — Unified Version Bump
+All workspace packages share one version. Use `pnpm bump` to release:
+```bash
+pnpm bump 0.0.11      # explicit version (v prefix optional)
+pnpm bump patch        # auto-increment patch/minor/major
+```
+This updates every `src/*/package.json`, commits `release: vX.Y.Z`, but does NOT push.
+After reviewing the commit, `git push origin main` to trigger CI:
+- **@alook/cli** → auto-published to npm via `publish-cli.yml` (watches `src/cli/package.json`)
+- **CF Workers** → each module redeploys when its own `package.json` changes
+
 ## Plan-driven Development
 - You must make a markdown plan at `plans/` before you implement any my request, otherwise I will reject your implementation.
 - The `plans/` directory is gitignored — plans are kept locally and do not need to be committed or included in PRs.
