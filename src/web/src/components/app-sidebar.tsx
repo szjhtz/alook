@@ -95,9 +95,12 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
 
   return (
     <nav className="flex h-full w-14 flex-col items-center py-2 gap-0.5">
-      {/* Top — logo */}
+      {/* Top — logo as Home link */}
       <div className="pb-2 border-b border-border/50 mb-1">
-        <div className="flex shrink-0 items-center justify-center size-10">
+        <div
+          className="flex shrink-0 items-center justify-center size-10 cursor-pointer [&>button]:pointer-events-none"
+          onClick={() => { router.push(`${prefix}/home`); onNavigate?.(); }}
+        >
           <Logo size="sm" iconOnly />
         </div>
       </div>

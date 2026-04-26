@@ -1,0 +1,98 @@
+"use client";
+
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { MessageSquare, Mail, CalendarDays } from "lucide-react";
+import type { WorkspaceOverview } from "@/lib/api";
+import type { Agent } from "@alook/shared";
+
+interface RecentActivityProps {
+  overview: WorkspaceOverview;
+  agents: Agent[];
+}
+
+const TYPE_CONFIG: Record<string, { icon: React.ElementType; label: string }> = {
+  user_dm_message: { icon: MessageSquare, label: "Chat message" },
+  email_notification: { icon: Mail, label: "Email task" },
+  calendar_event: { icon: CalendarDays, label: "Calendar event" },
+};
+
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+export function RecentActivity({ overview, agents }: RecentActivityProps) {
+  const { recent_tasks } = overview;
+  const agentMap = new Map(agents.map((a) => [a.id, a.name]));
+
+  if (recent_tasks.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">No recent activity.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Recent Activity</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y divide-border/50">
+          {recent_tasks.map((task) => {
+            const config = TYPE_CONFIG[task.type] ?? TYPE_CONFIG.user_dm_message;
+            const Icon = config.icon;
+            return (
+              <div key={task.id} className="flex items-center gap-3 px-4 py-2.5">
+                <Tooltip>
+                  <TooltipTrigger render={
+                    <span className="flex items-center">
+                      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+                    </span>
+                  } />
+                  <TooltipContent side="top">{config.label}</TooltipContent>
+                </Tooltip>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium shrink-0">
+                      {agentMap.get(task.agent_id) ?? "Unknown"}
+                    </span>
+                    <span className="text-xs text-muted-foreground truncate">
+                      {task.prompt.slice(0, 80)}{task.prompt.length > 80 ? "..." : ""}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge
+                    variant={task.status === "completed" ? "secondary" : "destructive"}
+                    className="text-[10px] px-1.5 py-0"
+                  >
+                    {task.status}
+                  </Badge>
+                  <span className="text-[10px] text-muted-foreground w-14 text-right">
+                    {timeAgo(task.completed_at)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

@@ -601,6 +601,63 @@ export const createInvite = (workspaceId: string) =>
 export const revokeInvite = (workspaceId: string, inviteId: string) =>
   apiFetch<void>(`/api/workspaces/${workspaceId}/invites/${inviteId}${wsQuery(workspaceId)}`, { method: "DELETE" });
 
+// --- Workspace overview ---
+
+export interface OverviewEmailAccount {
+  id: string;
+  agent_id: string;
+  email_address: string;
+  status: string;
+  error_message: string;
+  last_synced_at: string | null;
+}
+
+export interface OverviewRecentTask {
+  id: string;
+  agent_id: string;
+  type: string;
+  status: string;
+  prompt: string;
+  created_at: string;
+  completed_at: string | null;
+  error: string | null;
+}
+
+export interface OverviewCalendarEvent {
+  id: string;
+  agent_id: string;
+  title: string;
+  description: string | null;
+  scheduled_at: string;
+  repeat_interval: string | null;
+  repeat_stop_at: string | null;
+  last_triggered_at: string | null;
+}
+
+export interface OverviewMember {
+  id: string;
+  user_id: string;
+  role: string;
+  name: string;
+  email: string;
+  image: string | null;
+  created_at: string;
+}
+
+export interface WorkspaceOverview {
+  email_stats: { inbound: number; outbound: number; unread: number; rejected: number };
+  email_accounts: OverviewEmailAccount[];
+  task_stats: { completed: number; failed: number; cancelled: number; queued: number; stale: number };
+  recent_tasks: OverviewRecentTask[];
+  conversation_counts: Record<string, number>;
+  members: OverviewMember[];
+  pending_invites: number;
+  calendar_events: OverviewCalendarEvent[];
+}
+
+export const getWorkspaceOverview = (workspaceId: string) =>
+  apiFetch<WorkspaceOverview>(`/api/workspaces/${workspaceId}/overview${wsQuery(workspaceId)}`);
+
 // --- Invite accept ---
 
 export interface InviteInfo {
