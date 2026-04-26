@@ -43,7 +43,13 @@ function StatCard({
 }
 
 export function QuickStatsRow({ agents, runtimes, activeTaskCounts, overview }: QuickStatsProps) {
-  const onlineRuntimes = runtimes.filter((r) => r.status === "online").length;
+  const machineStatus = new Map<string, boolean>();
+  for (const r of runtimes) {
+    const key = r.daemon_id ?? r.id;
+    machineStatus.set(key, machineStatus.get(key) || r.status === "online");
+  }
+  const totalMachines = machineStatus.size;
+  const onlineMachines = [...machineStatus.values()].filter(Boolean).length;
   const totalActiveTasks = Object.values(activeTaskCounts).reduce((a, b) => a + b, 0);
   const onlineAgents = agents.filter((a) => {
     const rt = runtimes.find((r) => r.id === a.runtime_id);
@@ -53,21 +59,16 @@ export function QuickStatsRow({ agents, runtimes, activeTaskCounts, overview }: 
   return (
     <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
       <StatCard
+        icon={Monitor}
+        label="Machines"
+        value={`${onlineMachines}/${totalMachines}`}
+        sub="online"
+      />
+      <StatCard
         icon={Bot}
         label="Agents"
         value={agents.length}
         sub={`${onlineAgents} online`}
-      />
-      <StatCard
-        icon={Mail}
-        label="Custom Emails"
-        value={overview.email_accounts.length}
-      />
-      <StatCard
-        icon={Send}
-        label="Emails Sent"
-        value={overview.email_stats.outbound}
-        sub={`${overview.email_stats.unread} unread`}
       />
       <StatCard
         icon={Users}
@@ -76,16 +77,21 @@ export function QuickStatsRow({ agents, runtimes, activeTaskCounts, overview }: 
         sub={overview.pending_invites > 0 ? `${overview.pending_invites} pending` : undefined}
       />
       <StatCard
-        icon={Monitor}
-        label="Machines"
-        value={`${onlineRuntimes}/${new Set(runtimes.map((r) => r.daemon_id)).size}`}
-        sub="online"
-      />
-      <StatCard
         icon={Zap}
         label="Active Tasks"
         value={totalActiveTasks}
         sub={overview.task_stats.queued > 0 ? `${overview.task_stats.queued} queued` : undefined}
+      />
+      <StatCard
+        icon={Send}
+        label="Emails Sent"
+        value={overview.email_stats.outbound}
+        sub={`${overview.email_stats.unread} unread`}
+      />
+      <StatCard
+        icon={Mail}
+        label="Custom Emails"
+        value={overview.email_accounts.length}
       />
     </div>
   );

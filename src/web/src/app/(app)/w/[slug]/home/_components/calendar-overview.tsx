@@ -3,13 +3,23 @@
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
 import { useWorkspace } from "@/contexts/workspace-context";
-import { CalendarDays, ArrowUpRight } from "lucide-react";
+import { CalendarDays, ArrowUpRight, Repeat } from "lucide-react";
 import type { WorkspaceOverview } from "@/lib/api";
 import type { Agent } from "@alook/shared";
 
 interface CalendarOverviewProps {
   overview: WorkspaceOverview;
   agents: Agent[];
+}
+
+function formatRepeatInterval(interval: string): string {
+  const match = interval.match(/^(\d+)(min|hour|day|week|month)$/);
+  if (!match) return interval;
+  const [, n, unit] = match;
+  const num = Number(n);
+  const labels: Record<string, string> = { min: "min", hour: "hour", day: "day", week: "week", month: "month" };
+  const label = labels[unit] ?? unit;
+  return num === 1 ? `Every ${label}` : `Every ${num} ${label}s`;
 }
 
 export function CalendarOverview({ overview, agents }: CalendarOverviewProps) {
@@ -68,13 +78,19 @@ export function CalendarOverview({ overview, agents }: CalendarOverviewProps) {
             <p className="text-xs font-medium text-muted-foreground">Upcoming This Week</p>
             {upcoming.map((e) => (
               <div key={e.id} className="flex items-center gap-2 text-xs">
-                <CalendarDays className="size-3 shrink-0 text-muted-foreground" />
+                {e.repeat_interval ? (
+                  <Repeat className="size-3 shrink-0 text-primary" />
+                ) : (
+                  <CalendarDays className="size-3 shrink-0 text-muted-foreground" />
+                )}
                 <span className="truncate flex-1">{e.title}</span>
                 <span className="text-muted-foreground shrink-0">
                   {agentMap.get(e.agent_id) ?? "—"}
                 </span>
                 <span className="text-muted-foreground shrink-0">
-                  {new Date(e.scheduled_at).toLocaleDateString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+                  {e.repeat_interval
+                    ? `${formatRepeatInterval(e.repeat_interval)}, ${new Date(e.scheduled_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
+                    : new Date(e.scheduled_at).toLocaleDateString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}
                 </span>
               </div>
             ))}
