@@ -40,7 +40,7 @@ describe("loadDaemonConfig defaults", () => {
     expect(cfg.maxConcurrentTasks).toBe(20);
     expect(cfg.claudePath).toBe("claude");
     expect(cfg.runtimeName).toBe("Local Agent");
-    expect(cfg.messageInactivityTimeout).toBe(300000);
+    expect(cfg.messageInactivityTimeout).toBe(1200000);
   });
 });
 
