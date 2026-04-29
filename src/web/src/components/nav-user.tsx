@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,16 +15,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LogOut, User } from "lucide-react";
 
 export function NavUser() {
-  const { data: session } = useSession();
+  const { data: session, isPending } = useSession();
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const user = session?.user;
-  if (!mounted || !user) return <Skeleton className="size-10 rounded-xl" />;
+  if (isPending || !user) return <Skeleton className="size-10 rounded-xl" />;
 
   const firstLetter = (user.name || user.email || "?").charAt(0).toUpperCase();
 
