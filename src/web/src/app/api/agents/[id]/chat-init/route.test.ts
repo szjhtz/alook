@@ -6,6 +6,7 @@ vi.mock("@opennextjs/cloudflare", () => ({
 
 const mockGetAgent = vi.fn();
 const mockGetOrCreateAgentConversation = vi.fn();
+const mockListPreviousConversations = vi.fn();
 const mockListMessages = vi.fn();
 const mockListArtifactsByConversation = vi.fn();
 const mockListBufferedMessages = vi.fn();
@@ -33,6 +34,8 @@ vi.mock("@alook/shared", () => ({
     conversation: {
       getOrCreateAgentConversation: (...args: unknown[]) =>
         mockGetOrCreateAgentConversation(...args),
+      listPreviousConversations: (...args: unknown[]) =>
+        mockListPreviousConversations(...args),
     },
     message: {
       listMessages: (...args: unknown[]) => mockListMessages(...args),
@@ -119,6 +122,7 @@ const CONV = {
 function setupDefaults() {
   mockGetAgent.mockResolvedValue({ id: "a1", name: "Agent" });
   mockGetOrCreateAgentConversation.mockResolvedValue(CONV);
+  mockListPreviousConversations.mockResolvedValue([]);
   mockListMessages.mockResolvedValue([]);
   mockListArtifactsByConversation.mockResolvedValue([]);
   mockListBufferedMessages.mockResolvedValue([]);
@@ -148,6 +152,7 @@ describe("POST /api/agents/[id]/chat-init", () => {
 
     mockGetAgent.mockResolvedValue({ id: "a1", name: "Agent" });
     mockGetOrCreateAgentConversation.mockResolvedValue(CONV);
+    mockListPreviousConversations.mockResolvedValue([]);
     mockListMessages.mockResolvedValue([msg]);
     mockListArtifactsByConversation.mockResolvedValue([artifact]);
     mockListBufferedMessages.mockResolvedValue([]);
@@ -166,6 +171,8 @@ describe("POST /api/agents/[id]/chat-init", () => {
     expect(body.active_task).toBeNull();
     expect(body.task_messages).toEqual([]);
     expect(body.has_more_messages).toBe(false);
+    expect(body.previous_conversations).toEqual([]);
+    expect(body.has_more_conversations).toBe(false);
   });
 
   it("returns 404 for non-existent agent", async () => {

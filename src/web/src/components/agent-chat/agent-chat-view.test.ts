@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { Message } from "@alook/shared";
-import { sortMessages, mergeMessages } from "./agent-chat-view";
+import type { Message, Artifact } from "@alook/shared";
+import { sortMessages, mergeMessages, buildTimeline } from "./agent-chat-view";
+import type { NapMarker } from "./agent-chat-view";
 
 function msg(id: string, created_at: string, role: "user" | "assistant" = "user", content = ""): Message {
   return { id, conversation_id: "conv1", role, content, task_id: null, created_at };
@@ -192,5 +193,98 @@ describe("mergeMessages", () => {
     ];
     const result = mergeMessages(existing, incoming);
     expect(result.map((m) => m.id)).toEqual(["m1", "m2", "m3", "m4", "m5", "m6"]);
+  });
+});
+
+function artifact(id: string, created_at: string): Artifact {
+  return {
+    id,
+    conversation_id: "conv1",
+    filename: "file.txt",
+    content_type: "text/plain",
+    size: 100,
+    source: "agent",
+    r2_key: `key-${id}`,
+    created_at,
+  };
+}
+
+function nap(id: string, created_at: string, agentName = "Luna"): NapMarker {
+  return { id, created_at, agentName };
+}
+
+describe("buildTimeline", () => {
+  it("interleaves messages, artifacts, and nap markers chronologically", () => {
+    const msgs = [
+      msg("m1", "2024-01-01T00:00:00Z"),
+      msg("m3", "2024-01-03T00:00:00Z"),
+    ];
+    const arts = [artifact("a1", "2024-01-02T00:00:00Z")];
+    const naps: NapMarker[] = [];
+
+    const result = buildTimeline(msgs, arts, naps);
+    expect(result.map((i) => i.data.id)).toEqual(["m1", "a1", "m3"]);
+  });
+
+  it("places nap marker after messages at the same timestamp", () => {
+    const msgs = [
+      msg("m1", "2024-01-01T00:00:00Z"),
+      msg("m2", "2024-01-03T00:00:00Z"),
+    ];
+    const napTs = "2024-01-02T00:00:00Z";
+    const naps = [nap("nap-1", napTs)];
+
+    const result = buildTimeline(msgs, [], naps);
+    expect(result.map((i) => i.kind)).toEqual(["message", "nap", "message"]);
+  });
+
+  it("nap marker sorts after messages with the same created_at", () => {
+    const ts = "2024-01-02T00:00:00Z";
+    const msgs = [msg("m1", ts)];
+    const naps = [nap("nap-1", ts)];
+
+    const result = buildTimeline(msgs, [], naps);
+    expect(result[0].kind).toBe("message");
+    expect(result[1].kind).toBe("nap");
+  });
+
+  it("renders multiple nap markers between multiple conversations", () => {
+    const msgs = [
+      msg("m1", "2024-01-01T00:00:00Z"),
+      msg("m2", "2024-01-03T00:00:00Z"),
+      msg("m3", "2024-01-05T00:00:00Z"),
+    ];
+    const naps = [
+      nap("nap-1", "2024-01-02T00:00:00Z"),
+      nap("nap-2", "2024-01-04T00:00:00Z"),
+    ];
+
+    const result = buildTimeline(msgs, [], naps);
+    expect(result.map((i) => i.kind)).toEqual([
+      "message", "nap", "message", "nap", "message",
+    ]);
+    expect(result.map((i) => i.data.id)).toEqual([
+      "m1", "nap-1", "m2", "nap-2", "m3",
+    ]);
+  });
+
+  it("handles empty messages with nap markers only", () => {
+    const naps = [nap("nap-1", "2024-01-01T00:00:00Z")];
+    const result = buildTimeline([], [], naps);
+    expect(result).toHaveLength(1);
+    expect(result[0].kind).toBe("nap");
+  });
+
+  it("preserves agent name on nap markers", () => {
+    const naps = [nap("nap-1", "2024-01-01T00:00:00Z", "TestBot")];
+    const result = buildTimeline([], [], naps);
+    expect(result[0].kind).toBe("nap");
+    if (result[0].kind === "nap") {
+      expect(result[0].data.agentName).toBe("TestBot");
+    }
+  });
+
+  it("returns empty timeline when all inputs are empty", () => {
+    expect(buildTimeline([], [], [])).toEqual([]);
   });
 });

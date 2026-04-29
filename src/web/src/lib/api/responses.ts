@@ -116,12 +116,22 @@ export function conversationToResponse(c: any) {
     agent_id: c.agentId,
     title: c.title,
     type: c.type ?? TASK_TYPES.USER_DM_MESSAGE,
+    channel: c.channel ?? "default",
     created_at: formatTimestamp(c.createdAt),
   };
   if (c.messageCount !== undefined) {
     resp.message_count = c.messageCount;
   }
   return resp;
+}
+
+export function channelToResponse(c: any) {
+  return {
+    id: c.id,
+    workspace_id: c.workspaceId,
+    name: c.name,
+    created_at: formatTimestamp(c.createdAt),
+  };
 }
 
 export function messageToResponse(m: any) {

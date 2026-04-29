@@ -23,11 +23,20 @@ export const POST = withAuth(async (req, ctx) => {
     return writeError("agent not found", 404);
   }
 
+  let channel: string | undefined;
+  try {
+    const body = (await req.json()) as { channel?: string };
+    channel = typeof body.channel === "string" ? body.channel : undefined;
+  } catch {
+    // no body — backward compatible
+  }
+
   const conversation = await queries.conversation.getOrCreateAgentConversation(
     db,
     ws.workspaceId,
     ctx.userId,
-    id
+    id,
+    channel
   );
 
   return writeJSON(conversationToResponse(conversation));

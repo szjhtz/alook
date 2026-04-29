@@ -1,4 +1,4 @@
-import { eq, and, desc, count } from "drizzle-orm";
+import { eq, and, desc, count, ne, lt } from "drizzle-orm";
 import { conversation, message } from "../schema";
 import type { Database } from "../index";
 import { TASK_TYPES, type TaskType } from "../../constants";
@@ -40,17 +40,20 @@ export async function getConversation(db: Database, id: string, workspaceId: str
 export async function listConversations(
   db: Database,
   workspaceId: string,
-  userId: string
+  userId: string,
+  channel?: string
 ) {
+  const conditions = [
+    eq(conversation.workspaceId, workspaceId),
+    eq(conversation.userId, userId),
+  ];
+  if (channel) {
+    conditions.push(eq(conversation.channel, channel));
+  }
   return db
     .select()
     .from(conversation)
-    .where(
-      and(
-        eq(conversation.workspaceId, workspaceId),
-        eq(conversation.userId, userId)
-      )
-    )
+    .where(and(...conditions))
     .orderBy(desc(conversation.createdAt));
 }
 
@@ -58,8 +61,17 @@ export async function listConversationsByAgent(
   db: Database,
   workspaceId: string,
   userId: string,
-  agentId: string
+  agentId: string,
+  channel?: string
 ) {
+  const conditions = [
+    eq(conversation.workspaceId, workspaceId),
+    eq(conversation.userId, userId),
+    eq(conversation.agentId, agentId),
+  ];
+  if (channel) {
+    conditions.push(eq(conversation.channel, channel));
+  }
   return db
     .select({
       id: conversation.id,
@@ -67,18 +79,13 @@ export async function listConversationsByAgent(
       agentId: conversation.agentId,
       userId: conversation.userId,
       title: conversation.title,
+      channel: conversation.channel,
       createdAt: conversation.createdAt,
       messageCount: count(message.id).mapWith(Number),
     })
     .from(conversation)
     .leftJoin(message, and(eq(message.conversationId, conversation.id), eq(message.status, "active")))
-    .where(
-      and(
-        eq(conversation.workspaceId, workspaceId),
-        eq(conversation.userId, userId),
-        eq(conversation.agentId, agentId)
-      )
-    )
+    .where(and(...conditions))
     .groupBy(conversation.id)
     .orderBy(desc(conversation.createdAt));
 }
@@ -100,22 +107,23 @@ export async function getOrCreateAgentConversation(
   db: Database,
   workspaceId: string,
   userId: string,
-  agentId: string
+  agentId: string,
+  channel?: string
 ) {
-  // Find the most recent user-DM conversation for this user+agent+workspace.
-  // Email- and calendar-originated conversations share the same table but must
-  // not surface as the agent's default chat — they have their own entry points.
+  const conditions = [
+    eq(conversation.workspaceId, workspaceId),
+    eq(conversation.userId, userId),
+    eq(conversation.agentId, agentId),
+    eq(conversation.type, TASK_TYPES.USER_DM_MESSAGE),
+  ];
+  if (channel) {
+    conditions.push(eq(conversation.channel, channel));
+  }
+
   const rows = await db
     .select()
     .from(conversation)
-    .where(
-      and(
-        eq(conversation.workspaceId, workspaceId),
-        eq(conversation.userId, userId),
-        eq(conversation.agentId, agentId),
-        eq(conversation.type, TASK_TYPES.USER_DM_MESSAGE)
-      )
-    )
+    .where(and(...conditions))
     .orderBy(desc(conversation.createdAt))
     .limit(1);
 
@@ -123,7 +131,6 @@ export async function getOrCreateAgentConversation(
     return rows[0]!;
   }
 
-  // No conversation exists — create one
   const created = await db
     .insert(conversation)
     .values({
@@ -132,6 +139,7 @@ export async function getOrCreateAgentConversation(
       userId,
       title: "",
       type: TASK_TYPES.USER_DM_MESSAGE,
+      channel: channel ?? "default",
     })
     .returning();
   return created[0]!;
@@ -143,4 +151,35 @@ export async function deleteConversation(db: Database, id: string, workspaceId: 
     .where(and(eq(conversation.id, id), eq(conversation.workspaceId, workspaceId)))
     .returning();
   return rows[0] ?? null;
+}
+
+export async function listPreviousConversations(
+  db: Database,
+  workspaceId: string,
+  userId: string,
+  agentId: string,
+  excludeId: string,
+  channel?: string,
+  opts?: { limit?: number; before?: string }
+) {
+  const conditions = [
+    eq(conversation.workspaceId, workspaceId),
+    eq(conversation.userId, userId),
+    eq(conversation.agentId, agentId),
+    eq(conversation.type, TASK_TYPES.USER_DM_MESSAGE),
+    ne(conversation.id, excludeId),
+  ];
+  if (channel) {
+    conditions.push(eq(conversation.channel, channel));
+  }
+  if (opts?.before) {
+    conditions.push(lt(conversation.createdAt, opts.before));
+  }
+  const limit = opts?.limit ?? 10;
+  return db
+    .select({ id: conversation.id, createdAt: conversation.createdAt })
+    .from(conversation)
+    .where(and(...conditions))
+    .orderBy(desc(conversation.createdAt))
+    .limit(limit);
 }

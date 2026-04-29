@@ -56,7 +56,7 @@ describe("GET /api/conversations", () => {
       { id: "c1", title: "Hello" },
       { id: "c2", title: "World" },
     ]);
-    expect(mockListConversations).toHaveBeenCalledWith({}, "w1", "u1");
+    expect(mockListConversations).toHaveBeenCalledWith({}, "w1", "u1", undefined);
   });
 });
 
@@ -83,6 +83,7 @@ describe("POST /api/conversations", () => {
       agentId: "a1",
       userId: "u1",
       title: "",
+      channel: undefined,
     });
   });
 

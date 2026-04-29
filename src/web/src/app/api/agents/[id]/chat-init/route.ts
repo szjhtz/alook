@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/responses";
 
 const MESSAGE_LIMIT = 20;
+const PREV_CONV_LIMIT = 10;
 
 export const POST = withAuth(async (req, ctx) => {
   const ws = await withWorkspaceMember(req, ctx);
@@ -30,21 +31,34 @@ export const POST = withAuth(async (req, ctx) => {
     return writeError("agent not found", 404);
   }
 
+  let channel: string | undefined;
+  try {
+    const body = (await req.json()) as { channel?: string };
+    channel = typeof body.channel === "string" ? body.channel : undefined;
+  } catch {
+    // no body — backward compatible
+  }
+
   const conversation = await queries.conversation.getOrCreateAgentConversation(
     db,
     ws.workspaceId,
     ctx.userId,
     id,
+    channel,
   );
 
   const convId = conversation.id;
 
-  const [messagesResult, artifactsResult, bufferedResult, activeTaskResult] =
+  const [messagesResult, artifactsResult, bufferedResult, activeTaskResult, prevConvsResult] =
     await Promise.allSettled([
       queries.message.listMessages(db, convId, { limit: MESSAGE_LIMIT }),
       queries.artifact.listArtifactsByConversation(db, convId, ws.workspaceId),
       queries.message.listBufferedMessages(db, convId),
       queries.task.getActiveTaskByConversation(db, convId, ws.workspaceId),
+      queries.conversation.listPreviousConversations(
+        db, ws.workspaceId, ctx.userId, id, convId, channel,
+        { limit: PREV_CONV_LIMIT },
+      ),
     ]);
 
   const messages =
@@ -57,6 +71,8 @@ export const POST = withAuth(async (req, ctx) => {
     activeTaskResult.status === "fulfilled"
       ? activeTaskResult.value
       : null;
+  const prevConvs =
+    prevConvsResult.status === "fulfilled" ? prevConvsResult.value : [];
 
   let taskMessages: unknown[] = [];
   if (
@@ -82,5 +98,10 @@ export const POST = withAuth(async (req, ctx) => {
     active_task: activeTask ? taskToResponse(activeTask) : null,
     task_messages: taskMessages,
     has_more_messages: messages.length >= MESSAGE_LIMIT,
+    previous_conversations: prevConvs.map((c) => ({
+      id: c.id,
+      created_at: c.createdAt,
+    })),
+    has_more_conversations: prevConvs.length >= PREV_CONV_LIMIT,
   });
 });

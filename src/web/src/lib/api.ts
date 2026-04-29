@@ -4,6 +4,7 @@ import type {
   AgentRuntime,
   Artifact,
   CalendarEvent,
+  Channel,
   Conversation,
   CreateAgentRequest,
   CreateCalendarEventRequest,
@@ -150,26 +151,53 @@ export const triggerRuntimeRescan = (runtimeId: string, workspaceId: string) =>
 export const fetchLatestCliVersion = () =>
   apiFetch<{ version: string }>("/api/cli/latest-version");
 
-// Conversations
-export const listConversations = (workspaceId: string) =>
-  apiFetch<Conversation[]>(`/api/conversations${wsQuery(workspaceId)}`);
+// Channels
+export const listChannels = (workspaceId: string) =>
+  apiFetch<Channel[]>(`/api/channels${wsQuery(workspaceId)}`);
 
-export const createConversation = (agentId: string, workspaceId: string) =>
+export const createChannelApi = (workspaceId: string, name: string) =>
+  apiFetch<Channel>(`/api/channels${wsQuery(workspaceId)}`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+
+export const renameChannelApi = (id: string, workspaceId: string, name: string) =>
+  apiFetch<Channel>(`/api/channels/${id}${wsQuery(workspaceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
+
+export const deleteChannelApi = (id: string, workspaceId: string) =>
+  apiFetch<{ ok: boolean }>(`/api/channels/${id}${wsQuery(workspaceId)}`, {
+    method: "DELETE",
+  });
+
+// Conversations
+export const listConversations = (workspaceId: string, channel?: string) =>
+  apiFetch<Conversation[]>(`/api/conversations${wsQuery(workspaceId, channel ? { channel } : undefined)}`);
+
+export const createConversation = (agentId: string, workspaceId: string, channel?: string) =>
   apiFetch<Conversation>(`/api/conversations${wsQuery(workspaceId)}`, {
     method: "POST",
-    body: JSON.stringify({ agent_id: agentId }),
+    body: JSON.stringify({ agent_id: agentId, ...(channel ? { channel } : {}) }),
   });
 
 export const getConversation = (id: string, workspaceId: string) =>
   apiFetch<Conversation>(`/api/conversations/${id}${wsQuery(workspaceId)}`);
 
-export const listAgentConversations = (agentId: string, workspaceId: string) =>
-  apiFetch<Conversation[]>(`/api/agents/${agentId}/conversations${wsQuery(workspaceId)}`);
+export const listAgentConversations = (agentId: string, workspaceId: string, channel?: string) =>
+  apiFetch<Conversation[]>(`/api/agents/${agentId}/conversations${wsQuery(workspaceId, channel ? { channel } : undefined)}`);
 
-export const getOrCreateAgentConversation = (agentId: string, workspaceId: string) =>
+export const getOrCreateAgentConversation = (agentId: string, workspaceId: string, channel?: string) =>
   apiFetch<Conversation>(`/api/agents/${agentId}/conversation${wsQuery(workspaceId)}`, {
     method: "POST",
+    body: JSON.stringify({ ...(channel ? { channel } : {}) }),
   });
+
+export interface PreviousConversation {
+  id: string;
+  created_at: string;
+}
 
 export interface ChatInitResponse {
   conversation: Conversation;
@@ -179,11 +207,27 @@ export interface ChatInitResponse {
   active_task: TaskApi | null;
   task_messages: TaskMessage[];
   has_more_messages: boolean;
+  previous_conversations: PreviousConversation[];
+  has_more_conversations: boolean;
 }
 
-export const chatInit = (agentId: string, workspaceId: string) =>
+export const listPreviousConversations = (
+  agentId: string,
+  workspaceId: string,
+  opts: { exclude: string; before: string; channel?: string; limit?: number },
+) => {
+  const extra: Record<string, string> = { exclude: opts.exclude, before: opts.before };
+  if (opts.channel) extra.channel = opts.channel;
+  if (opts.limit) extra.limit = String(opts.limit);
+  return apiFetch<{ conversations: PreviousConversation[]; has_more: boolean }>(
+    `/api/agents/${agentId}/conversations${wsQuery(workspaceId, extra)}`,
+  );
+};
+
+export const chatInit = (agentId: string, workspaceId: string, channel?: string) =>
   apiFetch<ChatInitResponse>(`/api/agents/${agentId}/chat-init${wsQuery(workspaceId)}`, {
     method: "POST",
+    body: JSON.stringify({ ...(channel ? { channel } : {}) }),
   });
 
 export const deleteConversation = (id: string, workspaceId: string) =>

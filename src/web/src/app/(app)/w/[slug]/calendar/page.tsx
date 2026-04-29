@@ -8,7 +8,7 @@ import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { MobileSidebarLogo } from "@/components/mobile-sidebar-logo";
+
 import {
   listCalendarEvents,
   createCalendarEvent,
@@ -493,7 +493,6 @@ export default function CalendarPage() {
     <>
       <div className="flex items-center justify-between border-b border-border/50 px-3 md:px-5 py-2.5 gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <MobileSidebarLogo />
           <h1 className="text-sm font-medium">Calendar</h1>
           <p className="text-xs text-muted-foreground hidden md:block">
             Schedule recurring and one-time tasks for your agents.

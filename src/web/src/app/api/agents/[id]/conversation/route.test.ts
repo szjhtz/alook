@@ -74,7 +74,8 @@ describe("POST /api/agents/[id]/conversation", () => {
       {},
       "w1",
       "u1",
-      "a1"
+      "a1",
+      undefined
     );
   });
 

@@ -5,6 +5,7 @@ import {
   agentToResponse,
   taskToResponse,
   conversationToResponse,
+  channelToResponse,
   messageToResponse,
   runtimeToResponse,
   machineTokenToResponse,
@@ -338,9 +339,9 @@ describe("AgentResponse shape", () => {
 });
 
 describe("ConversationResponse shape", () => {
-  it("has expected keys: id, agent_id, title, type, created_at", () => {
-    const res = conversationToResponse({ id: "c1", agentId: "a1", title: "Chat", type: "user_dm_message", createdAt: ts });
-    expect(Object.keys(res).sort()).toEqual(["agent_id", "created_at", "id", "title", "type"]);
+  it("has expected keys: id, agent_id, title, type, channel, created_at", () => {
+    const res = conversationToResponse({ id: "c1", agentId: "a1", title: "Chat", type: "user_dm_message", channel: "default", createdAt: ts });
+    expect(Object.keys(res).sort()).toEqual(["agent_id", "channel", "created_at", "id", "title", "type"]);
   });
 
   it("defaults type to user_dm_message when the column is absent", () => {
@@ -348,11 +349,38 @@ describe("ConversationResponse shape", () => {
     expect((res as { type: string }).type).toBe("user_dm_message");
   });
 
+  it("defaults channel to 'default' when the column is absent", () => {
+    const res = conversationToResponse({ id: "c1", agentId: "a1", title: "Chat", createdAt: ts });
+    expect(res.channel).toBe("default");
+  });
+
+  it("preserves channel value when present", () => {
+    const res = conversationToResponse({ id: "c1", agentId: "a1", title: "Chat", channel: "work", createdAt: ts });
+    expect(res.channel).toBe("work");
+  });
+
   it("surfaces email_notification and calendar_event types", () => {
     const r1 = conversationToResponse({ id: "c1", agentId: "a1", title: "", type: "email_notification", createdAt: ts });
     const r2 = conversationToResponse({ id: "c2", agentId: "a1", title: "", type: "calendar_event", createdAt: ts });
     expect((r1 as { type: string }).type).toBe("email_notification");
     expect((r2 as { type: string }).type).toBe("calendar_event");
+  });
+});
+
+describe("channelToResponse", () => {
+  it("maps DB fields to API response format", () => {
+    const res = channelToResponse({ id: "ch_1", workspaceId: "w1", name: "work", createdAt: ts });
+    expect(res).toEqual({
+      id: "ch_1",
+      workspace_id: "w1",
+      name: "work",
+      created_at: tsFormatted,
+    });
+  });
+
+  it("has expected keys: id, workspace_id, name, created_at", () => {
+    const res = channelToResponse({ id: "ch_1", workspaceId: "w1", name: "personal", createdAt: ts });
+    expect(Object.keys(res).sort()).toEqual(["created_at", "id", "name", "workspace_id"]);
   });
 });
 

@@ -11,6 +11,7 @@ import {
   getConversation,
   listMessages,
   listMessagesAroundTask,
+  listPreviousConversations,
   sendMessage,
   getTask,
   getTaskMessages,
@@ -22,27 +23,21 @@ import {
   getActiveTask,
   retryTask,
 } from "@/lib/api";
+import type { PreviousConversation } from "@/lib/api";
 import type { Artifact, Conversation, Message, TaskApi as Task, TaskMessage, WsMessage } from "@alook/shared";
 import { useAgentContext } from "@/contexts/agent-context";
+import { useChannel } from "@/contexts/channel-context";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { ArrowUp, Box, FileText, Loader2, Mail, Mic, Paperclip, RotateCcw, Square, X } from "lucide-react";
+import { ArrowUp, BedDouble, Box, FileText, Loader2, Mail, Mic, Paperclip, Square, X } from "lucide-react";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { useMentionPopup } from "@/hooks/use-mention-popup";
 import { MentionPopup } from "@/components/agent-chat/mention-popup";
 import { highlightMentions } from "@/lib/highlight-mentions";
 import { ArtifactSheet, formatSize } from "@/components/agent-chat/artifact-sheet";
 import { isPreviewable, getArtifactUrl } from "@/components/artifact-content-renderer";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Streamdown } from "streamdown";
 import { FollowUpBuffer } from "@/components/agent-chat/follow-up-buffer";
 
@@ -73,21 +68,41 @@ export function mergeMessages(existing: Message[], incoming: Message[]): Message
   return sortMessages([...merged.values()]);
 }
 
+export type NapMarker = { agentName: string; created_at: string; id: string };
+
 type TimelineItem =
   | { kind: "message"; data: Message }
-  | { kind: "artifact"; data: Artifact };
+  | { kind: "artifact"; data: Artifact }
+  | { kind: "nap"; data: NapMarker };
 
-function buildTimeline(messages: Message[], artifacts: Artifact[]): TimelineItem[] {
+export function buildTimeline(messages: Message[], artifacts: Artifact[], napMarkers: NapMarker[]): TimelineItem[] {
   const items: TimelineItem[] = [
     ...messages.map((m): TimelineItem => ({ kind: "message", data: m })),
     ...artifacts.map((a): TimelineItem => ({ kind: "artifact", data: a })),
+    ...napMarkers.map((n): TimelineItem => ({ kind: "nap", data: n })),
   ];
   return items.sort((a, b) => {
     const cmp = a.data.created_at.localeCompare(b.data.created_at);
     if (cmp !== 0) return cmp;
+    if (a.kind === "nap" || b.kind === "nap") {
+      if (a.kind === "nap" && b.kind !== "nap") return 1;
+      if (a.kind !== "nap" && b.kind === "nap") return -1;
+    }
     if (a.kind !== b.kind) return a.kind === "message" ? -1 : 1;
     return a.data.id.localeCompare(b.data.id);
   });
+}
+
+function NapSeparator({ agentName }: { agentName: string }) {
+  return (
+    <div className="flex items-center gap-3 py-4 select-none" aria-hidden>
+      <div className="flex-1 border-t border-border/40" />
+      <span className="text-xs text-muted-foreground/60 whitespace-nowrap">
+        {agentName} took a nap 💤
+      </span>
+      <div className="flex-1 border-t border-border/40" />
+    </div>
+  );
 }
 
 function ArtifactCard({ artifact, onClick }: { artifact: Artifact; onClick: (a: Artifact) => void }) {
@@ -171,6 +186,7 @@ export function AgentChatView() {
   const searchParams = useSearchParams();
   const { workspaceId } = useWorkspace();
   const { agents, activeTaskCounts, subscribeWs } = useAgentContext();
+  const { activeChannel } = useChannel();
   const agentId = params.id as string;
   const scrollToTaskId = searchParams.get("task");
   const targetConvId = searchParams.get("conv");
@@ -195,6 +211,9 @@ export function AgentChatView() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [bufferedMessages, setBufferedMessages] = useState<Message[]>([]);
   const [caretIndex, setCaretIndex] = useState<number | null>(null);
+  const [previousConversations, setPreviousConversations] = useState<PreviousConversation[]>([]);
+  const [hasMoreConversations, setHasMoreConversations] = useState(false);
+  const [napMarkers, setNapMarkers] = useState<NapMarker[]>([]);
 
   const pendingFilesMapRef = useRef<Map<string, File[]>>(new Map());
 
@@ -205,7 +224,7 @@ export function AgentChatView() {
 
   const agentArtifacts = useMemo(() => artifacts.filter((a) => a.source === "agent"), [artifacts]);
 
-  const timeline = useMemo(() => buildTimeline(messages, agentArtifacts), [messages, agentArtifacts]);
+  const timeline = useMemo(() => buildTimeline(messages, agentArtifacts, napMarkers), [messages, agentArtifacts, napMarkers]);
 
   const handleArtifactClick = useCallback((artifact: Artifact) => {
     if (isPreviewable(artifact)) {
@@ -264,6 +283,16 @@ export function AgentChatView() {
   }, []);
 
   useEffect(() => {
+    setLoading(true);
+    initialScrollDone.current = false;
+    setActiveTask(null);
+    setTaskMessages([]);
+    setBufferedMessages([]);
+    setNapMarkers([]);
+    setPreviousConversations([]);
+    setHasMoreConversations(false);
+    oldestConvIdRef.current = null;
+    oldestConvCreatedAtRef.current = null;
     async function load() {
       try {
         if (targetConvId && scrollToTaskId) {
@@ -278,20 +307,24 @@ export function AgentChatView() {
             setHasMore(msgs.length >= MESSAGE_LIMIT);
             setArtifacts(arts);
           } catch {
-            const data = await chatInit(agentId, workspaceId);
+            const data = await chatInit(agentId, workspaceId, activeChannel);
             setConversation(data.conversation);
             setMessages(data.messages);
             setHasMore(data.has_more_messages);
             setArtifacts(data.artifacts);
             setBufferedMessages(data.buffered_messages);
+            setPreviousConversations(data.previous_conversations);
+            setHasMoreConversations(data.has_more_conversations);
           }
         } else {
-          const data = await chatInit(agentId, workspaceId);
+          const data = await chatInit(agentId, workspaceId, activeChannel);
           setConversation(data.conversation);
           setMessages(data.messages);
           setHasMore(data.has_more_messages);
           setArtifacts(data.artifacts);
           setBufferedMessages(data.buffered_messages);
+          setPreviousConversations(data.previous_conversations);
+          setHasMoreConversations(data.has_more_conversations);
 
           if (data.active_task) {
             setActiveTask(data.active_task);
@@ -311,7 +344,7 @@ export function AgentChatView() {
       }
     }
     load();
-  }, [agentId, workspaceId, targetConvId, scrollToTaskId]);
+  }, [agentId, workspaceId, targetConvId, scrollToTaskId, activeChannel]);
 
   // Scroll to bottom on initial load (skip if scroll-to-task is active)
   useEffect(() => {
@@ -346,7 +379,7 @@ export function AgentChatView() {
             setTimeout(() => tryScroll(), 100);
           });
         }
-      } catch {}
+      } catch { }
     }, 100);
   }, [scrollToTaskId, loading, conversation, workspaceId]);
 
@@ -359,10 +392,59 @@ export function AgentChatView() {
     }
   }, [taskMessages.length, taskStatus, scrollToBottom]);
 
+  const agentName = useMemo(() => agents.find((a) => a.id === agentId)?.name ?? "Agent", [agents, agentId]);
+
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const hasMoreRef = useRef(hasMore);
+  hasMoreRef.current = hasMore;
+  const prevConvsRef = useRef(previousConversations);
+  prevConvsRef.current = previousConversations;
+  const hasMoreConvsRef = useRef(hasMoreConversations);
+  hasMoreConvsRef.current = hasMoreConversations;
+  const agentNameRef = useRef(agentName);
+  agentNameRef.current = agentName;
+  const activeChannelRef = useRef(activeChannel);
+  activeChannelRef.current = activeChannel;
+
+  const oldestConvIdRef = useRef<string | null>(null);
+  const oldestConvCreatedAtRef = useRef<string | null>(null);
+
   const loadOlderMessages = useCallback(async () => {
-    if (!conversation || loadingMoreRef.current || !hasMore) return;
-    const oldest = messages[0];
-    if (!oldest) return;
+    if (!conversation || loadingMoreRef.current) return;
+
+    const currentMessages = messagesRef.current;
+    const currentHasMore = hasMoreRef.current;
+    const currentHasMoreConvs = hasMoreConvsRef.current;
+    const currentAgentName = agentNameRef.current;
+    const currentChannel = activeChannelRef.current;
+
+    const oldest = currentMessages[0];
+    const paginatingConvId = oldestConvIdRef.current ?? conversation.id;
+    const canLoadMoreInConv = currentHasMore && oldest;
+    let prevConvsList = prevConvsRef.current;
+
+    if (!canLoadMoreInConv && prevConvsList.length === 0 && currentHasMoreConvs) {
+      const oldestConv = oldestConvCreatedAtRef.current
+        ? { id: oldestConvIdRef.current!, created_at: oldestConvCreatedAtRef.current }
+        : { id: conversation.id, created_at: conversation.created_at };
+      try {
+        const result = await listPreviousConversations(agentId, workspaceId, {
+          exclude: conversation.id,
+          before: oldestConv.created_at,
+          channel: currentChannel,
+        });
+        prevConvsList = result.conversations;
+        setPreviousConversations(result.conversations);
+        setHasMoreConversations(result.has_more);
+      } catch {
+        setHasMoreConversations(false);
+      }
+    }
+
+    const canLoadPrevConv = prevConvsList.length > 0;
+
+    if (!canLoadMoreInConv && !canLoadPrevConv) return;
 
     loadingMoreRef.current = true;
     setLoadingMore(true);
@@ -370,23 +452,69 @@ export function AgentChatView() {
     const prevScrollHeight = el?.scrollHeight ?? 0;
 
     try {
-      const older = await listMessages(conversation.id, workspaceId, {
-        limit: MESSAGE_LIMIT,
-        before: oldest.created_at,
-        beforeId: oldest.id,
-      });
-      if (older.length === 0) {
-        setHasMore(false);
-        return;
-      }
-      setHasMore(older.length >= MESSAGE_LIMIT);
-      setMessages((prev) => {
-        const existingIds = new Set(prev.map((m) => m.id));
-        const unique = older.filter((m) => !existingIds.has(m.id));
-        return [...unique, ...prev];
-      });
+      if (canLoadMoreInConv) {
+        const older = await listMessages(paginatingConvId, workspaceId, {
+          limit: MESSAGE_LIMIT,
+          before: oldest!.created_at,
+          beforeId: oldest!.id,
+        });
+        if (older.length === 0) {
+          setHasMore(false);
+        } else {
+          setHasMore(older.length >= MESSAGE_LIMIT);
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const unique = older.filter((m) => !existingIds.has(m.id));
+            return [...unique, ...prev];
+          });
+        }
+      } else if (canLoadPrevConv) {
+        let consumed = 0;
+        let loadedOlder: Message[] = [];
 
-      // Restore scroll position so content doesn't jump
+        while (consumed < prevConvsList.length) {
+          const prevConv = prevConvsList[consumed]!;
+          consumed++;
+          const older = await listMessages(prevConv.id, workspaceId, {
+            limit: MESSAGE_LIMIT,
+          });
+
+          if (older.length === 0) {
+            oldestConvIdRef.current = prevConv.id;
+            oldestConvCreatedAtRef.current = prevConv.created_at;
+            continue;
+          }
+
+          const napTs = oldestConvCreatedAtRef.current ?? conversation.created_at;
+          const napId = `nap-${prevConv.id}`;
+          setNapMarkers((prev) =>
+            prev.some((m) => m.id === napId)
+              ? prev
+              : [...prev, { agentName: currentAgentName, created_at: napTs, id: napId }],
+          );
+
+          loadedOlder = older;
+          setHasMore(older.length >= MESSAGE_LIMIT);
+          oldestConvIdRef.current = prevConv.id;
+          oldestConvCreatedAtRef.current = prevConv.created_at;
+          break;
+        }
+
+        if (consumed > 0) {
+          setPreviousConversations((prev) => prev.slice(consumed));
+        }
+
+        if (loadedOlder.length > 0) {
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const unique = loadedOlder.filter((m) => !existingIds.has(m.id));
+            return [...unique, ...prev];
+          });
+        } else {
+          setHasMore(false);
+        }
+      }
+
       requestAnimationFrame(() => {
         if (el) {
           const newScrollHeight = el.scrollHeight;
@@ -399,11 +527,12 @@ export function AgentChatView() {
       loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [conversation, workspaceId, messages, hasMore]);
+  }, [conversation, workspaceId, agentId]);
 
   // Auto-load older messages when content doesn't overflow (scroll can't trigger)
+  const canLoadMore = hasMore || previousConversations.length > 0 || hasMoreConversations;
   useEffect(() => {
-    if (loading || !hasMore || loadingMoreRef.current) return;
+    if (loading || !canLoadMore || loadingMoreRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
     const raf = requestAnimationFrame(() => {
@@ -412,17 +541,17 @@ export function AgentChatView() {
       }
     });
     return () => cancelAnimationFrame(raf);
-  }, [loading, hasMore, messages.length, loadOlderMessages]);
+  }, [loading, canLoadMore, messages.length, loadOlderMessages]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     isNearBottom.current =
       el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-    if (!loadingMore && hasMore && el.scrollTop < 80) {
+    if (!loadingMore && canLoadMore && el.scrollTop < 80) {
       loadOlderMessages();
     }
-  }, [loadOlderMessages, loadingMore, hasMore]);
+  }, [loadOlderMessages, loadingMore, canLoadMore]);
 
   const startPolling = useCallback(
     (taskId: string, conversationId: string, initialSeq?: number) => {
@@ -465,7 +594,7 @@ export function AgentChatView() {
               // Stale poll — still merge messages but don't touch activeTask or polling
               listMessages(conversationId, workspaceId)
                 .then((latest) => setMessages((prev) => mergeMessages(prev, latest)))
-                .catch(() => {});
+                .catch(() => { });
               return;
             }
 
@@ -511,7 +640,7 @@ export function AgentChatView() {
                   setTaskMessages([]);
                   startPollingRef.current(nextTask.id, conversationId);
                 }
-              } catch {}
+              } catch { }
             }, 1000);
           } else if (!isStale) {
             setActiveTask(task);
@@ -570,7 +699,7 @@ export function AgentChatView() {
         // Fetch all messages so the completed task's agent response is included
         listMessages(msg.conversationId, workspaceId)
           .then((latest) => setMessages((prev) => mergeMessages(prev, latest)))
-          .catch(() => {});
+          .catch(() => { });
         const task = msg.task as Task;
         setActiveTask(task);
         setTaskMessages([]);
@@ -768,7 +897,7 @@ export function AgentChatView() {
       if (message.attachment_ids && message.attachment_ids.length > 0) {
         listArtifacts(conversation.id, workspaceId)
           .then((arts) => setArtifacts(arts))
-          .catch(() => {});
+          .catch(() => { });
       }
       setActiveTask(task);
       setTaskMessages([]);
@@ -795,23 +924,34 @@ export function AgentChatView() {
     startPolling(newTask.id, conversation.id);
   }, [activeTask, conversation, workspaceId, startPolling]);
 
-  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [resetDontAsk, setResetDontAsk] = useState(false);
+  const [napping, setNapping] = useState(false);
 
-  const RESET_SKIP_KEY = "chat-reset-skip-confirm";
+  const currentConvHasMessages = useMemo(
+    () => !!conversation && messages.some((m) => m.conversation_id === conversation.id),
+    [conversation, messages],
+  );
 
-  const executeReset = async () => {
-    if (!conversation) return;
-    setResetting(true);
+  const handleNap = async () => {
+    if (!conversation || !currentConvHasMessages || napping) return;
+    setNapping(true);
     try {
       if (pollRef.current) {
         clearInterval(pollRef.current);
         pollRef.current = null;
       }
-      const newConv = await createConversation(agentId, workspaceId);
+      const newConv = await createConversation(agentId, workspaceId, activeChannel);
+
+      setNapMarkers((prev) => [
+        ...prev,
+        { agentName, created_at: newConv.created_at, id: `nap-${conversation.id}` },
+      ]);
+
+      setPreviousConversations((prev) => [
+        { id: conversation.id, created_at: conversation.created_at },
+        ...prev,
+      ]);
+
       setConversation(newConv);
-      setMessages([]);
       setActiveTask(null);
       setTaskMessages([]);
       setArtifacts([]);
@@ -821,23 +961,14 @@ export function AgentChatView() {
       lastSeqRef.current = 0;
       setConnectionLost(false);
       setHasMore(false);
-      initialScrollDone.current = false;
-    } catch {
-      toast.error("Failed to reset conversation");
-    } finally {
-      setResetting(false);
-      setResetConfirmOpen(false);
-    }
-  };
+      oldestConvIdRef.current = null;
+      oldestConvCreatedAtRef.current = null;
 
-  const handleReset = () => {
-    if (!conversation || messages.length === 0) return;
-    const skip = typeof window !== "undefined" && localStorage.getItem(RESET_SKIP_KEY) === "true";
-    if (skip) {
-      executeReset();
-    } else {
-      setResetDontAsk(false);
-      setResetConfirmOpen(true);
+      scrollToBottom();
+    } catch {
+      toast.error("Failed to start new conversation");
+    } finally {
+      setNapping(false);
     }
   };
 
@@ -953,6 +1084,10 @@ export function AgentChatView() {
           })()}
 
           {timeline.map((item) => {
+            if (item.kind === "nap") {
+              return <NapSeparator key={item.data.id} agentName={agentName} />;
+            }
+
             if (item.kind === "artifact") {
               return (
                 <ArtifactCard
@@ -1072,11 +1207,11 @@ export function AgentChatView() {
                 dangerouslySetInnerHTML={{
                   __html: input
                     ? highlightMentions(
-                        input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
-                        agents,
-                      )
-                        .replace(/<mention>/g, '<span class="mention-highlight">')
-                        .replace(/<\/mention>/g, "</span>")
+                      input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+                      agents,
+                    )
+                      .replace(/<mention>/g, '<span class="mention-highlight">')
+                      .replace(/<\/mention>/g, "</span>")
                     : "",
                 }}
               />
@@ -1130,22 +1265,26 @@ export function AgentChatView() {
             <div className="flex items-center justify-between px-2 pb-2 pt-0.5">
               <div className="flex items-center gap-1">
                 <Tooltip>
-                  <TooltipTrigger render={
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={handleReset}
-                      disabled={resetting || !conversation || messages.length === 0}
-                      className="rounded-lg text-muted-foreground/60 hover:text-foreground transition-colors duration-200"
-                    />
-                  }>
-                    {resetting ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <RotateCcw className="size-3.5" />
-                    )}
-                  </TooltipTrigger>
-                  <TooltipContent side="top">New conversation</TooltipContent>
+                  <TooltipTrigger render={(props) => (
+                    <span {...props} className={cn("inline-flex", props.className)}>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={handleNap}
+                        disabled={napping || !conversation || !currentConvHasMessages}
+                        className="rounded-lg text-muted-foreground/60 hover:text-foreground transition-colors duration-200"
+                      >
+                        {napping ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <BedDouble className="size-3.5" />
+                        )}
+                      </Button>
+                    </span>
+                  )} />
+                  <TooltipContent side="top">
+                    {currentConvHasMessages ? "Take a nap" : `${agentName} is well-rested and ready to go`}
+                  </TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger render={
@@ -1254,48 +1393,6 @@ export function AgentChatView() {
           </div>
         </div>
       </div>}
-
-      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>Start new conversation?</DialogTitle>
-            <DialogDescription>
-              This will clear the current conversation and start fresh. The agent won&apos;t remember context from this chat.
-            </DialogDescription>
-          </DialogHeader>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={resetDontAsk}
-              onChange={(e) => setResetDontAsk(e.target.checked)}
-              className="rounded"
-            />
-            Don&apos;t ask me next time
-          </label>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setResetConfirmOpen(false)}
-              disabled={resetting}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                if (resetDontAsk) {
-                  localStorage.setItem(RESET_SKIP_KEY, "true");
-                }
-                executeReset();
-              }}
-              disabled={resetting}
-            >
-              {resetting ? "Resetting..." : "Reset"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <ArtifactSheet
         open={artifactSheetOpen}

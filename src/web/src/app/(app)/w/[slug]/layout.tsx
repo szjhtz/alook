@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db"
 import { getSession } from "@/lib/session"
 import { WorkspaceProvider } from "@/contexts/workspace-context"
 import { AgentProvider } from "@/contexts/agent-context"
+import { ChannelProvider } from "@/contexts/channel-context"
 import { WorkspaceShell } from "@/components/workspace-shell"
 
 export default async function WorkspaceLayout({
@@ -34,7 +35,9 @@ export default async function WorkspaceLayout({
   return (
     <WorkspaceProvider workspaceId={ws.id} slug={slug}>
       <AgentProvider workspaceId={ws.id}>
-        <WorkspaceShell>{children}</WorkspaceShell>
+        <ChannelProvider workspaceId={ws.id}>
+          <WorkspaceShell>{children}</WorkspaceShell>
+        </ChannelProvider>
       </AgentProvider>
     </WorkspaceProvider>
   )

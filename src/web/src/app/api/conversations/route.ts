@@ -14,10 +14,13 @@ export const GET = withAuth(async (req, ctx) => {
   const { env } = getCloudflareContext()
   const db = getDb((env as Env).DB)
 
+  const channel = new URL(req.url).searchParams.get("channel") || undefined;
+
   const conversations = await queries.conversation.listConversations(
     db,
     ws.workspaceId,
-    ctx.userId
+    ctx.userId,
+    channel
   );
   return writeJSON(conversations.map(conversationToResponse));
 });
@@ -37,6 +40,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     agentId: body.agent_id,
     userId: ctx.userId,
     title: "",
+    channel: body.channel,
   });
 
   return writeJSON(conversationToResponse(conversation), 201);

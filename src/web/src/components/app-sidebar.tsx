@@ -94,11 +94,11 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   };
 
   return (
-    <nav className="flex h-full w-14 flex-col items-center py-2 gap-0.5">
+    <nav className="flex h-full w-14 flex-col items-center pt-1 pb-2 gap-0.5">
       {/* Top — logo as Home link */}
-      <div className="pb-2 border-b border-border/50 mb-1">
+      <div className="pb-1.5 border-b border-border/50 mb-1">
         <div
-          className="flex shrink-0 items-center justify-center size-10 cursor-pointer [&>button]:pointer-events-none"
+          className="flex shrink-0 items-center justify-center size-8 cursor-pointer [&>button]:pointer-events-none"
           onClick={() => { router.push(`${prefix}/home`); onNavigate?.(); }}
         >
           <Logo size="sm" iconOnly />

@@ -364,6 +364,7 @@ export type UpdateAgentRequest = z.infer<typeof UpdateAgentRequestSchema>;
 
 export const CreateConversationRequestSchema = z.object({
   agent_id: z.string().min(1, "agent_id is required"),
+  channel: z.string().optional(),
 });
 export type CreateConversationRequest = z.infer<
   typeof CreateConversationRequestSchema

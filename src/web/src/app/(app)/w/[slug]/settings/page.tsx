@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MobileSidebarLogo } from "@/components/mobile-sidebar-logo";
+
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { GeneralTab } from "./general-tab";
@@ -27,7 +27,6 @@ export default function SettingsPage() {
     <>
       <div className="flex items-center justify-between border-b border-border/50 px-3 md:px-5 py-2.5 gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <MobileSidebarLogo />
           <h1 className="text-sm font-medium">Settings</h1>
         </div>
       </div>
