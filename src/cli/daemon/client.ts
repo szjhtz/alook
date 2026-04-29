@@ -191,4 +191,18 @@ export class DaemonClient {
       { messages },
     );
   }
+
+  async claimMeetings(
+    token: string,
+    daemonId: string,
+  ): Promise<{ id: string; meetingUrl: string; participants: string[]; workspaceId: string }[]> {
+    const raw: { id: string; meeting_url: string; participants: string[]; workspace_id: string }[] =
+      await this.request("POST", "/api/daemon/meetings/claim", token, { daemon_id: daemonId });
+    return raw.map((m) => ({
+      id: m.id,
+      meetingUrl: m.meeting_url,
+      participants: m.participants,
+      workspaceId: m.workspace_id,
+    }));
+  }
 }

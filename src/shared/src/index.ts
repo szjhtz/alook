@@ -17,6 +17,7 @@ export type {
   LoginResponse,
   CreateAgentRequest,
   CalendarEvent,
+  MeetingSession,
   Channel,
   WsMessage,
 } from "./types";
@@ -68,6 +69,8 @@ export {
   DEV_WEB_URL,
   DEV_WS_DO_URL,
   DEV_EMAIL_WORKER_URL,
+  MeetingStatus,
+  TERMINAL_MEETING_STATUSES,
 } from "./constants";
 
 export type {
@@ -76,6 +79,7 @@ export type {
   TaskStatusType,
   TaskType,
   MessageRoleType,
+  MeetingStatusType,
 } from "./constants";
 
 // Schemas
@@ -163,6 +167,8 @@ export type { LogLevel, LoggerOptions } from "./logger"
 // Lib
 export { isEmptyHtml } from "./lib/html";
 export { buildContextKey, extractThreadId } from "./lib/context-key";
+export { parseIcs } from "./lib/ics-parser";
+export type { MeetingInfo } from "./lib/ics-parser";
 export {
   addRepeatInterval,
   computeNextScheduledAt,

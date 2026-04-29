@@ -60,6 +60,22 @@ export const OFFLINE_THRESHOLD_MS = Number(process.env.OFFLINE_THRESHOLD_MS) || 
 export const EVENT_POLL_INTERVAL_MS = Number(process.env.EVENT_POLL_INTERVAL_MS) || 2_000;
 export const AGENT_HANDLE_MIN_LENGTH = 4;
 
+export const MeetingStatus = {
+  PENDING: "pending",
+  SCHEDULED: "scheduled",
+  JOINING: "joining",
+  RECORDING: "recording",
+  COMPLETED: "completed",
+  FAILED: "failed",
+} as const;
+
+export type MeetingStatusType = (typeof MeetingStatus)[keyof typeof MeetingStatus];
+
+export const TERMINAL_MEETING_STATUSES: readonly MeetingStatusType[] = [
+  MeetingStatus.COMPLETED,
+  MeetingStatus.FAILED,
+] as const;
+
 // Local dev URLs (used for service-binding fallbacks)
 export const DEV_WEB_URL = process.env.ALOOK_SERVER_URL || "http://localhost:3000";
 export const DEV_WS_DO_URL = process.env.DEV_WS_DO_URL || "http://localhost:8789";
