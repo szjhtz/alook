@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   type AvatarConfig,
   AvatarRenderer,
@@ -111,9 +111,11 @@ function Cycler<K extends string>({
 interface AvatarGeneratorProps {
   config: AvatarConfig;
   onChange: (config: AvatarConfig) => void;
+  /** "horizontal" puts preview left + controls right; default is vertical stack */
+  layout?: "vertical" | "horizontal";
 }
 
-export function AvatarGenerator({ config, onChange }: AvatarGeneratorProps) {
+export function AvatarGenerator({ config, onChange, layout = "vertical" }: AvatarGeneratorProps) {
   const [tab, setTab] = useState<"presets" | "custom">("presets");
 
   const setField = useCallback(
@@ -122,6 +124,31 @@ export function AvatarGenerator({ config, onChange }: AvatarGeneratorProps) {
     },
     [config, onChange]
   );
+
+  // Find matched preset name
+  const matchedPresetName = useMemo(() => {
+    const match = PRESETS.find(
+      (p) =>
+        p.config.shape === config.shape &&
+        p.config.eye === config.eye &&
+        p.config.nose === config.nose &&
+        p.config.bg === config.bg
+    );
+    return match?.name ?? null;
+  }, [config]);
+
+  // Spacebar shortcut for random in horizontal (dialog) mode
+  useEffect(() => {
+    if (layout !== "horizontal") return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.code === "Space" && e.target === document.body) {
+        e.preventDefault();
+        onChange(randomConfig());
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [layout, onChange]);
 
   const renderShapeThumb = (key: string) => (
     <svg viewBox="0 0 200 200" width="40" height="40">
@@ -139,15 +166,42 @@ export function AvatarGenerator({ config, onChange }: AvatarGeneratorProps) {
     </svg>
   );
 
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Preview */}
-      <div className="flex justify-center">
-        <div className="rounded-2xl bg-background p-2 shadow-sm border border-border">
-          <AvatarRenderer config={config} size={160} />
-        </div>
-      </div>
+  const isHorizontal = layout === "horizontal";
 
+  const preview = (
+    <div className={cn(
+      "flex flex-col items-center gap-3 rounded-2xl bg-muted/30 p-4",
+      isHorizontal ? "w-[240px] shrink-0 justify-center" : ""
+    )}>
+      <div className="rounded-2xl">
+        <AvatarRenderer config={config} size={isHorizontal ? 200 : 160} />
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(randomConfig())}
+        className="inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background hover:bg-foreground/80 transition-colors"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="2" width="20" height="20" rx="3" />
+          <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+          <circle cx="16" cy="8" r="1.5" fill="currentColor" />
+          <circle cx="8" cy="16" r="1.5" fill="currentColor" />
+          <circle cx="16" cy="16" r="1.5" fill="currentColor" />
+          <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+        </svg>
+        随机
+        {isHorizontal && (
+          <kbd className="ml-1 rounded bg-background/20 px-1.5 py-0.5 text-[10px] font-mono">空格</kbd>
+        )}
+      </button>
+    </div>
+  );
+
+  const controls = (
+    <div className={cn(
+      "flex flex-col gap-3 flex-1 min-w-0",
+      isHorizontal && "rounded-2xl bg-muted/30 p-4 h-[380px]"
+    )}>
       {/* Tabs */}
       <div className="flex border-b border-border">
         <button
@@ -160,7 +214,7 @@ export function AvatarGenerator({ config, onChange }: AvatarGeneratorProps) {
               : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
-          预设
+          ★ 预设
         </button>
         <button
           type="button"
@@ -172,11 +226,12 @@ export function AvatarGenerator({ config, onChange }: AvatarGeneratorProps) {
               : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
-          自定义
+          ⚙ 自定义
         </button>
       </div>
 
-      {/* Tab content */}
+      {/* Tab content — fixed height so dialog doesn't resize on tab switch */}
+      <div className={cn("flex-1 min-h-0", isHorizontal && "overflow-y-auto thin-scrollbar")}>
       {tab === "presets" && (
         <div className="grid grid-cols-4 gap-2">
           {PRESETS.map((p) => {
@@ -191,13 +246,13 @@ export function AvatarGenerator({ config, onChange }: AvatarGeneratorProps) {
                 type="button"
                 onClick={() => onChange(p.config)}
                 className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors",
+                  "flex flex-col items-center gap-1 rounded-xl border p-2 transition-all",
                   isActive
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/40"
+                    ? "border-primary border-2 bg-primary/5 shadow-sm"
+                    : "border-border bg-background hover:border-primary/40"
                 )}
               >
-                <AvatarRenderer config={p.config} size={48} />
+                <AvatarRenderer config={p.config} size={56} />
                 <span className="text-[10px] text-muted-foreground">
                   {p.name}
                 </span>
@@ -217,18 +272,18 @@ export function AvatarGenerator({ config, onChange }: AvatarGeneratorProps) {
             renderThumb={renderShapeThumb}
           />
           <Cycler
-            label="眼睛"
-            keys={EYE_KEYS}
-            value={config.eye}
-            onChange={(v) => setField("eye", v)}
-            renderThumb={renderEyeThumb}
-          />
-          <Cycler
             label="鼻子"
             keys={NOSE_KEYS}
             value={config.nose}
             onChange={(v) => setField("nose", v)}
             renderThumb={renderNoseThumb}
+          />
+          <Cycler
+            label="眼睛"
+            keys={EYE_KEYS}
+            value={config.eye}
+            onChange={(v) => setField("eye", v)}
+            renderThumb={renderEyeThumb}
           />
 
           {/* Background colors */}
@@ -256,15 +311,23 @@ export function AvatarGenerator({ config, onChange }: AvatarGeneratorProps) {
           </div>
         </div>
       )}
+      </div>
+    </div>
+  );
 
-      {/* Random button */}
-      <button
-        type="button"
-        onClick={() => onChange(randomConfig())}
-        className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-      >
-        随机生成
-      </button>
+  if (isHorizontal) {
+    return (
+      <div className="flex gap-4">
+        {preview}
+        {controls}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {preview}
+      {controls}
     </div>
   );
 }

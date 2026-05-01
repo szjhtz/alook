@@ -8,3 +8,4 @@ export {
 } from "./avatar-parts";
 
 export { AvatarGenerator } from "./avatar-generator";
+export { AvatarPickerDialog } from "./avatar-picker-dialog";

@@ -20,7 +20,7 @@ import {
 } from "@/components/agent-form-fields";
 import {
   type AvatarConfig,
-  AvatarGenerator,
+  AvatarPickerDialog,
   DEFAULT_CONFIG,
   parseAvatarUrl,
   serializeAvatarConfig,
@@ -249,7 +249,7 @@ export function AgentEditForm({
               >
                 {activeTab === "general" && (
                   <>
-                    <AvatarGenerator
+                    <AvatarPickerDialog
                       config={avatarConfig}
                       onChange={setAvatarConfig}
                     />

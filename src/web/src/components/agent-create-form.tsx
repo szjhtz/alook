@@ -16,7 +16,7 @@ import {
 import { useWorkspace } from "@/contexts/workspace-context";
 import {
   type AvatarConfig,
-  AvatarGenerator,
+  AvatarPickerDialog,
   DEFAULT_CONFIG,
   serializeAvatarConfig,
 } from "@/components/avatar";
@@ -89,7 +89,7 @@ export function AgentCreateForm({
   return (
     <div className="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-5 py-6">
       <form onSubmit={handleSubmit} className="mx-auto max-w-md space-y-4">
-        <AvatarGenerator
+        <AvatarPickerDialog
           config={avatarConfig}
           onChange={setAvatarConfig}
         />
