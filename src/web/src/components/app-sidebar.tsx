@@ -59,10 +59,10 @@ function AgentSidebarButton({
                   type="button"
                   onClick={() => { setPreviewOpen(false); onClick(); }}
                   className={cn(
-                    "relative flex shrink-0 items-center justify-center size-10 rounded-xl text-sm font-medium transition-colors duration-200 cursor-pointer",
+                    "relative flex shrink-0 items-center justify-center size-10 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer",
                     isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "bg-secondary text-secondary-foreground hover:bg-accent"
+                      ? "ring-2 ring-primary shadow-sm"
+                      : "ring-0 bg-secondary text-secondary-foreground hover:bg-accent"
                   )}
                 />
               }
