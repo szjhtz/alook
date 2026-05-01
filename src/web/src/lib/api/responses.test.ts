@@ -3,6 +3,7 @@ import {
   userToResponse,
   workspaceToResponse,
   agentToResponse,
+  agentLinkToResponse,
   taskToResponse,
   conversationToResponse,
   channelToResponse,
@@ -500,6 +501,29 @@ describe("calendarEventToResponse", () => {
   it("defaults description to null when the column is absent", () => {
     const res = calendarEventToResponse(base);
     expect(res.description).toBeNull();
+  });
+});
+
+describe("agentLinkToResponse", () => {
+  it("maps camelCase Drizzle row to snake_case API response", () => {
+    const res = agentLinkToResponse({
+      id: "al_1",
+      workspaceId: "ws1",
+      sourceAgentId: "ag_a",
+      targetAgentId: "ag_b",
+      instruction: "collaborate closely",
+      createdAt: ts,
+      updatedAt: ts,
+    });
+    expect(res).toEqual({
+      id: "al_1",
+      workspace_id: "ws1",
+      source_agent_id: "ag_a",
+      target_agent_id: "ag_b",
+      instruction: "collaborate closely",
+      created_at: tsFormatted,
+      updated_at: tsFormatted,
+    });
   });
 });
 

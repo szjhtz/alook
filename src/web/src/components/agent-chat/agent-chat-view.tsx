@@ -64,7 +64,7 @@ function MentionHighlight(props: Record<string, unknown> & { children?: React.Re
         <PopoverTrigger openOnHover delay={300} nativeButton={false} render={<span className="mention-highlight cursor-pointer" />}>
           {children}
         </PopoverTrigger>
-        <PopoverContent side="top" className="w-70">
+        <PopoverContent side="top" className="w-fit max-w-80">
           <AgentPreviewCard agent={agent} />
         </PopoverContent>
       </Popover>

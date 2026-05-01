@@ -102,6 +102,7 @@ export function AgentStatusBadge({ isOnline, taskCount, agentId }: AgentStatusBa
           <button
             type="button"
             className={cn(badgeVariants({ variant: "outline" }), badgeBase)}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
           />
         }
       >

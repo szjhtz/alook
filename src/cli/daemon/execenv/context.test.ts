@@ -130,4 +130,62 @@ describe("buildInstructionContent email tool injection", () => {
 
     expect(content).toContain("## BIG BOSS Instructions");
   });
+
+  it("includes colleagues section when agent has colleagues", () => {
+    const task = makeTask({
+      agent: {
+        name: "test",
+        instructions: "",
+        colleagues: [
+          { name: "Scout", email: "scout@alook.ai", description: "A researcher agent", instruction: "Share findings via email" },
+          { name: "Writer", email: "writer@alook.ai", description: "", instruction: "Draft blog posts" },
+        ],
+      },
+    });
+    const content = buildInstructionContent(task);
+
+    expect(content).toContain("## Your Colleagues");
+    expect(content).toContain("### Scout (scout@alook.ai)");
+    expect(content).toContain("A researcher agent");
+    expect(content).toContain("**Relationship:** Share findings via email");
+    expect(content).toContain("### Writer (writer@alook.ai)");
+    expect(content).toContain("**Relationship:** Draft blog posts");
+  });
+
+  it("omits colleagues section when no colleagues", () => {
+    const task = makeTask({
+      agent: { name: "test", instructions: "", colleagues: [] },
+    });
+    const content = buildInstructionContent(task);
+
+    expect(content).not.toContain("## Your Colleagues");
+  });
+
+  it("omits colleagues section when colleagues undefined", () => {
+    const task = makeTask({
+      agent: { name: "test", instructions: "" },
+    });
+    const content = buildInstructionContent(task);
+
+    expect(content).not.toContain("## Your Colleagues");
+  });
+
+  it("omits description line for colleague with empty description", () => {
+    const task = makeTask({
+      agent: {
+        name: "test",
+        instructions: "",
+        colleagues: [
+          { name: "Scout", email: "scout@alook.ai", description: "", instruction: "Share data" },
+        ],
+      },
+    });
+    const content = buildInstructionContent(task);
+
+    expect(content).toContain("### Scout (scout@alook.ai)");
+    expect(content).toContain("**Relationship:** Share data");
+    // Only the header + relationship, no blank description line
+    const scoutSection = content.split("### Scout")[1].split("##")[0];
+    expect(scoutSection).not.toMatch(/\n\n\n/);
+  });
 });

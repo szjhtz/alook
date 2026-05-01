@@ -1,14 +1,17 @@
 import type {
   Agent,
   AgentEmailAccount,
+  AgentLink,
   AgentRuntime,
   Artifact,
   CalendarEvent,
   Channel,
   Conversation,
+  CreateAgentLinkRequest,
   CreateAgentRequest,
   CreateCalendarEventRequest,
   CreateEmailAccountRequest,
+  UpdateAgentLinkRequest,
   UpdateCalendarEventRequest,
   UpdateEmailAccountRequest,
   DeleteCalendarEventRequest,
@@ -597,6 +600,27 @@ export const addWhitelistEmail = (agentId: string, email: string, workspaceId: s
 
 export const removeWhitelistEmail = (agentId: string, whitelistId: string, workspaceId: string) =>
   apiFetch<void>(`/api/agents/${agentId}/whitelist/${whitelistId}${wsQuery(workspaceId)}`, {
+    method: "DELETE",
+  });
+
+// Agent Links
+export const listAgentLinks = (workspaceId: string) =>
+  apiFetch<AgentLink[]>(`/api/agent-links${wsQuery(workspaceId)}`);
+
+export const createAgentLink = (req: CreateAgentLinkRequest, workspaceId: string) =>
+  apiFetch<AgentLink>(`/api/agent-links${wsQuery(workspaceId)}`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+
+export const updateAgentLink = (id: string, req: UpdateAgentLinkRequest, workspaceId: string) =>
+  apiFetch<AgentLink>(`/api/agent-links/${id}${wsQuery(workspaceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(req),
+  });
+
+export const deleteAgentLink = (id: string, workspaceId: string) =>
+  apiFetch<AgentLink>(`/api/agent-links/${id}${wsQuery(workspaceId)}`, {
     method: "DELETE",
   });
 

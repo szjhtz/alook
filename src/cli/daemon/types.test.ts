@@ -74,4 +74,35 @@ describe("fromApiTask", () => {
     const result = fromApiTask(baseTask);
     expect(result.sender).toBeUndefined();
   });
+
+  it("maps colleagues from agent data", () => {
+    const task: TaskApi = {
+      ...baseTask,
+      agent: {
+        name: "Agent 1",
+        instructions: "be helpful",
+        runtime_config: {},
+        colleagues: [
+          { name: "Scout", email: "scout@alook.ai", description: "Researcher", instruction: "Share findings" },
+        ],
+      } as any,
+    };
+    const result = fromApiTask(task);
+    expect(result.agent?.colleagues).toEqual([
+      { name: "Scout", email: "scout@alook.ai", description: "Researcher", instruction: "Share findings" },
+    ]);
+  });
+
+  it("defaults colleagues to empty array when missing", () => {
+    const task: TaskApi = {
+      ...baseTask,
+      agent: {
+        name: "Agent 1",
+        instructions: "be helpful",
+        runtime_config: {},
+      },
+    };
+    const result = fromApiTask(task);
+    expect(result.agent?.colleagues).toEqual([]);
+  });
 });

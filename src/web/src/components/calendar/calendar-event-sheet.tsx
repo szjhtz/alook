@@ -693,6 +693,7 @@ export function CalendarEventSheet({
         className="markdown"
         minHeight={mode === "edit" ? "10rem" : "8rem"}
         variant="seamless"
+        agents={agents}
       />
     </div>
   );

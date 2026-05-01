@@ -202,6 +202,16 @@ export interface CreateAgentRequest {
   email_handle?: string;
 }
 
+export interface AgentLink {
+  id: string;
+  workspace_id: string;
+  source_agent_id: string;
+  target_agent_id: string;
+  instruction: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MeetingSession {
   id: string;
   agent_id: string;

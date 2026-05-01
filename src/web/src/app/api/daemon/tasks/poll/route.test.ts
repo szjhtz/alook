@@ -62,6 +62,9 @@ vi.mock("@alook/shared", async () => {
         listScheduledMeetings: (...args: unknown[]) => mockListScheduledMeetings(...args),
         claimMeetingSession: (...args: unknown[]) => mockClaimMeetingSession(...args),
       },
+      agentLink: {
+        getColleaguesForAgent: vi.fn().mockResolvedValue([]),
+      },
     },
   };
 });
@@ -205,6 +208,7 @@ describe("POST /api/daemon/tasks/poll", () => {
       email_addresses: [],
       user_email: "u@t.com",
       user_name: null,
+      colleagues: [],
     });
   });
 

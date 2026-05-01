@@ -28,6 +28,13 @@ export interface Attachment {
   filename: string;
 }
 
+export interface ColleagueData {
+  name: string;
+  email: string;
+  description: string;
+  instruction: string;
+}
+
 export interface TaskAgentData {
   id?: string;
   name: string;
@@ -37,6 +44,7 @@ export interface TaskAgentData {
   userEmail?: string | null;
   userName?: string | null;
   runtimeConfig?: Record<string, unknown>;
+  colleagues?: ColleagueData[];
 }
 
 export interface RepoData {
@@ -123,7 +131,21 @@ export function fromApiTask(api: import("@alook/shared").TaskApi): Task {
     contextKey: api.context_key ?? null,
     context: (api.context as Record<string, unknown>) ?? undefined,
     agent: api.agent
-      ? { name: api.agent.name, instructions: api.agent.instructions, emailHandle: api.agent.email_handle ?? undefined, emailAddresses: api.agent.email_addresses ?? [], userEmail: api.agent.user_email ?? undefined, userName: api.agent.user_name ?? undefined, runtimeConfig: api.agent.runtime_config ?? undefined }
+      ? {
+          name: api.agent.name,
+          instructions: api.agent.instructions,
+          emailHandle: api.agent.email_handle ?? undefined,
+          emailAddresses: api.agent.email_addresses ?? [],
+          userEmail: api.agent.user_email ?? undefined,
+          userName: api.agent.user_name ?? undefined,
+          runtimeConfig: api.agent.runtime_config ?? undefined,
+          colleagues: api.agent.colleagues?.map((c) => ({
+            name: c.name,
+            email: c.email,
+            description: c.description,
+            instruction: c.instruction,
+          })) ?? [],
+        }
       : undefined,
     sender: api.sender
       ? { name: api.sender.name, email: api.sender.email, isOwner: api.sender.is_owner }

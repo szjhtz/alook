@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { queries, PollRequestSchema, semverGte, type FileRequestItem, type PollMeetingItem } from "@alook/shared";
+import { queries, PollRequestSchema, semverGte, toAlookAddress, type FileRequestItem, type PollMeetingItem } from "@alook/shared";
 import { getDb } from "@/lib/db"
 import { withAuth } from "@/lib/middleware/auth";
 import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
@@ -141,6 +141,20 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       }
     }
 
+    // Resolve colleagues for agent
+    let colleagues: { name: string; email: string; description: string; instruction: string }[] = [];
+    if (agent) {
+      try {
+        const raw = await queries.agentLink.getColleaguesForAgent(db, agent.id, task.workspaceId);
+        colleagues = raw.map((c) => ({
+          name: c.name,
+          email: c.emailHandle ? toAlookAddress(c.emailHandle) : "",
+          description: c.description,
+          instruction: c.instruction,
+        }));
+      } catch {}
+    }
+
     tasks.push({
       ...taskToResponse(task),
       sender,
@@ -153,6 +167,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
             email_addresses: emailAddresses,
             user_email: ctx.email || null,
             user_name: ownerName,
+            colleagues,
           }
         : null,
     });

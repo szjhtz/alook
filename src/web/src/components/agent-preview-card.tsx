@@ -5,10 +5,24 @@ import type { Agent } from "@alook/shared";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { AvatarRenderer, parseAvatarUrl } from "@/components/avatar";
+import { AgentStatusBadge } from "@/components/agent-status-badge";
 
-export function AgentPreviewCard({ agent }: { agent: Agent }) {
+interface AgentPreviewCardProps {
+  agent: Agent;
+  isOnline?: boolean;
+  activeTaskCount?: number;
+  variant?: "default" | "compact";
+}
+
+export function AgentPreviewCard({
+  agent,
+  isOnline,
+  activeTaskCount,
+  variant = "default",
+}: AgentPreviewCardProps) {
   const [copied, setCopied] = useState(false);
   const email = agent.email_handle ? `${agent.email_handle}@alook.ai` : null;
+  const isCompact = variant === "compact";
 
   const handleCopy = useCallback(async () => {
     if (!email) return;
@@ -21,6 +35,41 @@ export function AgentPreviewCard({ agent }: { agent: Agent }) {
       toast.error("Failed to copy email");
     }
   }, [email]);
+
+  if (isCompact) {
+    return (
+      <div className="flex items-center gap-2 p-0">
+        {agent.avatar_url ? (
+          <img
+            src={agent.avatar_url}
+            alt={agent.name}
+            className="size-8 rounded-xl object-cover shrink-0"
+          />
+        ) : (
+          <div className="flex items-center justify-center size-8 rounded-xl bg-secondary text-secondary-foreground text-xs font-medium shrink-0">
+            {agent.name.charAt(0).toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium truncate max-w-[140px]">{agent.name}</p>
+            {email && (
+              <span className="text-xs text-muted-foreground truncate">{email}</span>
+            )}
+          </div>
+          {isOnline !== undefined && (
+            <div className="pointer-events-none mt-0.5">
+              <AgentStatusBadge
+                isOnline={isOnline}
+                taskCount={activeTaskCount ?? 0}
+                agentId={agent.id}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2.5 p-1">
@@ -37,13 +86,22 @@ export function AgentPreviewCard({ agent }: { agent: Agent }) {
           );
         })()}
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium truncate">{agent.name}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium truncate">{agent.name}</p>
+            {isOnline !== undefined && (
+              <AgentStatusBadge
+                isOnline={isOnline}
+                taskCount={activeTaskCount ?? 0}
+                agentId={agent.id}
+              />
+            )}
+          </div>
           {email && (
             <div className="flex items-center gap-1 mt-0.5">
               <span className="text-xs text-muted-foreground truncate">{email}</span>
               <button
                 type="button"
-                onClick={handleCopy}
+                onClick={(e) => { e.stopPropagation(); handleCopy(); }}
                 className="shrink-0 p-0.5 rounded-sm text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer"
               >
                 {copied ? (

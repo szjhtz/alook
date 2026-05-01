@@ -90,6 +90,22 @@ ${task.agent.instructions}
 `;
   }
 
+  if (task.agent?.colleagues?.length) {
+    content += `\n## Your Colleagues
+Below are your direct colleagues. You can reach them via email.
+
+**Important:** When communicating with a colleague, always reply to the existing email thread instead of composing a new email. This keeps the full conversation context visible to your colleague so they can pick up where you left off.
+
+`;
+    for (let i = 0; i < task.agent.colleagues.length; i++) {
+      const c = task.agent.colleagues[i];
+      content += `### ${c.name}${c.email ? ` (${c.email})` : ""}\n`;
+      if (c.description) content += `${c.description}\n`;
+      if (c.instruction) content += `**Relationship:** ${c.instruction}\n`;
+      if (i < task.agent.colleagues.length - 1) content += "\n";
+    }
+  }
+
   content += `\n## Alook CLI Tools
 You can communicate with the world through Alook CLI.
 Your alook agent id is '${task.agentId}'. remember this, most of alook cli will requires you input your agent id.

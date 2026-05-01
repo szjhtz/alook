@@ -565,6 +565,31 @@ export const conversationMap = sqliteTable(
   ]
 );
 
+export const agentLink = sqliteTable(
+  "agent_link",
+  {
+    id: text("id").primaryKey().$defaultFn(() => "al_" + nanoid()),
+    workspaceId: text("workspace_id").notNull(),
+    sourceAgentId: text("source_agent_id").notNull(),
+    targetAgentId: text("target_agent_id").notNull(),
+    instruction: text("instruction").notNull().default(""),
+    createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+    updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+  },
+  (t) => [
+    unique("agent_link_ws_source_target").on(t.workspaceId, t.sourceAgentId, t.targetAgentId),
+    index("idx_agent_link_workspace").on(t.workspaceId),
+    foreignKey({
+      columns: [t.sourceAgentId, t.workspaceId],
+      foreignColumns: [agent.id, agent.workspaceId],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.targetAgentId, t.workspaceId],
+      foreignColumns: [agent.id, agent.workspaceId],
+    }).onDelete("cascade"),
+  ]
+);
+
 export const workspaceFileRequest = sqliteTable(
   "workspace_file_request",
   {

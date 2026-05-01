@@ -222,6 +222,18 @@ export function meetingToResponse(m: any) {
   };
 }
 
+export function agentLinkToResponse(row: any) {
+  return {
+    id: row.id,
+    workspace_id: row.workspaceId,
+    source_agent_id: row.sourceAgentId,
+    target_agent_id: row.targetAgentId,
+    instruction: row.instruction,
+    created_at: formatTimestamp(row.createdAt),
+    updated_at: formatTimestamp(row.updatedAt),
+  };
+}
+
 export function calendarEventToResponse(e: any) {
   const scheduled = formatTimestamp(e.scheduledAt);
   const occurrence = e.occurrenceAt ? formatTimestamp(e.occurrenceAt) : scheduled;

@@ -45,6 +45,13 @@ export type ClaimedTaskRow = z.infer<typeof ClaimedTaskRowSchema>;
 // API wire format — task agent data (embedded in claim response)
 // ---------------------------------------------------------------------------
 
+export const ColleagueDataApiSchema = z.object({
+  name: z.string(),
+  email: z.string(),
+  description: z.string(),
+  instruction: z.string(),
+});
+
 export const TaskAgentDataApiSchema = z.object({
   instructions: z.string(),
   name: z.string(),
@@ -53,6 +60,7 @@ export const TaskAgentDataApiSchema = z.object({
   email_addresses: z.array(z.string()).default([]),
   user_email: z.string().nullable().optional(),
   user_name: z.string().nullable().optional(),
+  colleagues: z.array(ColleagueDataApiSchema).default([]),
 });
 export type TaskAgentDataApi = z.infer<typeof TaskAgentDataApiSchema>;
 
@@ -326,6 +334,22 @@ export const CalendarEventApiSchema = z.object({
   updated_at: z.string(),
 });
 export type CalendarEventApi = z.infer<typeof CalendarEventApiSchema>;
+
+// ---------------------------------------------------------------------------
+// Agent link schemas
+// ---------------------------------------------------------------------------
+
+export const CreateAgentLinkRequestSchema = z.object({
+  source_agent_id: z.string().min(1, "source_agent_id is required"),
+  target_agent_id: z.string().min(1, "target_agent_id is required"),
+  instruction: z.string().optional().default(""),
+});
+export type CreateAgentLinkRequestInput = z.infer<typeof CreateAgentLinkRequestSchema>;
+
+export const UpdateAgentLinkRequestSchema = z.object({
+  instruction: z.string(),
+});
+export type UpdateAgentLinkRequestInput = z.infer<typeof UpdateAgentLinkRequestSchema>;
 
 // ---------------------------------------------------------------------------
 // Whitelist request schema

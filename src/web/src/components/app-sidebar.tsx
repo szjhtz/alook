@@ -94,7 +94,7 @@ function AgentSidebarButton({
           )}
         </ContextMenuContent>
       </ContextMenu>
-      <PopoverContent side="right" className="w-70">
+      <PopoverContent side="right" className="w-fit max-w-80">
         <AgentPreviewCard agent={agent} />
       </PopoverContent>
     </Popover>

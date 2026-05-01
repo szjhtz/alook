@@ -80,6 +80,16 @@ export interface DeleteCalendarEventRequest {
   occurrence_at?: string;
 }
 
+export interface CreateAgentLinkRequest {
+  source_agent_id: string;
+  target_agent_id: string;
+  instruction?: string;
+}
+
+export interface UpdateAgentLinkRequest {
+  instruction: string;
+}
+
 export interface CreateWorkspaceRequest {
   name: string;
 }
