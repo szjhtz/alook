@@ -187,6 +187,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     ...(artifactIds.length > 0 ? { attachment_ids: artifactIds } : {}),
     ...mentionContext,
   };
+  const traceId = "tr_" + nanoid();
   const taskService = new TaskService(db);
   try {
     const task = await taskService.enqueueTask(
@@ -198,6 +199,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       {
         contextKey,
         context: Object.keys(taskContext).length > 0 ? taskContext : undefined,
+        traceId,
+        parentTaskId: null,
       },
     );
     broadcastToUser(ctx.userId, { type: "task.updated", taskId: task.id, agentId: task.agentId, status: "queued" }).catch(() => {});

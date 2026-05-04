@@ -89,6 +89,8 @@ export function taskToResponse(t: {
   result?: unknown;
   error?: string | null;
   createdAt: Date | string;
+  traceId?: string | null;
+  parentTaskId?: string | null;
 }) {
   return TaskApiBaseSchema.parse({
     id: t.id,
@@ -108,6 +110,8 @@ export function taskToResponse(t: {
     result: t.result ?? null,
     error: t.error || null,
     created_at: formatTimestamp(t.createdAt),
+    trace_id: t.traceId ?? null,
+    parent_task_id: t.parentTaskId ?? null,
   });
 }
 

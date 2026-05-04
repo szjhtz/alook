@@ -12,7 +12,7 @@ import { UsagesTab } from "./usages-tab";
 
 const TABS = [
   { id: "general", label: "General" },
-  { id: "instruction", label: "Instruction" },
+  { id: "instruction", label: "Global Instruction" },
   { id: "notifications", label: "Notifications" },
   { id: "members", label: "Members" },
   { id: "usages", label: "Usages" },

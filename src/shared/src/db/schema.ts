@@ -355,6 +355,8 @@ export const agentTaskQueue = sqliteTable(
     startedAt: text("started_at"),
     completedAt: text("completed_at"),
     error: text("error"),
+    traceId: text("trace_id"),
+    parentTaskId: text("parent_task_id"),
   },
   (t) => [
     index("idx_task_queue_pending")
@@ -367,6 +369,8 @@ export const agentTaskQueue = sqliteTable(
       .on(t.agentId, t.workspaceId, t.createdAt),
     index("idx_task_queue_conversation_status")
       .on(t.conversationId, t.status),
+    index("idx_task_queue_trace").on(t.traceId),
+    index("idx_task_queue_parent").on(t.parentTaskId),
     foreignKey({
       columns: [t.agentId, t.workspaceId],
       foreignColumns: [agent.id, agent.workspaceId],

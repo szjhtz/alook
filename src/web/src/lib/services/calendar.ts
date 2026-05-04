@@ -1,5 +1,6 @@
 import type { Database } from "@alook/shared";
 import { queries, TASK_TYPES } from "@alook/shared";
+import { nanoid } from "nanoid";
 import { log } from "@/lib/logger";
 
 const {
@@ -89,6 +90,8 @@ export async function promoteDueCalendarEventsForWorkspace(
         prompt: ev.title,
         type: TASK_TYPES.CALENDAR_EVENT,
         priority: 0,
+        traceId: "tr_" + nanoid(),
+        parentTaskId: null,
       });
 
       if (ev.repeatInterval) {

@@ -405,6 +405,8 @@ export function emailCommand(): Command {
         }
 
         const conversationId = process.env.ALOOK_CONVERSATION_ID;
+        const traceId = process.env.ALOOK_TRACE_ID;
+        const sourceTaskId = process.env.ALOOK_TASK_ID;
         const res = await client.postJSON<SendResponse>("/api/email/send", {
           agentId: opts.agent_id,
           to: opts.to,
@@ -414,6 +416,8 @@ export function emailCommand(): Command {
           ...(inReplyTo ? { inReplyTo, references } : {}),
           ...(opts.from ? { from: opts.from } : {}),
           ...(conversationId ? { conversationId } : {}),
+          ...(traceId ? { traceId } : {}),
+          ...(sourceTaskId ? { sourceTaskId } : {}),
         });
         console.log(`Sent email to ${res.to_email} (id: ${res.id})`);
       } catch (err) {
@@ -565,6 +569,8 @@ export function emailCommand(): Command {
 
         // 8. Send
         const conversationId = process.env.ALOOK_CONVERSATION_ID;
+        const traceId = process.env.ALOOK_TRACE_ID;
+        const sourceTaskId = process.env.ALOOK_TASK_ID;
         const res = await client.postJSON<SendResponse>("/api/email/send", {
           agentId: opts.agent_id,
           to: opts.to,
@@ -573,6 +579,8 @@ export function emailCommand(): Command {
           attachments,
           ...(opts.from ? { from: opts.from } : {}),
           ...(conversationId ? { conversationId } : {}),
+          ...(traceId ? { traceId } : {}),
+          ...(sourceTaskId ? { sourceTaskId } : {}),
         });
         console.log(`Forwarded email to ${res.to_email} (id: ${res.id})`);
       } catch (err) {

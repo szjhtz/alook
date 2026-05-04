@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { queries, TASK_TYPES, MeetingStatus, extractThreadId, buildEmailMapKey, EmailNotifyRequestSchema } from "@alook/shared"
+import { nanoid } from "nanoid"
 import { getDb } from "@/lib/db"
 import { writeJSON, parseBody } from "@/lib/middleware/helpers"
 import { TaskService } from "@/lib/services/task"
@@ -113,7 +114,9 @@ export async function POST(req: NextRequest) {
     const taskService = new TaskService(db)
     const context: Record<string, unknown> = { conversationType };
     if (dmUser) context.dmUser = dmUser;
-    const task = await taskService.enqueueTask(agent.id, conversationId, agent.workspaceId, prompt, TASK_TYPES.EMAIL_NOTIFICATION, { contextKey: conversationId, context })
+    const traceId = body.traceId || ("tr_" + nanoid());
+    const parentTaskId = body.traceId ? (body.sourceTaskId || null) : null;
+    const task = await taskService.enqueueTask(agent.id, conversationId, agent.workspaceId, prompt, TASK_TYPES.EMAIL_NOTIFICATION, { contextKey: conversationId, context, traceId, parentTaskId })
 
     if (conversationType === TASK_TYPES.USER_DM_MESSAGE) {
       broadcastToUser(agent.ownerId, {

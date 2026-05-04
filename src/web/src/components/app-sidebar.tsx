@@ -7,7 +7,7 @@ import { useWorkspace } from "@/contexts/workspace-context";
 import type { Agent } from "@alook/shared";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
-import { Monitor, SunMoon, Plus, LayoutGrid, CalendarDays, Settings, PinIcon, PinOffIcon } from "lucide-react";
+import { Monitor, SunMoon, Plus, CalendarDays, GitBranch, Settings, PinIcon, PinOffIcon, ArrowLeftRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useTheme } from "next-themes";
@@ -174,6 +174,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const isHome = pathname === `${prefix}/home`;
   const isRuntimes = pathname === `${prefix}/runtimes`;
   const isCalendar = pathname === `${prefix}/calendar`;
+  const isTraces = pathname.startsWith(`${prefix}/traces`);
   const isSettings = pathname === `${prefix}/settings`;
   const isCreateAgent = pathname === `${prefix}/agents/new`;
 
@@ -293,13 +294,34 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           <TooltipTrigger render={
             <button
               type="button"
-              onClick={() => { router.push("/workspaces"); onNavigate?.(); }}
-              className="flex items-center justify-center size-10 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-colors duration-200 cursor-pointer"
+              onClick={() => { router.push(`${prefix}/calendar`); onNavigate?.(); }}
+              className={cn(
+                "flex items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer",
+                "text-muted-foreground hover:text-foreground hover:bg-accent",
+                isCalendar && "bg-accent text-foreground"
+              )}
             />
           }>
-            <LayoutGrid className="size-4" />
+            <CalendarDays className="size-4" />
           </TooltipTrigger>
-          <TooltipContent side="right">Workspaces</TooltipContent>
+          <TooltipContent side="right">Calendar</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger render={
+            <button
+              type="button"
+              onClick={() => { router.push(`${prefix}/traces`); onNavigate?.(); }}
+              className={cn(
+                "flex items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer",
+                "text-muted-foreground hover:text-foreground hover:bg-accent",
+                isTraces && "bg-accent text-foreground"
+              )}
+            />
+          }>
+            <GitBranch className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent side="right">Traces</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -323,17 +345,13 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           <TooltipTrigger render={
             <button
               type="button"
-              onClick={() => { router.push(`${prefix}/calendar`); onNavigate?.(); }}
-              className={cn(
-                "flex items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer",
-                "text-muted-foreground hover:text-foreground hover:bg-accent",
-                isCalendar && "bg-accent text-foreground"
-              )}
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              className="flex items-center justify-center size-10 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-colors duration-200 cursor-pointer"
             />
           }>
-            <CalendarDays className="size-4" />
+            <SunMoon className="size-4" />
           </TooltipTrigger>
-          <TooltipContent side="right">Calendar</TooltipContent>
+          <TooltipContent side="right">Toggle theme</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -357,13 +375,13 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           <TooltipTrigger render={
             <button
               type="button"
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              onClick={() => { router.push("/workspaces"); onNavigate?.(); }}
               className="flex items-center justify-center size-10 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-colors duration-200 cursor-pointer"
             />
           }>
-            <SunMoon className="size-4" />
+            <ArrowLeftRight className="size-4" />
           </TooltipTrigger>
-          <TooltipContent side="right">Toggle theme</TooltipContent>
+          <TooltipContent side="right">Switch workspace</TooltipContent>
         </Tooltip>
 
         <NavUser />

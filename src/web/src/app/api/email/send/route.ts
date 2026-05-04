@@ -140,6 +140,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         messageId,
         inReplyTo: body.inReplyTo ?? "",
         references: body.references ?? "",
+        ...(body.traceId ? { traceId: body.traceId } : {}),
+        ...(body.sourceTaskId ? { sourceTaskId: body.sourceTaskId } : {}),
       });
       const notifyInit = { method: "POST", headers: { "Content-Type": "application/json" }, body: notifyPayload };
       let notifyRes: Response;

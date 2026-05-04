@@ -183,7 +183,7 @@ describe("POST /api/conversations/[id]/messages", () => {
     expect(res.status).toBe(201);
     expect(body.message).toEqual({ id: "m1", content: "Hi there" });
     expect(body.task).toEqual({ id: "t1", status: "pending" });
-    expect(mockEnqueueTask).toHaveBeenCalledWith("a1", "c1", "w1", "Hi there", "user_dm_message", { contextKey: "c1" });
+    expect(mockEnqueueTask).toHaveBeenCalledWith("a1", "c1", "w1", "Hi there", "user_dm_message", expect.objectContaining({ contextKey: "c1", traceId: expect.stringMatching(/^tr_/), parentTaskId: null }));
   });
 
   it("auto-titles conversation with truncated first message", async () => {

@@ -16,6 +16,8 @@ export async function createTask(
     contextKey?: string | null;
     priority?: number;
     context?: Record<string, unknown>;
+    traceId?: string | null;
+    parentTaskId?: string | null;
   }
 ) {
   const rows = await db
@@ -30,9 +32,32 @@ export async function createTask(
       contextKey: data.contextKey ?? null,
       priority: data.priority ?? 0,
       context: data.context ?? undefined,
+      traceId: data.traceId ?? null,
+      parentTaskId: data.parentTaskId ?? null,
     })
     .returning();
   return rows[0]!;
+}
+
+export async function countTasksByTrace(db: Database, traceId: string) {
+  const rows = await db
+    .select({ value: count() })
+    .from(agentTaskQueue)
+    .where(eq(agentTaskQueue.traceId, traceId));
+  return Number(rows[0]?.value ?? 0);
+}
+
+export async function getLatestTaskForConversation(db: Database, conversationId: string) {
+  const rows = await db
+    .select({
+      id: agentTaskQueue.id,
+      traceId: agentTaskQueue.traceId,
+    })
+    .from(agentTaskQueue)
+    .where(eq(agentTaskQueue.conversationId, conversationId))
+    .orderBy(desc(agentTaskQueue.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function getTask(db: Database, id: string, workspaceId?: string) {
@@ -623,4 +648,139 @@ export async function listTaskHistory(
   const tasks = hasMore ? rows.slice(0, limit) : rows;
 
   return { tasks: tasks.reverse(), hasMore };
+}
+
+export async function listTraces(
+  db: Database,
+  workspaceId: string,
+  opts?: { status?: string; limit?: number; before?: string }
+) {
+  const limit = opts?.limit ?? 30;
+  // When filtering by computed status, overfetch roots to compensate
+  const rootFetchLimit = opts?.status ? limit * 10 : limit;
+
+  const conditions = [
+    eq(agentTaskQueue.workspaceId, workspaceId),
+    sql`${agentTaskQueue.traceId} IS NOT NULL`,
+    sql`${agentTaskQueue.parentTaskId} IS NULL`,
+    ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK),
+  ];
+  if (opts?.before) {
+    conditions.push(lt(agentTaskQueue.createdAt, opts.before));
+  }
+
+  const rootTasks = await db
+    .select({
+      id: agentTaskQueue.id,
+      traceId: agentTaskQueue.traceId,
+      agentId: agentTaskQueue.agentId,
+      prompt: agentTaskQueue.prompt,
+      createdAt: agentTaskQueue.createdAt,
+    })
+    .from(agentTaskQueue)
+    .where(and(...conditions))
+    .orderBy(desc(agentTaskQueue.createdAt))
+    .limit(rootFetchLimit + 1);
+
+  if (rootTasks.length === 0) return { traces: [], hasMore: false };
+
+  const moreRootsExist = rootTasks.length > rootFetchLimit;
+  const roots = rootTasks.slice(0, rootFetchLimit);
+  const traceIds = roots.map(r => r.traceId).filter((id): id is string => !!id);
+  if (traceIds.length === 0) return { traces: [], hasMore: false };
+
+  const allTasks = await db
+    .select({
+      traceId: agentTaskQueue.traceId,
+      agentId: agentTaskQueue.agentId,
+      status: agentTaskQueue.status,
+      completedAt: agentTaskQueue.completedAt,
+    })
+    .from(agentTaskQueue)
+    .where(
+      and(
+        inArray(agentTaskQueue.traceId, traceIds),
+        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK),
+      )
+    );
+
+  const tasksByTrace = new Map<string, typeof allTasks>();
+  for (const t of allTasks) {
+    if (!t.traceId) continue;
+    const arr = tasksByTrace.get(t.traceId) ?? [];
+    arr.push(t);
+    tasksByTrace.set(t.traceId, arr);
+  }
+
+  const traces: {
+    traceId: string;
+    rootPrompt: string;
+    rootAgentId: string;
+    helperAgentIds: string[];
+    status: string;
+    taskCount: number;
+    startedAt: string;
+    completedAt: string | null;
+  }[] = [];
+
+  for (const root of roots) {
+    const tasks = tasksByTrace.get(root.traceId!) ?? [];
+    const helperIds = [...new Set(tasks.map(t => t.agentId).filter(id => id !== root.agentId))];
+
+    const hasActive = tasks.some(t => ["queued", "dispatched", "running"].includes(t.status));
+    const hasFailed = tasks.some(t => t.status === "failed");
+    let traceStatus: string;
+    if (hasActive) traceStatus = "active";
+    else if (hasFailed) traceStatus = "failed";
+    else traceStatus = "completed";
+
+    if (opts?.status && traceStatus !== opts.status) continue;
+
+    const allTerminal = tasks.every(t => ["completed", "failed", "cancelled", "superseded"].includes(t.status));
+    const completedAt = allTerminal
+      ? tasks.reduce((max, t) => (t.completedAt && t.completedAt > (max ?? "")) ? t.completedAt : max, null as string | null)
+      : null;
+
+    traces.push({
+      traceId: root.traceId!,
+      rootPrompt: root.prompt,
+      rootAgentId: root.agentId,
+      helperAgentIds: helperIds,
+      status: traceStatus,
+      taskCount: tasks.length,
+      startedAt: root.createdAt,
+      completedAt,
+    });
+  }
+
+  const hasMore = moreRootsExist || traces.length > limit;
+  return { traces: traces.slice(0, limit), hasMore };
+}
+
+export async function getTraceTree(
+  db: Database,
+  traceId: string,
+  workspaceId: string
+) {
+  return db
+    .select({
+      id: agentTaskQueue.id,
+      agentId: agentTaskQueue.agentId,
+      parentTaskId: agentTaskQueue.parentTaskId,
+      prompt: agentTaskQueue.prompt,
+      status: agentTaskQueue.status,
+      type: agentTaskQueue.type,
+      conversationId: agentTaskQueue.conversationId,
+      createdAt: agentTaskQueue.createdAt,
+      completedAt: agentTaskQueue.completedAt,
+    })
+    .from(agentTaskQueue)
+    .where(
+      and(
+        eq(agentTaskQueue.traceId, traceId),
+        eq(agentTaskQueue.workspaceId, workspaceId),
+        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK)
+      )
+    )
+    .orderBy(asc(agentTaskQueue.createdAt));
 }

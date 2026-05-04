@@ -20,6 +20,8 @@ export interface Task {
   sender?: TaskSender;
   repos?: RepoData[];
   createdAt: string;
+  traceId: string | null;
+  parentTaskId: string | null;
 }
 
 export interface Attachment {
@@ -152,5 +154,7 @@ export function fromApiTask(api: import("@alook/shared").TaskApi): Task {
       : undefined,
     repos: undefined,
     createdAt: api.created_at,
+    traceId: api.trace_id ?? null,
+    parentTaskId: api.parent_task_id ?? null,
   };
 }

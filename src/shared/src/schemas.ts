@@ -38,6 +38,8 @@ export const ClaimedTaskRowSchema = z.object({
   startedAt: z.coerce.date().nullable(),
   completedAt: z.coerce.date().nullable(),
   error: z.string().nullable(),
+  traceId: z.string().nullable().optional(),
+  parentTaskId: z.string().nullable().optional(),
 });
 export type ClaimedTaskRow = z.infer<typeof ClaimedTaskRowSchema>;
 
@@ -86,6 +88,8 @@ export const TaskApiBaseSchema = z.object({
   type: z.string(),
   context_key: z.string().nullable().optional(),
   context: z.unknown().nullable().optional(),
+  trace_id: z.string().nullable().optional(),
+  parent_task_id: z.string().nullable().optional(),
 });
 export type TaskApiBase = z.infer<typeof TaskApiBaseSchema>;
 
@@ -452,6 +456,8 @@ export const SendEmailRequestSchema = z.object({
   customAccountId: z.string().optional(),
   from: z.string().email().optional(),
   conversationId: z.string().optional(),
+  traceId: z.string().optional(),
+  sourceTaskId: z.string().optional(),
 });
 export type SendEmailRequest = z.infer<typeof SendEmailRequestSchema>;
 
@@ -484,6 +490,8 @@ export const EmailNotifyRequestSchema = z.object({
   references: z.string().optional().default(""),
   meetingInfo: MeetingInfoSchema.nullable().optional(),
   attachments: z.string().optional(),
+  traceId: z.string().optional(),
+  sourceTaskId: z.string().optional(),
 });
 export type EmailNotifyRequest = z.infer<typeof EmailNotifyRequestSchema>;
 

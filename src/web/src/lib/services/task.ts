@@ -1,5 +1,5 @@
 import type { Database } from "@alook/shared";
-import { queries, TASK_TYPES } from "@alook/shared";
+import { queries, TASK_TYPES, MAX_TASKS_PER_TRACE } from "@alook/shared";
 import { log } from "@/lib/logger";
 import { broadcastToUser } from "@/lib/broadcast";
 import { messageToResponse, taskToResponse } from "@/lib/api/responses";
@@ -18,7 +18,7 @@ export class TaskService {
     workspaceId: string,
     prompt: string,
     type: string = TASK_TYPES.USER_DM_MESSAGE,
-    opts?: { contextKey?: string | null; context?: Record<string, unknown> },
+    opts?: { contextKey?: string | null; context?: Record<string, unknown>; traceId?: string | null; parentTaskId?: string | null },
   ) {
     const agent = await agentQueries.getAgent(this.db, agentId, workspaceId);
     if (!agent) {
@@ -26,6 +26,13 @@ export class TaskService {
     }
     if (!agent.runtimeId) {
       throw new Error("agent has no runtime");
+    }
+
+    if (opts?.traceId && opts.parentTaskId) {
+      const traceCount = await taskQueries.countTasksByTrace(this.db, opts.traceId);
+      if (traceCount >= MAX_TASKS_PER_TRACE) {
+        throw new Error(`Trace limit reached (${MAX_TASKS_PER_TRACE} tasks). This may indicate an infinite loop between agents.`);
+      }
     }
 
     return taskQueries.createTask(this.db, {
@@ -38,6 +45,8 @@ export class TaskService {
       contextKey: opts?.contextKey ?? null,
       priority: 0,
       context: opts?.context,
+      traceId: opts?.traceId ?? null,
+      parentTaskId: opts?.parentTaskId ?? null,
     });
   }
 
@@ -206,6 +215,8 @@ export class TaskService {
       {
         contextKey: original.contextKey ?? null,
         context: original.context as Record<string, unknown> | undefined,
+        traceId: original.traceId ?? null,
+        parentTaskId: original.parentTaskId ?? null,
       },
     );
 
@@ -267,6 +278,8 @@ export class TaskService {
     try {
       const contextKey = conversationId;
       const attachmentIds = activated.attachmentIds ? JSON.parse(activated.attachmentIds) as string[] : [];
+      const latestTask = await taskQueries.getLatestTaskForConversation(this.db, conversationId);
+      const traceId = latestTask?.traceId ?? null;
       const task = await this.enqueueTask(
         conversation.agentId,
         conversationId,
@@ -276,6 +289,8 @@ export class TaskService {
         {
           contextKey,
           context: attachmentIds.length > 0 ? { attachment_ids: attachmentIds } : undefined,
+          traceId,
+          parentTaskId: null,
         },
       );
 

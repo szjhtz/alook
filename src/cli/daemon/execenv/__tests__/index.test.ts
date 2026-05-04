@@ -103,6 +103,7 @@ describe("prepare", () => {
       ALOOK_AGENT_ID: "a1",
       ALOOK_TASK_ID: "t1",
       ALOOK_CONVERSATION_ID: "c1",
+      ALOOK_TRACE_ID: "",
       ALOOK_HEALTH_PORT: expect.any(String),
     });
   });

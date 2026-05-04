@@ -9,6 +9,7 @@ vi.mock("@alook/shared", () => ({
     CALENDAR_EVENT: "calendar_event",
     KILL_TASK: "kill_task",
   },
+  MAX_TASKS_PER_TRACE: 256,
   queries: {
     task: {
       createTask: vi.fn(),
@@ -20,6 +21,8 @@ vi.mock("@alook/shared", () => ({
       markFailedAsSuperseded: vi.fn(),
       getTask: vi.fn(),
       countRunningTasks: vi.fn(),
+      countTasksByTrace: vi.fn().mockResolvedValue(0),
+      getLatestTaskForConversation: vi.fn().mockResolvedValue(null),
       listPendingTasksByRuntimes: vi.fn(),
       claimKillTasks: vi.fn().mockResolvedValue([]),
       getActiveTaskByConversation: vi.fn(),
@@ -116,6 +119,9 @@ describe("TaskService", () => {
         type: "user_dm_message",
         contextKey: null,
         priority: 0,
+        context: undefined,
+        traceId: null,
+        parentTaskId: null,
       });
       expect(result).toEqual({ id: "t1" });
     });

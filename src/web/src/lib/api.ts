@@ -896,3 +896,47 @@ export const deleteMeeting = (agentId: string, meetingId: string, workspaceId: s
   apiFetch<void>(`/api/agents/${agentId}/meetings/${meetingId}${wsQuery(workspaceId)}`, {
     method: "DELETE",
   });
+
+// Traces
+export interface TraceListItem {
+  trace_id: string;
+  root_prompt: string;
+  root_agent_id: string;
+  root_agent: { name: string; avatarUrl: string | null } | null;
+  helper_agents: { id: string; name?: string; avatarUrl?: string | null }[];
+  status: string;
+  task_count: number;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface TraceTask {
+  id: string;
+  agent_id: string;
+  agent: { name: string; email_handle: string | null; avatarUrl: string | null } | null;
+  parent_task_id: string | null;
+  prompt: string;
+  status: string;
+  type: string;
+  conversation_id: string;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export const listTraces = (
+  workspaceId: string,
+  opts?: { status?: string; limit?: number; before?: string }
+) => {
+  const extra: Record<string, string> = {};
+  if (opts?.limit) extra.limit = String(opts.limit);
+  if (opts?.before) extra.before = opts.before;
+  if (opts?.status) extra.status = opts.status;
+  return apiFetch<{ traces: TraceListItem[]; has_more: boolean }>(
+    `/api/traces${wsQuery(workspaceId, extra)}`
+  );
+};
+
+export const getTrace = (traceId: string, workspaceId: string) =>
+  apiFetch<{ trace_id: string; tasks: TraceTask[] }>(
+    `/api/traces/${traceId}${wsQuery(workspaceId)}`
+  );
