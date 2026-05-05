@@ -1341,7 +1341,7 @@ export function AgentChatView() {
             <div className="relative">
               <div
                 aria-hidden
-                className="mention-backdrop absolute inset-0 px-3.5 py-2.5 text-base leading-normal whitespace-pre-wrap wrap-break-word pointer-events-none overflow-hidden"
+                className="mention-backdrop absolute inset-0 px-3.5 py-2.5 text-base leading-normal whitespace-pre-wrap wrap-break-word pointer-events-none overflow-y-auto thin-scrollbar"
                 dangerouslySetInnerHTML={{
                   __html: input
                     ? highlightMentions(
@@ -1357,7 +1357,15 @@ export function AgentChatView() {
               <textarea
                 ref={textareaRef}
                 value={input}
-                onChange={(e) => { setInput(e.target.value); setCaretIndex(e.target.selectionStart); }}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  setCaretIndex(e.target.selectionStart);
+                  // Sync backdrop scroll after content change (handles paste/delete resize)
+                  requestAnimationFrame(() => {
+                    const backdrop = e.target.previousElementSibling as HTMLElement | null;
+                    if (backdrop) backdrop.scrollTop = e.target.scrollTop;
+                  });
+                }}
                 onKeyDown={handleKeyDown}
                 onKeyUp={(e) => setCaretIndex((e.target as HTMLTextAreaElement).selectionStart)}
                 onClick={(e) => setCaretIndex((e.target as HTMLTextAreaElement).selectionStart)}
