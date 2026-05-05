@@ -174,7 +174,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const isHome = pathname === `${prefix}/home`;
   const isRuntimes = pathname === `${prefix}/runtimes`;
   const isCalendar = pathname === `${prefix}/calendar`;
-  const isTraces = pathname.startsWith(`${prefix}/traces`);
+  const isTraces = pathname.startsWith(`${prefix}/threads`);
   const isSettings = pathname === `${prefix}/settings`;
   const isCreateAgent = pathname === `${prefix}/agents/new`;
 
@@ -265,7 +265,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           <TooltipTrigger render={
             <button
               type="button"
-              onClick={() => { router.push(`${prefix}/traces`); onNavigate?.(); }}
+              onClick={() => { router.push(`${prefix}/threads`); onNavigate?.(); }}
               className={cn(
                 "flex items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer",
                 "text-muted-foreground hover:text-foreground hover:bg-accent",

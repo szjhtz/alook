@@ -18,7 +18,7 @@ export function MobileTopBar() {
   const { agents, pins, unpinnedOrder, runtimes, loading } = useAgentContext();
 
   const isHomeActive = pathname === `/w/${slug}/home`;
-  const isTracesActive = pathname.includes("/traces");
+  const isTracesActive = pathname.includes("/threads");
   const activeAgentMatch = pathname.match(/^\/w\/[^/]+\/agents\/([^/]+)/);
   const activeAgentId = activeAgentMatch?.[1] ?? null;
 
@@ -73,7 +73,7 @@ export function MobileTopBar() {
       </button>
 
       <button
-        onClick={() => router.push(`/w/${slug}/traces`)}
+        onClick={() => router.push(`/w/${slug}/threads`)}
         aria-label="Traces"
         className={cn(
           "shrink-0 p-1 rounded-md transition-colors",

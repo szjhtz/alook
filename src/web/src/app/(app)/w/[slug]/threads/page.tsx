@@ -21,7 +21,7 @@ import { AvatarRenderer, parseAvatarUrl } from "@/components/avatar";
 const TRACE_LIMIT = 30;
 
 const STATUS_OPTIONS = [
-  { label: "All", value: "" },
+  { label: "All", value: "all" },
   { label: "Active", value: "active" },
   { label: "Completed", value: "completed" },
   { label: "Failed", value: "failed" },
@@ -89,7 +89,7 @@ function TraceRow({ trace, slug }: { trace: TraceListItem; slug: string }) {
 
   return (
     <Link
-      href={`/w/${slug}/traces/${trace.trace_id}`}
+      href={`/w/${slug}/threads/${trace.trace_id}`}
       className="block px-4 py-3 border-b border-border/30 hover:bg-accent/30 transition-colors duration-150 cursor-pointer"
     >
       <div className="flex items-center gap-2">
@@ -183,7 +183,7 @@ export default function TracesPage() {
     try {
       const result = await listTraces(workspaceId, {
         limit: TRACE_LIMIT,
-        status: statusFilter || undefined,
+        status: statusFilter === "all" ? undefined : statusFilter || undefined,
         multiAgent: true,
         agentId: agentFilter || undefined,
         channel: channelFilter || undefined,
@@ -216,7 +216,7 @@ export default function TracesPage() {
       const result = await listTraces(workspaceId, {
         limit: TRACE_LIMIT,
         before: oldest.started_at,
-        status: statusFilter || undefined,
+        status: statusFilter === "all" ? undefined : statusFilter || undefined,
         multiAgent: true,
         agentId: agentFilter || undefined,
         channel: channelFilter || undefined,
@@ -254,7 +254,7 @@ export default function TracesPage() {
       } else {
         newParams.delete(key);
       }
-      const pathname = `/w/${slug}/traces`;
+      const pathname = `/w/${slug}/threads`;
       const qs = newParams.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
