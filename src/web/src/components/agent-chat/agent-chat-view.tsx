@@ -1467,6 +1467,7 @@ export function AgentChatView() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
+                      onPointerDown={(e) => e.preventDefault()}
                       onClick={() => fileInputRef.current?.click()}
                       disabled={sending}
                       className="rounded-lg text-muted-foreground/60 hover:text-foreground transition-colors duration-200"
@@ -1482,6 +1483,7 @@ export function AgentChatView() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        onPointerDown={(e) => e.preventDefault()}
                         onClick={toggleSpeech}
                         disabled={sending}
                         className={cn(
