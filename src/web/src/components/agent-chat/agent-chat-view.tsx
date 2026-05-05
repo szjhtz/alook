@@ -468,7 +468,7 @@ export function AgentChatView() {
   const oldestConvIdRef = useRef<string | null>(null);
   const oldestConvCreatedAtRef = useRef<string | null>(null);
 
-  const loadOlderMessages = useCallback(async () => {
+  const loadOlderMessages = useCallback(async (scrollToEnd = false) => {
     if (!conversation || loadingMoreRef.current) return;
 
     const currentMessages = messagesRef.current;
@@ -507,7 +507,7 @@ export function AgentChatView() {
     loadingMoreRef.current = true;
     setLoadingMore(true);
     const el = scrollRef.current;
-    const wasOverflowing = el ? el.scrollHeight > el.clientHeight : false;
+    if (el) el.style.overflowAnchor = "none";
     const prevScrollHeight = el?.scrollHeight ?? 0;
 
     try {
@@ -582,11 +582,11 @@ export function AgentChatView() {
       flushSync(() => setLoadingMore(false));
 
       if (el) {
-        if (wasOverflowing) {
+        if (scrollToEnd) {
+          el.scrollTop = el.scrollHeight;
+        } else {
           const newScrollHeight = el.scrollHeight;
           el.scrollTop = newScrollHeight - prevScrollHeight;
-        } else {
-          el.scrollTop = el.scrollHeight;
         }
       }
     } catch {
@@ -594,6 +594,7 @@ export function AgentChatView() {
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);
+      if (scrollRef.current) scrollRef.current.style.overflowAnchor = "";
     }
   }, [conversation, workspaceId, agentId]);
 
@@ -605,7 +606,7 @@ export function AgentChatView() {
     if (!el) return;
     const raf = requestAnimationFrame(() => {
       if (el.scrollHeight <= el.clientHeight) {
-        loadOlderMessages();
+        loadOlderMessages(true);
       }
     });
     return () => cancelAnimationFrame(raf);
@@ -1110,7 +1111,7 @@ export function AgentChatView() {
     <>
       {/* Messages */}
       <div
-        className="flex-1 overflow-y-auto overflow-x-hidden px-3 md:px-5 thin-scrollbar [overflow-anchor:none]"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-3 md:px-5 thin-scrollbar"
         ref={scrollRef}
         onScroll={handleScroll}
         onClick={(e) => {
