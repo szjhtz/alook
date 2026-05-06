@@ -123,22 +123,81 @@ type TimelineItem =
   | { kind: "artifact"; data: Artifact }
   | { kind: "nap"; data: NapMarker };
 
-export function buildTimeline(messages: Message[], artifacts: Artifact[], napMarkers: NapMarker[]): TimelineItem[] {
-  const items: TimelineItem[] = [
-    ...messages.map((m): TimelineItem => ({ kind: "message", data: m })),
-    ...artifacts.map((a): TimelineItem => ({ kind: "artifact", data: a })),
-    ...napMarkers.map((n): TimelineItem => ({ kind: "nap", data: n })),
-  ];
-  return items.sort((a, b) => {
-    const cmp = a.data.created_at.localeCompare(b.data.created_at);
-    if (cmp !== 0) return cmp;
-    if (a.kind === "nap" || b.kind === "nap") {
-      if (a.kind === "nap" && b.kind !== "nap") return 1;
-      if (a.kind !== "nap" && b.kind === "nap") return -1;
+export function buildTimeline(
+  messages: Message[],
+  artifacts: Artifact[],
+  napMarkers: NapMarker[],
+  currentConversationId?: string | null,
+): TimelineItem[] {
+  if (!currentConversationId || napMarkers.length === 0) {
+    const items: TimelineItem[] = [
+      ...messages.map((m): TimelineItem => ({ kind: "message", data: m })),
+      ...artifacts.map((a): TimelineItem => ({ kind: "artifact", data: a })),
+      ...napMarkers.map((n): TimelineItem => ({ kind: "nap", data: n })),
+    ];
+    return items.sort((a, b) => {
+      const cmp = a.data.created_at.localeCompare(b.data.created_at);
+      if (cmp !== 0) return cmp;
+      if (a.kind === "nap" || b.kind === "nap") {
+        if (a.kind === "nap" && b.kind !== "nap") return 1;
+        if (a.kind !== "nap" && b.kind === "nap") return -1;
+      }
+      if (a.kind !== b.kind) return a.kind === "message" ? -1 : 1;
+      return a.data.id.localeCompare(b.data.id);
+    });
+  }
+
+  const napConvIds = new Set(napMarkers.map((n) => n.id.replace(/^nap-/, "")));
+  const sortedNaps = [...napMarkers].sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+  const groupItems = (convId: string): TimelineItem[] => {
+    const msgs: TimelineItem[] = messages
+      .filter((m) => m.conversation_id === convId)
+      .map((m) => ({ kind: "message" as const, data: m }));
+    const arts: TimelineItem[] = artifacts
+      .filter((a) => a.conversation_id === convId)
+      .map((a) => ({ kind: "artifact" as const, data: a }));
+    return [...msgs, ...arts].sort((a, b) => {
+      const cmp = a.data.created_at.localeCompare(b.data.created_at);
+      if (cmp !== 0) return cmp;
+      if (a.kind !== b.kind) return a.kind === "message" ? -1 : 1;
+      return a.data.id.localeCompare(b.data.id);
+    });
+  };
+
+  const result: TimelineItem[] = [];
+
+  for (const nap of sortedNaps) {
+    const convId = nap.id.replace(/^nap-/, "");
+    result.push(...groupItems(convId));
+    result.push({ kind: "nap", data: nap });
+  }
+
+  result.push(...groupItems(currentConversationId));
+
+  const knownConvIds = new Set([...napConvIds, currentConversationId]);
+  const orphanMsgs = messages.filter((m) => !knownConvIds.has(m.conversation_id));
+  const orphanArts = artifacts.filter((a) => !knownConvIds.has(a.conversation_id));
+  if (orphanMsgs.length > 0 || orphanArts.length > 0) {
+    const orphanItems: TimelineItem[] = [
+      ...orphanMsgs.map((m): TimelineItem => ({ kind: "message", data: m })),
+      ...orphanArts.map((a): TimelineItem => ({ kind: "artifact", data: a })),
+    ];
+    orphanItems.sort((a, b) => {
+      const cmp = a.data.created_at.localeCompare(b.data.created_at);
+      if (cmp !== 0) return cmp;
+      if (a.kind !== b.kind) return a.kind === "message" ? -1 : 1;
+      return a.data.id.localeCompare(b.data.id);
+    });
+    const napIdx = result.findIndex((item) => item.kind === "nap");
+    if (napIdx >= 0) {
+      result.splice(napIdx, 0, ...orphanItems);
+    } else {
+      result.push(...orphanItems);
     }
-    if (a.kind !== b.kind) return a.kind === "message" ? -1 : 1;
-    return a.data.id.localeCompare(b.data.id);
-  });
+  }
+
+  return result;
 }
 
 function useLatest<T>(value: T) {
@@ -282,7 +341,7 @@ export function AgentChatView() {
 
   const agentArtifacts = useMemo(() => artifacts.filter((a) => a.source === "agent"), [artifacts]);
 
-  const timeline = useMemo(() => buildTimeline(messages, agentArtifacts, napMarkers), [messages, agentArtifacts, napMarkers]);
+  const timeline = useMemo(() => buildTimeline(messages, agentArtifacts, napMarkers, conversation?.id), [messages, agentArtifacts, napMarkers, conversation?.id]);
 
   const handleArtifactClick = useCallback((artifact: Artifact) => {
     if (isPreviewable(artifact)) {
