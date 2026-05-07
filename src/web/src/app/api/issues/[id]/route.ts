@@ -25,6 +25,12 @@ export const GET = withAuth(async (req: NextRequest, ctx) => {
   const agentId = req.nextUrl.searchParams.get("agentId");
   if (agentId && issue.agentId !== agentId) return writeError("issue does not belong to agent", 403);
 
+  let traceId: string | null = null;
+  if (issue.latestTaskId) {
+    const task = await queries.task.getTask(db, issue.latestTaskId, ws.workspaceId);
+    traceId = task?.traceId ?? null;
+  }
+
   const messages = await queries.issue.listIssueMessages(db, id, ws.workspaceId);
   const artifacts = await queries.artifact.listArtifactsByConversation(
     db,
@@ -32,7 +38,7 @@ export const GET = withAuth(async (req: NextRequest, ctx) => {
     ws.workspaceId,
   );
   return writeJSON({
-    issue: issueToResponse(issue),
+    issue: { ...issueToResponse(issue), trace_id: traceId },
     messages: (messages ?? []).map(messageToResponse),
     artifacts: artifacts.map(queries.artifact.artifactToResponse),
   });

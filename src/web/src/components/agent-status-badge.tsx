@@ -28,6 +28,12 @@ function StatusDot({ online }: { online: boolean }) {
   );
 }
 
+function taskDisplayTitle(prompt: string): string {
+  const match = prompt.match(/^Issue\s+iss_\w+:\s*(.+)/);
+  if (match) return match[1].split("\n")[0];
+  return prompt.split("\n")[0];
+}
+
 function TaskRow({ task, slug, agentId }: { task: WorkspaceActiveTask; slug: string; agentId: string }) {
   const isRunning = task.status === "running";
   return (
@@ -42,12 +48,7 @@ function TaskRow({ task, slug, agentId }: { task: WorkspaceActiveTask; slug: str
         )}
       />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-muted-foreground shrink-0">
-            #{task.channel ?? "default"}
-          </span>
-        </div>
-        <p className="text-xs truncate">{task.prompt}</p>
+        <p className="text-xs truncate">{taskDisplayTitle(task.prompt)}</p>
       </div>
       <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
         {relativeTime(task.created_at)}
@@ -113,7 +114,7 @@ export function AgentStatusBadge({ isOnline, taskCount, agentId }: AgentStatusBa
           <span className="hidden sm:inline">Online</span>
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-0">
+      <PopoverContent className="w-72 p-1">
         {loadingTasks ? (
           <div className="p-2 space-y-1">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -132,7 +133,7 @@ export function AgentStatusBadge({ isOnline, taskCount, agentId }: AgentStatusBa
         ) : !tasks || tasks.length === 0 ? (
           <div className="p-3 text-xs text-muted-foreground">No active tasks</div>
         ) : (
-          <div className="py-1 max-h-[300px] overflow-y-auto">
+          <div className="max-h-[300px] overflow-y-auto">
             {tasks.slice(0, MAX_VISIBLE_TASKS).map((task) => (
               <TaskRow key={task.id} task={task} slug={slug} agentId={agentId} />
             ))}

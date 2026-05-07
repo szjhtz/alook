@@ -637,7 +637,7 @@ export const deleteCalendarEvent = (
 
 // Issues
 export interface IssueDetailResponse {
-  issue: Issue;
+  issue: Issue & { trace_id?: string | null };
   messages: Message[];
   artifacts: Artifact[];
 }

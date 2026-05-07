@@ -50,6 +50,18 @@ interface AgentCreateFormProps {
 const INITIAL_AVATAR: AvatarConfig = { shape: "circle", eye: "dots", nose: "dot", bg: 0 };
 
 async function runTour() {
+  const waitForElement = (selector: string, timeout = 3000) =>
+    new Promise<void>((resolve) => {
+      if (document.querySelector(selector)) { resolve(); return; }
+      const ob = new MutationObserver(() => {
+        if (document.querySelector(selector)) { ob.disconnect(); resolve(); }
+      });
+      ob.observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => { ob.disconnect(); resolve(); }, timeout);
+    });
+
+  await waitForElement("#agent-name");
+
   const { driver } = await import("driver.js");
   await import("driver.js/dist/driver.css");
 

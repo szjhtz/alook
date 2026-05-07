@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, CheckCircle2, ExternalLink, File as FileIcon, Loader2, MessageSquare, Plus, Trash2, X } from "lucide-react";
+import { Check, CheckCircle2, ExternalLink, File as FileIcon, GitBranch, Loader2, MessageSquare, Plus, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import type { Agent, Artifact, Issue, Message, WsMessage } from "@alook/shared";
 import { useWorkspace } from "@/contexts/workspace-context";
@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -78,35 +77,6 @@ function AgentIdentity({ agent, muted = false }: { agent: Agent; muted?: boolean
         <div className={cn("truncate text-sm font-medium", muted && "text-muted-foreground")}>{agent.name}</div>
         {email ? (
           <div className="truncate text-xs text-muted-foreground">{email}</div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function BoardAgentCell({
-  agent,
-}: {
-  agent: Agent;
-}) {
-  const email = agent.email_handle ? `${agent.email_handle}@alook.ai` : "";
-  const isOnline = agent.status === "working" || agent.status === "idle";
-
-  return (
-    <div className="flex min-w-0 items-center gap-3 bg-background/25 px-3 py-3">
-      <div className="relative shrink-0">
-        <AgentAvatar agent={agent} size={32} />
-        <span className={cn(
-          "absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-background",
-          agent.status === "working" ? "bg-amber-400" : isOnline ? "bg-emerald-500" : "bg-muted-foreground/40"
-        )} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{agent.name}</div>
-        {email ? (
-          <div className="truncate text-[11px] text-muted-foreground">{email}</div>
-        ) : agent.description ? (
-          <div className="line-clamp-1 text-[11px] text-muted-foreground">{agent.description}</div>
         ) : null}
       </div>
     </div>
@@ -182,6 +152,13 @@ function IssueCard({
 }
 
 function MessageRow({ message }: { message: Message }) {
+  if (message.role === "event") {
+    return (
+      <div className="rounded-md border bg-muted/50 text-muted-foreground text-xs px-3 py-2">
+        {message.content}
+      </div>
+    );
+  }
   return (
     <div className="rounded-lg border border-border/60 bg-background/55 p-3">
       <div className="mb-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -195,22 +172,24 @@ function MessageRow({ message }: { message: Message }) {
   );
 }
 
-function AttachmentList({ artifacts }: { artifacts: Artifact[] }) {
+function AttachmentList({ artifacts, workspaceId }: { artifacts: Artifact[]; workspaceId: string }) {
   if (artifacts.length === 0) return null;
 
   return (
-    <div>
-      <div className="flex flex-wrap gap-2">
-        {artifacts.map((artifact) => (
-          <div key={artifact.id} className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border/60 bg-background/55 px-3 py-2 text-sm sm:max-w-72">
-            <FileIcon className="size-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">{artifact.filename}</div>
-              <div className="text-xs text-muted-foreground">{formatFileSize(artifact.size)}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="space-y-1">
+      {artifacts.map((artifact) => (
+        <a
+          key={artifact.id}
+          href={`/api/artifacts/${artifact.id}/content?workspace_id=${workspaceId}&download=1`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+        >
+          <FileIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate">{artifact.filename}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">{formatFileSize(artifact.size)}</span>
+        </a>
+      ))}
     </div>
   );
 }
@@ -224,7 +203,7 @@ export default function IssuesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [assigneeOpen, setAssigneeOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<{ issue: Issue; messages: Message[]; artifacts: Artifact[] } | null>(null);
+  const [detail, setDetail] = useState<{ issue: Issue & { trace_id?: string | null }; messages: Message[]; artifacts: Artifact[] } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", agentId: "" });
 
@@ -302,6 +281,7 @@ export default function IssuesPage() {
       }
       if (msg.type === "task.updated" && (msg.status === "running" || msg.status === "completed" || msg.status === "failed")) {
         reload();
+        if (selectedId) openIssue(selectedId);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -363,8 +343,6 @@ export default function IssuesPage() {
             <span>{activeCount} active</span>
             <span className="text-border">/</span>
             <span>{completedIssues.length} completed</span>
-            <span className="text-border">/</span>
-            <span>{agents.length} agents</span>
           </div>
         </div>
         <Dialog
@@ -478,46 +456,42 @@ export default function IssuesPage() {
 
       <div className="hidden min-h-0 flex-1 grid-cols-[minmax(0,1fr)_300px] lg:grid">
         <div className="min-w-0 overflow-x-auto overflow-y-auto thin-scrollbar p-4">
-          <div className="min-w-190 overflow-hidden rounded-lg border border-border/60 bg-card/60">
-            <div className="grid grid-cols-[240px_repeat(3,minmax(180px,1fr))] border-b border-border/60 bg-muted/30 text-xs font-medium text-muted-foreground">
-              <div className="px-3 py-2">Agent</div>
-              {ACTIVE_COLUMNS.map((col) => (
-                <div key={col.id} className="flex items-center justify-between border-l border-border/60 px-3 py-2">
-                  <span>{col.label}</span>
-                  <span>{activeIssues.filter((issue) => issue.status === col.id).length}</span>
-                </div>
-              ))}
+          {boardLoading ? (
+            <div className="grid grid-cols-3 gap-4">
+              {Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
             </div>
-            {boardLoading ? (
-              <div className="grid grid-cols-[240px_repeat(3,minmax(180px,1fr))] gap-0 p-3">
-                {Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} className="m-2 h-20" />)}
+          ) : activeIssues.length === 0 ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">No active issues. Create one to get started.</p>
               </div>
-            ) : agents.length === 0 ? (
-              <div className="p-8 text-sm text-muted-foreground">No agents in this workspace.</div>
-            ) : (
-              agents.map((agent) => (
-                <div key={agent.id} className="grid min-h-24 grid-cols-[240px_repeat(3,minmax(180px,1fr))] border-b border-border/40 last:border-b-0">
-                  <BoardAgentCell agent={agent} />
-                  {ACTIVE_COLUMNS.map((col) => {
-                    const columnIssues = activeIssues.filter((issue) => issue.agent_id === agent.id && issue.status === col.id);
-                    return (
-                      <div key={col.id} className="min-h-24 space-y-2 border-l border-border/40 p-2">
-                        {columnIssues.length === 0 ? (
-                          <div className="flex h-full min-h-14 items-center justify-center rounded-lg border border-dashed border-border/45 text-xs text-muted-foreground/70">
-                            Empty
-                          </div>
-                        ) : (
-                          columnIssues.map((issue) => (
-                            <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} />
-                          ))
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="grid h-full grid-cols-3 gap-4">
+              {ACTIVE_COLUMNS.map((col) => {
+                const columnIssues = activeIssues.filter((issue) => issue.status === col.id);
+                return (
+                  <div key={col.id} className="flex min-h-0 flex-col rounded-lg border border-border/60 bg-card/60">
+                    <div className="flex shrink-0 items-center justify-between border-b border-border/60 bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground">
+                      <span>{col.label}</span>
+                      <span>{columnIssues.length}</span>
+                    </div>
+                    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto thin-scrollbar p-2">
+                      {columnIssues.length === 0 ? (
+                        <div className="flex h-full min-h-20 items-center justify-center rounded-lg border border-dashed border-border/45 text-xs text-muted-foreground/70">
+                          Empty
+                        </div>
+                      ) : (
+                        columnIssues.map((issue) => (
+                          <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agentName={agentName(issue.agent_id)} />
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <aside className="min-h-0 border-l border-border/60 bg-muted/20">
@@ -549,39 +523,28 @@ export default function IssuesPage() {
           <div className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-28" />)}
           </div>
-        ) : agents.length === 0 ? (
-          <div className="rounded-lg border border-border/60 bg-card/60 p-8 text-center text-sm text-muted-foreground">No agents in this workspace.</div>
+        ) : activeIssues.length === 0 ? (
+          <div className="flex h-full items-center justify-center">
+            <p className="text-sm text-muted-foreground">No active issues. Create one to get started.</p>
+          </div>
         ) : (
           <div className="space-y-4">
-            {agents.map((agent) => {
-              const agentIssues = activeIssues.filter((issue) => issue.agent_id === agent.id);
+            {ACTIVE_COLUMNS.map((col) => {
+              const columnIssues = activeIssues.filter((issue) => issue.status === col.id);
               return (
-                <section key={agent.id} className="rounded-lg border border-border/60 bg-card/60">
-                  <div className="flex items-center justify-between gap-3 border-b border-border/50 px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <AgentIdentity agent={agent} />
-                    </div>
-                    <Badge variant="outline" className="shrink-0">{agentIssues.length} active</Badge>
+                <section key={col.id} className="rounded-lg border border-border/60 bg-card/60">
+                  <div className="flex items-center justify-between border-b border-border/50 px-3 py-2 text-sm font-medium">
+                    <span>{col.label}</span>
+                    <Badge variant="outline">{columnIssues.length}</Badge>
                   </div>
-                  <div className="space-y-3 p-3">
-                    {ACTIVE_COLUMNS.map((col) => {
-                      const columnIssues = agentIssues.filter((issue) => issue.status === col.id);
-                      return (
-                        <div key={col.id} className="space-y-2">
-                          <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
-                            <span>{col.label}</span>
-                            <span>{columnIssues.length}</span>
-                          </div>
-                          {columnIssues.length === 0 ? (
-                            <div className="rounded-lg border border-dashed border-border/45 px-3 py-4 text-center text-xs text-muted-foreground/70">Empty</div>
-                          ) : (
-                            columnIssues.map((issue) => (
-                              <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} compact />
-                            ))
-                          )}
-                        </div>
-                      );
-                    })}
+                  <div className="space-y-2 p-3">
+                    {columnIssues.length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-border/45 px-3 py-4 text-center text-xs text-muted-foreground/70">Empty</div>
+                    ) : (
+                      columnIssues.map((issue) => (
+                        <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agentName={agentName(issue.agent_id)} compact />
+                      ))
+                    )}
                   </div>
                 </section>
               );
@@ -612,13 +575,15 @@ export default function IssuesPage() {
               {detailLoading || !detail ? (
                 <Skeleton className="h-5 w-56" />
               ) : (
-                <span className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2 mr-6">
                   <Badge variant={detail.issue.status === "in_progress" ? "default" : "outline"} className="shrink-0 text-[10px] px-1.5 py-0">
                     {detail.issue.status === "in_progress" && <Loader2 className="mr-1 size-3 animate-spin" />}
                     {statusLabel(detail.issue.status)}
                   </Badge>
-                  <span className="line-clamp-2 text-sm font-semibold">{detail.issue.title}</span>
-                </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">{detail.issue.title}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{agentName(detail.issue.agent_id)}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{formatDate(detail.issue.updated_at)}</span>
+                </div>
               )}
             </SheetTitle>
           </SheetHeader>
@@ -629,32 +594,34 @@ export default function IssuesPage() {
                 <Skeleton className="h-16" />
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="prose prose-sm dark:prose-invert max-w-none rounded-lg border border-border/60 bg-background/55 p-3">
-                  <Streamdown>{detail.issue.description || "No description."}</Streamdown>
-                </div>
-                <AttachmentList artifacts={detail.artifacts ?? []} />
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2 text-sm font-medium">
-                    <span className="flex items-center gap-2">
-                      <MessageSquare className="size-4 text-muted-foreground" />
-                      Conversation
-                    </span>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Link
-                            href={`/w/${slug}/agents/${detail.issue.agent_id}?conv=${detail.issue.conversation_id}`}
-                            aria-label="Open chat"
-                            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                          />
-                        }
-                      >
-                        <ExternalLink className="size-3.5" />
-                      </TooltipTrigger>
-                      <TooltipContent side="left">Open chat</TooltipContent>
-                    </Tooltip>
+              <div className="space-y-5">
+                {detail.issue.description && (
+                  <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
+                    <Streamdown>{detail.issue.description}</Streamdown>
                   </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  {detail.issue.trace_id && (
+                    <Link
+                      href={`/w/${slug}/threads/${detail.issue.trace_id}`}
+                      className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/55 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
+                      <GitBranch className="size-4" />
+                      <span>Thread</span>
+                      <ExternalLink className="ml-auto size-3.5" />
+                    </Link>
+                  )}
+                  <Link
+                    href={`/w/${slug}/agents/${detail.issue.agent_id}?conv=${detail.issue.conversation_id}${detail.issue.latest_task_id ? `&task=${detail.issue.latest_task_id}` : ""}`}
+                    className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/55 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    <MessageSquare className="size-4" />
+                    <span>Chat</span>
+                    <ExternalLink className="ml-auto size-3.5" />
+                  </Link>
+                </div>
+                <AttachmentList artifacts={detail.artifacts ?? []} workspaceId={workspaceId} />
+                <div className="space-y-2 border-t border-border/60 pt-4">
                   {detail.messages.length === 0 ? (
                     <div className="text-xs text-muted-foreground">No messages yet.</div>
                   ) : (

@@ -4,6 +4,7 @@ import { withAuth } from "@/lib/middleware/auth";
 import { writeJSON, writeError } from "@/lib/middleware/helpers";
 import { taskToResponse } from "@/lib/api/responses";
 import { TaskService } from "@/lib/services/task";
+import { broadcastToUser } from "@/lib/broadcast";
 
 export const POST = withAuth(async (_req, ctx) => {
   if (!ctx.workspaceId) {
@@ -21,6 +22,7 @@ export const POST = withAuth(async (_req, ctx) => {
   const taskService = new TaskService(db);
   try {
     const task = await taskService.startTask(taskId, ctx.workspaceId);
+    broadcastToUser(ctx.userId, { type: "task.updated", taskId, agentId: task.agentId, status: "running" }).catch(() => {});
     return writeJSON(taskToResponse(task));
   } catch (err: unknown) {
     return writeError(err instanceof Error ? err.message : "Unknown error", 400);
