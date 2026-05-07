@@ -9,14 +9,9 @@ interface EmailBodyFrameProps {
 }
 
 const SCROLLBAR_STYLES = `
-  html {
-    scrollbar-width: thin;
-    scrollbar-color: var(--sb-thumb, rgba(0,0,0,0.15)) transparent;
+  html, body {
+    overflow: hidden;
   }
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--sb-thumb, rgba(0,0,0,0.15)); border-radius: 2px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--sb-hover, rgba(0,0,0,0.3)); }
 `;
 
 const LIGHT_STYLES = `
