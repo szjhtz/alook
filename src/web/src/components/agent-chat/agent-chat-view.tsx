@@ -807,6 +807,10 @@ export function AgentChatView() {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
 
+            markInboxRead(conversationId, workspaceId)
+              .then(() => refreshInboxCount())
+              .catch(() => {});
+
             const shouldScroll = isNearBottom.current;
             try {
               const [latest, arts] = await Promise.all([
