@@ -228,7 +228,11 @@ export default function TracesPage() {
       setHasMore(result.has_more);
       setTraces((prev) => {
         const existingIds = new Set(prev.map((t) => t.trace_id));
-        const unique = result.traces.filter((t) => !existingIds.has(t.trace_id));
+        const unique = result.traces.filter((t) => {
+          if (existingIds.has(t.trace_id)) return false;
+          existingIds.add(t.trace_id);
+          return true;
+        });
         return [...prev, ...unique];
       });
     } finally {

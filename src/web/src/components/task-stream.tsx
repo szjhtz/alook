@@ -414,7 +414,7 @@ export function TaskStream({
           <Streamdown controls={{ code: { copy: true, download: false }, table: { copy: true, download: false, fullscreen: true } }} linkSafety={{ enabled: false }}>{textItems.map((item) => item.content).join("\n\n")}</Streamdown>
         </div>
       )}
-      {!isRunning && finalTextItem && (
+      {!isRunning && finalTextItem && !onExpandSteps && (
         <div className="markdown max-w-full min-w-0 px-1 py-1 text-base text-foreground">
           <Streamdown controls={{ code: { copy: true, download: false }, table: { copy: true, download: false, fullscreen: true } }} linkSafety={{ enabled: false }}>{finalTextItem.content}</Streamdown>
         </div>
