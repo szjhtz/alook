@@ -953,6 +953,10 @@
   color: transparent;
   -webkit-font-smoothing: antialiased;
 }
+.textarea-text-hidden::placeholder {
+  -webkit-text-fill-color: var(--muted-foreground);
+  color: var(--muted-foreground);
+}
 .chat-input-line-height {
   line-height: 24px;
 }
