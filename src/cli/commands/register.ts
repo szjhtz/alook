@@ -3,7 +3,7 @@ import { execSync } from "child_process";
 import { hostname } from "os";
 import { APIClient } from "../lib/client.js";
 import { loadCLIConfigForProfile, saveCLIConfigForProfile } from "../lib/config.js";
-import { cmdPrefix } from "../lib/env.js";
+import { cmdPrefix, isDev } from "../lib/env.js";
 import { readDaemonPid, isProcessAlive } from "../daemon/pidfile.js";
 
 interface MeResponse {
@@ -188,10 +188,11 @@ export function registerCommand(): Command {
           console.log(`\nDaemon is running but could not be notified. Restart it to pick up the new workspace.`);
         }
       } else {
+        const startCmd = isDev()
+          ? `${cmdPrefix()} daemon start --foreground`
+          : `${cmdPrefix()} daemon start`;
         console.log();
-        console.log(
-          `Run '${cmdPrefix()} daemon start --foreground' to start the daemon.`,
-        );
+        console.log(`Run '${startCmd}' to start the daemon.`);
       }
     });
 

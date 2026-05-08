@@ -46,8 +46,12 @@ export function ConnectMachineSteps({
     toast.success("Copied to clipboard");
   };
 
+  const daemonCmd = process.env.NODE_ENV === "development"
+    ? `${CLI_CMD} daemon start --foreground`
+    : `${CLI_CMD} daemon start`;
+
   const copyDaemon = () => {
-    navigator.clipboard.writeText(`${CLI_CMD} daemon start --foreground`);
+    navigator.clipboard.writeText(daemonCmd);
     toast.success("Copied to clipboard");
   };
 
@@ -110,7 +114,7 @@ export function ConnectMachineSteps({
           onClick={copyDaemon}
           title="Click to copy"
         >
-          {CLI_CMD} daemon start --foreground
+          {daemonCmd}
         </div>
         {registered && (
           <div className="pl-7">

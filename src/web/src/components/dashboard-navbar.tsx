@@ -124,11 +124,13 @@ function OnboardingSteps({
         <div
           className="ml-7 rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
           onClick={() =>
-            copyToClipboard(`${CLI_CMD} daemon start --foreground`)
+            copyToClipboard(process.env.NODE_ENV === "development"
+              ? `${CLI_CMD} daemon start --foreground`
+              : `${CLI_CMD} daemon start`)
           }
           title="Click to copy"
         >
-          {CLI_CMD} daemon start --foreground
+          {CLI_CMD} daemon start{process.env.NODE_ENV === "development" ? " --foreground" : ""}
         </div>
       </div>
     </div>
