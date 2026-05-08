@@ -60,7 +60,8 @@ function MentionHighlight(props: Record<string, unknown> & { children?: React.Re
   const agentId = (rest["data-agent-id"] ?? rest.dataAgentId) as string | undefined;
   let agent = agentId ? agents.find((a) => a.id === agentId) : undefined;
   if (!agent && typeof children === "string") {
-    agent = agents.find((a) => a.name.toLowerCase() === children.toLowerCase());
+    const nameToMatch = children.startsWith("@") ? children.slice(1) : children;
+    agent = agents.find((a) => a.name.toLowerCase() === nameToMatch.toLowerCase());
   }
   if (agent) {
     return (

@@ -24,12 +24,12 @@ const agent = (name: string, email_handle: string | null = null): Agent => ({
 describe("highlightMentions", () => {
   it("wraps basic @AgentName with data-agent-id", () => {
     const result = highlightMentions("Hey @TestBot do this", [agent("TestBot", "testbot")])
-    expect(result).toBe('Hey @<mention data-agent-id="ag_testbot">TestBot</mention> do this')
+    expect(result).toBe('Hey <mention data-agent-id="ag_testbot">@TestBot</mention> do this')
   })
 
   it("wraps only name portion of enriched form", () => {
     const result = highlightMentions("Hey @TestBot (testbot@alook.ai) do this", [agent("TestBot", "testbot")])
-    expect(result).toBe('Hey @<mention data-agent-id="ag_testbot">TestBot</mention> (testbot@alook.ai) do this')
+    expect(result).toBe('Hey <mention data-agent-id="ag_testbot">@TestBot</mention> (testbot@alook.ai) do this')
   })
 
   it("leaves non-matching @ as plain text", () => {
@@ -39,7 +39,7 @@ describe("highlightMentions", () => {
 
   it("wraps multiple mentions with correct agent ids", () => {
     const result = highlightMentions("@Alpha and @Beta", [agent("Alpha", "alpha"), agent("Beta", "beta")])
-    expect(result).toBe('@<mention data-agent-id="ag_alpha">Alpha</mention> and @<mention data-agent-id="ag_beta">Beta</mention>')
+    expect(result).toBe('<mention data-agent-id="ag_alpha">@Alpha</mention> and <mention data-agent-id="ag_beta">@Beta</mention>')
   })
 
   it("does not wrap unknown agent names", () => {
@@ -67,6 +67,6 @@ describe("highlightMentions", () => {
     const result = highlightMentions("@Alice talk to @Bob", agents)
     expect(result).toContain('data-agent-id="ag_alice"')
     expect(result).toContain('data-agent-id="ag_bob"')
-    expect(result).toBe('@<mention data-agent-id="ag_alice">Alice</mention> talk to @<mention data-agent-id="ag_bob">Bob</mention>')
+    expect(result).toBe('<mention data-agent-id="ag_alice">@Alice</mention> talk to <mention data-agent-id="ag_bob">@Bob</mention>')
   })
 })

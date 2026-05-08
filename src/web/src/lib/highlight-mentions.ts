@@ -62,8 +62,8 @@ export function highlightMentions(content: string, agents: Agent[]): string {
   let result = content
   for (let i = matches.length - 1; i >= 0; i--) {
     const m = matches[i]
-    const name = result.slice(m.start + 1, m.end)
-    result = result.slice(0, m.start) + `@<mention data-agent-id="${m.agentId}">${name}</mention>` + result.slice(m.end)
+    const name = result.slice(m.start, m.end)
+    result = result.slice(0, m.start) + `<mention data-agent-id="${m.agentId}">${name}</mention>` + result.slice(m.end)
   }
 
   return result

@@ -951,18 +951,18 @@
 .textarea-text-hidden {
   -webkit-text-fill-color: transparent;
   color: transparent;
+  -webkit-font-smoothing: antialiased;
 }
 .chat-input-line-height {
   line-height: 24px;
 }
 
-/* Mention highlight — underline + italic */
+/* Mention highlight — underline */
 .mention-highlight {
   text-decoration: underline;
   text-decoration-color: var(--foreground);
   text-underline-offset: 2px;
   text-decoration-thickness: 1.5px;
-  font-style: italic;
 }
 .markdown-user .mention-highlight {
   text-decoration-color: var(--primary-foreground);
