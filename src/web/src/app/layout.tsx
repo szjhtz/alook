@@ -56,8 +56,6 @@ const OG_IMAGE_URL = "/og?title=Your Personal Company";
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f5f0e8" },
