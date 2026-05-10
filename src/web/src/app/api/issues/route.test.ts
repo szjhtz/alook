@@ -104,7 +104,7 @@ describe("POST /api/issues", () => {
     const res = await POST(req, {} as any);
     expect(res.status).toBe(201);
     expect(mockCreateConversation).toHaveBeenCalledWith({}, expect.objectContaining({ type: "issue_event", agentId: "ag_1" }));
-    expect(mockEnqueueTask).toHaveBeenCalledWith("ag_1", "c1", "w1", expect.stringContaining("Fix"), "issue_event", expect.objectContaining({ contextKey: "iss_1" }));
+    expect(mockEnqueueTask).toHaveBeenCalledWith("ag_1", "c1", "w1", expect.stringContaining("Fix"), "issue_event", expect.objectContaining({ contextKey: "c1" }));
   });
 
   it("uploads attachments and includes attachment ids in the issue task context", async () => {
@@ -150,7 +150,7 @@ describe("POST /api/issues", () => {
       expect.stringContaining("Fix"),
       "issue_event",
       expect.objectContaining({
-        contextKey: "iss_1",
+        contextKey: "c1",
         context: expect.objectContaining({
           issue_id: "iss_1",
           attachment_ids: [expect.stringContaining("art_")],

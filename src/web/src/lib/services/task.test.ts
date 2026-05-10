@@ -45,6 +45,7 @@ vi.mock("@alook/shared", () => ({
     },
     issue: {
       getIssue: vi.fn(),
+      getIssueByConversation: vi.fn(),
       updateIssue: vi.fn(),
     },
   },
@@ -81,6 +82,7 @@ const conversationQ = (queries as any).conversation as {
 };
 const issueQ = (queries as any).issue as {
   getIssue: ReturnType<typeof vi.fn>;
+  getIssueByConversation: ReturnType<typeof vi.fn>;
   updateIssue: ReturnType<typeof vi.fn>;
 };
 
@@ -482,7 +484,7 @@ describe("TaskService", () => {
       taskQ.failTask.mockResolvedValue(task);
       taskQ.countRunningTasks.mockResolvedValue(0);
       agentQ.updateAgentStatus.mockResolvedValue(undefined);
-      issueQ.getIssue.mockResolvedValue({ id: "iss_1", status: "in_progress", conversationId: "c1" });
+      issueQ.getIssueByConversation.mockResolvedValue({ id: "iss_1", status: "in_progress", conversationId: "c1" });
       issueQ.updateIssue.mockResolvedValue({ id: "iss_1", status: "failed", conversationId: "c1" });
 
       await service.failTask("t1", "w1", "something went wrong");

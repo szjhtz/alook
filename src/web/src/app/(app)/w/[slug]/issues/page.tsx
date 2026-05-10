@@ -6,9 +6,9 @@ import { CircleDot, Eye, EyeOff, Loader2, Plus, Trash2 } from "lucide-react";
 import type { Agent, Artifact, Issue, IssueComment, Message, WsMessage } from "@alook/shared";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { useAgentContext } from "@/contexts/agent-context";
-import { createIssue, deleteIssue, getIssue, getTask, getTrace, getTaskMessages, listIssues, updateIssue } from "@/lib/api";
+import { createIssue, deleteIssue, getIssue, getTask, getTrace, listIssues, updateIssue } from "@/lib/api";
 import type { IssueListItem, TraceTask } from "@/lib/api";
-import type { TaskApi, TaskMessage } from "@alook/shared";
+import type { TaskApi } from "@alook/shared";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -245,11 +245,12 @@ export default function IssuesPage() {
   const [detail, setDetail] = useState<{ issue: Issue & { trace_id?: string | null }; messages: Message[]; comments: IssueComment[]; artifacts: Artifact[] } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [activeTask, setActiveTask] = useState<TaskApi | null>(null);
-  const [taskLatestText, setTaskLatestText] = useState<string>("");
   const [sidecarWidth, setSidecarWidth] = useState(SIDECAR_DEFAULT_WIDTH);
   const [traceTasks, setTraceTasks] = useState<TraceTask[] | null>(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const pendingStatusUpdate = useRef<string | null>(null);
+  const refreshSeqRef = useRef(0);
+  const selectedIdRef = useRef<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const agentsById = useMemo(() => new Map(agents.map(a => [a.id, a])), [agents]);
@@ -276,6 +277,7 @@ export default function IssuesPage() {
 
   async function openIssue(issueId: string) {
     setSelectedId(issueId);
+    selectedIdRef.current = issueId;
     setSheetOpen(true);
     setDetailLoading(true);
     setTraceTasks(null);
@@ -294,11 +296,35 @@ export default function IssuesPage() {
     }
   }
 
+  async function refreshIssue(issueId: string) {
+    const seq = ++refreshSeqRef.current;
+    try {
+      const res = await getIssue(workspaceId, issueId);
+      if (seq !== refreshSeqRef.current || selectedIdRef.current !== issueId) return;
+      setDetail(res);
+      if (res.issue.trace_id) {
+        getTrace(res.issue.trace_id, workspaceId)
+          .then(t => { if (seq === refreshSeqRef.current && selectedIdRef.current === issueId) setTraceTasks(t.tasks); })
+          .catch(() => {});
+      }
+      const taskId = res.issue.latest_task_id;
+      if (taskId) {
+        getTask(taskId, workspaceId)
+          .then(task => { if (seq === refreshSeqRef.current && selectedIdRef.current === issueId) setActiveTask(task); })
+          .catch(() => {});
+      }
+    } catch (err: any) {
+      if (err?.status === 404) {
+        handleSheetOpenChange(false);
+      }
+    }
+  }
+
   const detailConvId = detail?.issue.conversation_id ?? null;
   const detailTaskId = detail?.issue.latest_task_id ?? null;
 
   useEffect(() => {
-    if (!detailTaskId) { setActiveTask(null); setTaskLatestText(""); return; }
+    if (!detailTaskId) { setActiveTask(null); return; }
     let cancelled = false;
     getTask(detailTaskId, workspaceId).then((task) => {
       if (!cancelled) setActiveTask(task);
@@ -307,21 +333,10 @@ export default function IssuesPage() {
   }, [detailTaskId, workspaceId]);
 
   const isTaskActive = activeTask && !["completed", "failed", "cancelled", "superseded"].includes(activeTask.status);
+  const hasActiveTraceTasks = traceTasks?.some(t =>
+    ["queued", "dispatched", "running"].includes(t.status)
+  ) ?? false;
 
-  useEffect(() => {
-    if (!isTaskActive || !detailTaskId) return;
-    let cancelled = false;
-    const poll = () => {
-      getTaskMessages(detailTaskId, workspaceId).then((msgs) => {
-        if (cancelled) return;
-        const texts = msgs.filter((m: TaskMessage) => m.type === "text");
-        if (texts.length > 0) setTaskLatestText(texts[texts.length - 1].content);
-      }).catch(() => {});
-    };
-    poll();
-    const interval = setInterval(poll, 3000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [isTaskActive, detailTaskId, workspaceId]);
 
   useEffect(() => {
     return subscribeWs((msg: WsMessage) => {
@@ -350,7 +365,7 @@ export default function IssuesPage() {
       if (msg.type === "task.updated" && (msg.status === "running" || msg.status === "completed" || msg.status === "failed")) {
         if (!pendingStatusUpdate.current) {
           reload();
-          if (selectedId) openIssue(selectedId);
+          if (selectedId) refreshIssue(selectedId);
         }
         if (detailTaskId) {
           getTask(detailTaskId, workspaceId).then(setActiveTask).catch(() => {});
@@ -374,6 +389,7 @@ export default function IssuesPage() {
       if (values.agent_id) setRecentAgentId(values.agent_id);
       setDraft({ title: "", description: "", agentId: "" });
       setSelectedId(res.issue.id);
+      selectedIdRef.current = res.issue.id;
       openIssue(res.issue.id);
       toast.success("Issue created");
     } catch (err) {
@@ -426,6 +442,7 @@ export default function IssuesPage() {
       setIssues((prev) => prev.filter((i) => i.id !== issueId));
       if (selectedId === issueId) {
         setSelectedId(null);
+        selectedIdRef.current = null;
         setSheetOpen(false);
         setDetail(null);
       }
@@ -439,9 +456,9 @@ export default function IssuesPage() {
     setSheetOpen(open);
     if (!open) {
       setSelectedId(null);
+      selectedIdRef.current = null;
       setDetail(null);
       setActiveTask(null);
-      setTaskLatestText("");
       setTraceTasks(null);
     }
   }, []);
@@ -500,7 +517,7 @@ export default function IssuesPage() {
           <h1 className="text-base font-semibold tracking-normal">Issues</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" className="w-full sm:w-auto" onClick={() => { setSelectedId(null); setSheetOpen(true); }}>
+          <Button size="sm" className="w-full sm:w-auto" onClick={() => { setSelectedId(null); selectedIdRef.current = null; setSheetOpen(true); }}>
             <Plus className="size-4" />
             New issue
           </Button>
@@ -662,7 +679,6 @@ export default function IssuesPage() {
         detail={detail ? { messages: detail.messages, comments: detail.comments, artifacts: detail.artifacts, traceId: detail.issue.trace_id } : null}
         detailLoading={detailLoading}
         activeTask={activeTask}
-        taskLatestText={taskLatestText}
         traceTasks={traceTasks}
         submitting={creating}
         defaultAgentId={recentAgentId}

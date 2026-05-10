@@ -188,16 +188,16 @@ export class TaskService {
     task: { id: string; type?: string | null; contextKey?: string | null; workspaceId: string; conversationId: string },
     status: "failed",
   ) {
-    if (task.type !== TASK_TYPES.ISSUE_EVENT || !task.contextKey) return;
+    if (task.type !== TASK_TYPES.ISSUE_EVENT) return;
 
-    const issue = await issueQueries.getIssue(this.db, task.contextKey, task.workspaceId);
-    if (!issue || issue.conversationId !== task.conversationId || issue.status === status) return;
+    const issue = await issueQueries.getIssueByConversation(this.db, task.conversationId, task.workspaceId);
+    if (!issue || issue.status === status) return;
 
     const updated = await issueQueries.updateIssue(this.db, issue.id, task.workspaceId, { status });
     if (!updated) return;
 
     await messageQueries.createMessage(this.db, {
-      conversationId: issue.conversationId,
+      conversationId: task.conversationId,
       role: "event",
       content: `Issue status changed: ${issue.status} -> ${status}`,
       taskId: task.id,

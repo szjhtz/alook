@@ -90,7 +90,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
           prompt,
           TASK_TYPES.ISSUE_EVENT,
           {
-            contextKey: issue.id,
+            contextKey: issue.conversationId,
             context: { issue_id: issue.id },
             traceId: existingTraceId,
             parentTaskId: null,

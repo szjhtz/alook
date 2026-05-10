@@ -197,7 +197,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       prompt,
       TASK_TYPES.ISSUE_EVENT,
       {
-        contextKey: created.id,
+        contextKey: conversation.id,
         context: {
           issue_id: created.id,
           ...(artifactIds.length > 0 ? { attachment_ids: artifactIds } : {}),

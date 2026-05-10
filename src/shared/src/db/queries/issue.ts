@@ -43,6 +43,14 @@ export async function getIssue(db: Database, id: string, workspaceId: string) {
   return rows[0] ?? null;
 }
 
+export async function getIssueByConversation(db: Database, conversationId: string, workspaceId: string) {
+  const rows = await db
+    .select()
+    .from(issue)
+    .where(and(eq(issue.conversationId, conversationId), eq(issue.workspaceId, workspaceId)));
+  return rows[0] ?? null;
+}
+
 export async function listIssues(
   db: Database,
   workspaceId: string,

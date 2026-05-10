@@ -172,7 +172,6 @@ export interface IssueSheetProps {
   detail?: { messages: Message[]; comments: IssueComment[]; artifacts: Artifact[]; traceId?: string | null } | null;
   detailLoading?: boolean;
   activeTask?: TaskApi | null;
-  taskLatestText?: string;
   traceTasks?: TraceTask[] | null;
   submitting?: boolean;
   defaultAgentId?: string;
@@ -196,7 +195,6 @@ export function IssueSheet({
   detail,
   detailLoading,
   activeTask,
-  taskLatestText,
   traceTasks,
   submitting,
   defaultAgentId,
@@ -434,7 +432,6 @@ export function IssueSheet({
                     <div className="absolute -left-4 top-2.5 size-2.5 rounded-full border-2 border-background bg-emerald-500 animate-pulse" />
                     <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
                       <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">Working</div>
-                      {taskLatestText && <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{taskLatestText}</p>}
                     </div>
                   </div>
                 );
