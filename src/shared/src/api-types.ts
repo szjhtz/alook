@@ -93,6 +93,7 @@ export interface UpdateIssueRequest {
   title?: string;
   description?: string;
   status?: Issue["status"];
+  agent_id?: string;
 }
 
 export interface CreateIssueCommentRequest {

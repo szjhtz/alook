@@ -84,6 +84,8 @@ export async function updateIssue(
     description?: string;
     status?: IssueStatusType;
     latestTaskId?: string | null;
+    agentId?: string;
+    conversationId?: string;
   }
 ) {
   const now = new Date().toISOString();
@@ -95,6 +97,8 @@ export async function updateIssue(
     description?: string;
     status?: IssueStatusType;
     latestTaskId?: string | null;
+    agentId?: string;
+    conversationId?: string;
     updatedAt: string;
     completedAt?: string | null;
   } = { updatedAt: now };
@@ -102,6 +106,8 @@ export async function updateIssue(
   if (patch.description !== undefined) values.description = patch.description;
   if (patch.status !== undefined) values.status = patch.status;
   if (patch.latestTaskId !== undefined) values.latestTaskId = patch.latestTaskId;
+  if (patch.agentId !== undefined) values.agentId = patch.agentId;
+  if (patch.conversationId !== undefined) values.conversationId = patch.conversationId;
   if (terminal !== undefined) values.completedAt = terminal ? now : null;
   const rows = await db
     .update(issue)

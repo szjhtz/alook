@@ -3,14 +3,17 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import {
   CreateIssueCommentBodySchema,
   UpdateIssueRequestSchema,
+  TASK_TYPES,
   queries,
 } from "@alook/shared";
+import { nanoid } from "nanoid";
 import { getDb } from "@/lib/db";
 import { withAuth } from "@/lib/middleware/auth";
 import { withWorkspaceMember } from "@/lib/middleware/workspace";
 import { parseBody, writeError, writeJSON } from "@/lib/middleware/helpers";
-import { issueToResponse, messageToResponse } from "@/lib/api/responses";
+import { issueToResponse, messageToResponse, taskToResponse } from "@/lib/api/responses";
 import { TaskService } from "@/lib/services/task";
+import { broadcastToUser } from "@/lib/broadcast";
 import { log } from "@/lib/logger";
 
 export const GET = withAuth(async (req: NextRequest, ctx) => {
@@ -62,6 +65,75 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
 
   const [body, err] = await parseBody(req, UpdateIssueRequestSchema);
   if (err) return err;
+
+  // Dispatch-on-assign: assigning an agent to a todo draft issue
+  if (body.agent_id) {
+    if (existing.status !== "todo") {
+      return writeError("Agent assignment is only allowed for todo (draft) issues", 400);
+    }
+
+    const agent = await queries.agent.getAgent(db, body.agent_id, ws.workspaceId, ctx.userId);
+    if (!agent) return writeError("agent not found in workspace", 404);
+    if (!agent.ownerId) return writeError("agent has no owner", 400);
+
+    const conversation = await queries.conversation.createConversation(db, {
+      workspaceId: ws.workspaceId,
+      agentId: body.agent_id,
+      userId: ctx.userId,
+      title: `[Issue] ${existing.title}`.slice(0, 120),
+      type: TASK_TYPES.ISSUE_EVENT,
+    });
+
+    const updated = await queries.issue.updateIssue(db, id, ws.workspaceId, {
+      agentId: body.agent_id,
+      conversationId: conversation.id,
+      status: "in_progress",
+    });
+    if (!updated) return writeError("issue not found", 404);
+
+    await queries.message.createMessage(db, {
+      conversationId: conversation.id,
+      role: "event",
+      content: `Issue created: ${existing.title}`,
+      metadata: JSON.stringify({ issueId: existing.id }),
+    });
+
+    const prompt = existing.description.trim()
+      ? `${existing.title}\n\n${existing.description}`
+      : existing.title;
+
+    const taskService = new TaskService(db);
+    try {
+      const task = await taskService.enqueueTask(
+        body.agent_id,
+        conversation.id,
+        ws.workspaceId,
+        prompt,
+        TASK_TYPES.ISSUE_EVENT,
+        {
+          contextKey: conversation.id,
+          context: { issue_id: existing.id },
+          traceId: "tr_" + nanoid(),
+          parentTaskId: null,
+        }
+      );
+      const issue = await queries.issue.setLatestTask(db, id, ws.workspaceId, task.id) ?? updated;
+      broadcastToUser(ctx.userId, { type: "task.updated", taskId: task.id, agentId: task.agentId, status: "queued" }).catch(() => {});
+      return writeJSON({
+        ...issueToResponse(issue),
+        task: taskToResponse(task),
+      });
+    } catch (taskErr) {
+      await queries.issue.updateIssue(db, id, ws.workspaceId, { status: "todo" });
+      await queries.message.createMessage(db, {
+        conversationId: conversation.id,
+        role: "event",
+        content: `Issue dispatch failed: ${taskErr instanceof Error ? taskErr.message : "unknown error"}`,
+        metadata: JSON.stringify({ issueId: existing.id }),
+      });
+      return writeError(taskErr instanceof Error ? taskErr.message : "failed to dispatch issue", 500);
+    }
+  }
 
   const updated = await queries.issue.updateIssue(db, id, ws.workspaceId, {
     title: body.title,

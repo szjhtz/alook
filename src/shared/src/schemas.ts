@@ -367,12 +367,14 @@ export const UpdateIssueRequestSchema = z
     title: z.string().min(1).max(200).optional(),
     description: z.string().max(20_000).optional(),
     status: IssueStatusSchema.optional(),
+    agent_id: z.string().min(1).optional(),
   })
   .refine(
     (v) =>
       v.title !== undefined ||
       v.description !== undefined ||
-      v.status !== undefined,
+      v.status !== undefined ||
+      v.agent_id !== undefined,
     { message: "at least one field is required" }
   );
 export type UpdateIssueRequestInput = z.infer<typeof UpdateIssueRequestSchema>;

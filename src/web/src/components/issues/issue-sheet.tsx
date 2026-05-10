@@ -29,7 +29,9 @@ import { Streamdown } from "streamdown";
 import type { Agent, Artifact, Issue, IssueComment, Message, TaskApi } from "@alook/shared";
 import { isTerminalIssueStatus } from "@alook/shared";
 import type { TraceTask } from "@/lib/api";
+import { updateIssue } from "@/lib/api";
 import { AvatarRenderer, parseAvatarUrl } from "@/components/avatar";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 // --- Constants ---
 
@@ -185,6 +187,7 @@ export interface IssueSheetProps {
   onUpdate?: (issueId: string, patch: { title?: string; description?: string }) => void;
   onStatusChange?: (issueId: string, status: string) => Promise<void>;
   onCommented?: () => void;
+  onDispatched?: (issueId: string) => void;
 }
 
 export function IssueSheet({
@@ -208,6 +211,7 @@ export function IssueSheet({
   onUpdate,
   onStatusChange,
   onCommented,
+  onDispatched,
 }: IssueSheetProps) {
   const mode = issue ? "detail" : "create";
 
@@ -218,6 +222,8 @@ export function IssueSheet({
   const [assigneeOpen, setAssigneeOpen] = useState(false);
   const [commentContent, setCommentContent] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [confirmAgent, setConfirmAgent] = useState<Agent | null>(null);
+  const [dispatching, setDispatching] = useState(false);
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descriptionRef = useRef<HTMLDivElement>(null);
@@ -356,6 +362,8 @@ export function IssueSheet({
     }
   };
 
+  const isTodoDraft = mode === "detail" && issue?.status === "todo";
+
   const selectedAgent = agents.find((a) => a.id === agentId) ?? null;
   const detailAgent = issue?.agent_id ? agents.find((a) => a.id === issue.agent_id) ?? null : null;
 
@@ -443,7 +451,7 @@ export function IssueSheet({
     </>
   );
 
-  const commentInput = mode === "detail" && issue && !isTaskActive && !isTerminalIssueStatus(issue.status) ? (
+  const commentInput = mode === "detail" && issue && !isTodoDraft && !isTaskActive && !isTerminalIssueStatus(issue.status) ? (
     <div className="flex flex-col rounded-xl border bg-background/60 transition-colors duration-200 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
       <textarea
         ref={commentRef}
@@ -493,13 +501,13 @@ export function IssueSheet({
       <div className="shrink-0 space-y-1.5 px-2 sm:px-3 py-2">
         {/* Agent row */}
         <PropertyRow icon={<User className="size-3.5" />}>
-          {mode === "create" ? (
+          {mode === "create" || isTodoDraft ? (
             <Popover open={assigneeOpen} onOpenChange={setAssigneeOpen}>
               <PopoverTrigger
                 render={
                   <button
                     type="button"
-                    disabled={submitting}
+                    disabled={submitting || dispatching}
                     className={cn(GHOST_CONTROL, "flex items-center gap-1.5 rounded-md")}
                   />
                 }
@@ -511,19 +519,28 @@ export function IssueSheet({
                 )}
               </PopoverTrigger>
               <PopoverContent align="start" className="max-h-64 w-72 overflow-y-auto thin-scrollbar p-1">
-                <button
-                  type="button"
-                  onClick={() => { setAgentId(""); setAssigneeOpen(false); }}
-                  className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <span className="text-muted-foreground">None (unassigned)</span>
-                  {!agentId ? <Check className="size-3.5 shrink-0" /> : null}
-                </button>
+                {!isTodoDraft && (
+                  <button
+                    type="button"
+                    onClick={() => { setAgentId(""); setAssigneeOpen(false); }}
+                    className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <span className="text-muted-foreground">None (unassigned)</span>
+                    {!agentId ? <Check className="size-3.5 shrink-0" /> : null}
+                  </button>
+                )}
                 {agents.map((agent) => (
                   <button
                     key={agent.id}
                     type="button"
-                    onClick={() => { setAgentId(agent.id); setAssigneeOpen(false); }}
+                    onClick={() => {
+                      if (isTodoDraft) {
+                        setConfirmAgent(agent);
+                      } else {
+                        setAgentId(agent.id);
+                      }
+                      setAssigneeOpen(false);
+                    }}
                     className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
                   >
                     <AgentIdentity agent={agent} size={18} />
@@ -547,7 +564,10 @@ export function IssueSheet({
               onChange={(e) => handleStatusChange(e.target.value)}
               className={GHOST_SELECT}
             >
-              {SELECTOR_STATUSES.map((s) => (
+              {(isTodoDraft
+                ? (["todo", "done"] as const)
+                : SELECTOR_STATUSES
+              ).map((s) => (
                 <option key={s} value={s}>{statusLabel(s)}</option>
               ))}
             </select>
@@ -624,8 +644,8 @@ export function IssueSheet({
           className="hidden sm:block absolute -left-px top-0 bottom-0 w-1.5 cursor-col-resize z-10 hover:bg-primary/20 active:bg-primary/30 transition-colors rounded-l-xl"
         />
 
-        {/* Timeline floating panel — desktop only, detail mode only */}
-        {mode === "detail" && (
+        {/* Timeline floating panel — desktop only, detail mode only, not for todo drafts */}
+        {mode === "detail" && !isTodoDraft && (
           <div className="hidden lg:flex absolute right-full top-0 bottom-0 mr-2 w-[360px] flex-col rounded-xl border bg-background shadow-lg overflow-hidden">
             <div className="shrink-0 flex items-center border-b px-4 py-2.5">
               <span className="text-xs font-medium text-muted-foreground">Activity</span>
@@ -647,8 +667,8 @@ export function IssueSheet({
         </SheetTitle>
 
         <div className="flex flex-1 min-h-0 flex-col" onKeyDownCapture={onKeyDownCapture}>
-          {/* Mobile tab switcher (detail mode only, below lg) */}
-          {mode === "detail" && (
+          {/* Mobile tab switcher (detail mode only, below lg, not for todo drafts) */}
+          {mode === "detail" && !isTodoDraft && (
             <div className="shrink-0 flex items-center gap-1 border-b px-2 py-1.5 lg:hidden">
               <button
                 type="button"
@@ -683,7 +703,7 @@ export function IssueSheet({
             </div>
 
             {/* Mobile timeline view */}
-            {mode === "detail" && mobileTab === "activity" && (
+            {mode === "detail" && !isTodoDraft && mobileTab === "activity" && (
               <div className="flex flex-col flex-1 min-h-0 lg:hidden">
                 <div className="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 py-4 space-y-3">
                   {timelineContent}
@@ -723,6 +743,32 @@ export function IssueSheet({
           )}
         </div>
       </SheetContent>
+
+      {/* Dispatch confirmation dialog for todo draft issues */}
+      <ConfirmDialog
+        open={!!confirmAgent}
+        onOpenChange={(open) => { if (!open) setConfirmAgent(null); }}
+        title="Run issue?"
+        description={`This issue will be assigned to ${confirmAgent?.name ?? "the agent"} and start running immediately.`}
+        confirmLabel="Run"
+        loadingLabel="Running..."
+        confirmVariant="default"
+        loading={dispatching}
+        onConfirm={async () => {
+          if (!confirmAgent || !issue) return;
+          setDispatching(true);
+          try {
+            await updateIssue(workspaceId, issue.id, { agent_id: confirmAgent.id });
+            setConfirmAgent(null);
+            onDispatched?.(issue.id);
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Failed to dispatch issue");
+            setConfirmAgent(null);
+          } finally {
+            setDispatching(false);
+          }
+        }}
+      />
     </Sheet>
   );
 }
