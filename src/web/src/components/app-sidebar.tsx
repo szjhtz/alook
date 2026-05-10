@@ -8,7 +8,7 @@ import type { Agent } from "@alook/shared";
 import { useInboxCount } from "@/contexts/inbox-count-context";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
-import { Monitor, SunMoon, Plus, CalendarDays, Settings, PinIcon, PinOffIcon, ArrowLeftRight, Home, CircleDot, Inbox } from "lucide-react";
+import { Monitor, SunMoon, Plus, CalendarDays, Settings, ArrowLeftRight, Home, CircleDot, Inbox, Folder, Ungroup, ArrowRightToLine } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useTheme } from "next-themes";
@@ -18,97 +18,19 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
 } from "@/components/ui/context-menu";
-import { AgentPreviewCard } from "@/components/agent-preview-card";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { parseAvatarUrl } from "@/components/avatar";
 import { AnimatedAvatar } from "@/components/avatar/animated-avatar";
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay, type DragEndEvent, type DragStartEvent, type DragOverEvent } from "@dnd-kit/core";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-
-function AgentSidebarButton({
-  agent,
-  isActive,
-  isPinned,
-  isOnline,
-  taskCount,
-  onClick,
-  onPin,
-  onUnpin,
-}: {
-  agent: Agent;
-  isActive: boolean;
-  isPinned: boolean;
-  isOnline: boolean;
-  taskCount: number;
-  onClick: () => void;
-  onPin: () => void;
-  onUnpin: () => void;
-}) {
-  const [previewOpen, setPreviewOpen] = useState(false);
-  return (
-    <Popover
-      open={previewOpen}
-      onOpenChange={(open, event) => {
-        if (open && event.reason === "trigger-press") return;
-        setPreviewOpen(open);
-      }}
-    >
-      <ContextMenu>
-        <PopoverTrigger
-          openOnHover
-          delay={10}
-          render={
-            <ContextMenuTrigger
-              render={
-                <button
-                  type="button"
-                  onClick={() => { setPreviewOpen(false); onClick(); }}
-                  className={cn(
-                    "relative flex shrink-0 items-center justify-center size-10 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer",
-                    isActive
-                      ? "ring-2 ring-primary shadow-sm"
-                      : "ring-0 bg-secondary text-secondary-foreground hover:bg-accent"
-                  )}
-                />
-              }
-            />
-          }
-        >
-          {(() => {
-            const avatarConfig = parseAvatarUrl(agent.avatar_url);
-            if (avatarConfig) {
-              return <AnimatedAvatar config={avatarConfig} size={40} className="rounded-xl" isHovered={false} />;
-            }
-            return agent.name.charAt(0).toUpperCase();
-          })()}
-          <span className={cn(
-            "absolute bottom-0 right-0 size-2 rounded-full ring-2 ring-background",
-            isOnline ? "bg-status-online" : "bg-status-offline"
-          )} />
-        </PopoverTrigger>
-        <ContextMenuContent>
-          {isPinned ? (
-            <ContextMenuItem onClick={onUnpin}>
-              <PinOffIcon className="size-3.5 mr-1.5" />
-              Unpin
-            </ContextMenuItem>
-          ) : (
-            <ContextMenuItem onClick={onPin}>
-              <PinIcon className="size-3.5 mr-1.5" />
-              Pin to top
-            </ContextMenuItem>
-          )}
-        </ContextMenuContent>
-      </ContextMenu>
-      <PopoverContent side="right" className="w-fit max-w-80">
-        <AgentPreviewCard agent={agent} isOnline={isOnline} activeTaskCount={taskCount} />
-      </PopoverContent>
-    </Popover>
-  );
-}
+import { useAgentFolders } from "@/hooks/use-agent-folders";
+import { AgentSidebarButton } from "@/components/sidebar/agent-sidebar-button";
+import { SortableFolderItem } from "@/components/sidebar/sortable-folder-item";
+import { FolderCollapsed } from "@/components/sidebar/folder-collapsed";
+import { FolderPopover } from "@/components/sidebar/folder-popover";
 
 function SortableAgentButton({ id, children }: { id: string; children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -130,11 +52,31 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { agents, runtimes, loading, pins, unpinnedOrder, handlePinAgent, handleUnpinAgent, handleReorderPins, handleReorderUnpinned } = useAgentContext();
-  const { slug } = useWorkspace();
+  const { slug, workspaceId } = useWorkspace();
 
   const { resolvedTheme, setTheme } = useTheme();
   const { activeTaskCounts: taskCounts } = useAgentContext();
   const { count: inboxCount } = useInboxCount();
+
+  // --- Folder state (applies to unpinned section only) ---
+  const {
+    folders,
+    expandedFolderId,
+    setExpandedFolderId,
+    createFolder,
+    addToFolder,
+    removeFromFolder,
+    dissolveFolder,
+    reorderInFolder,
+    cleanupStaleAgents,
+    getTopLevelItems,
+    removeAgentFromAnyFolder,
+    mergeFolders,
+  } = useAgentFolders(workspaceId);
+
+  // --- Selection mode for "Create group" ---
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set());
 
   const pinned = agents
     .filter((a) => pins.has(a.id))
@@ -150,11 +92,44 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
       return a.name.localeCompare(b.name);
     });
 
+  // Folders apply to the unpinned section
+  const unpinnedIds = unpinned.map((a) => a.id);
+  const topLevelUnpinnedItems = getTopLevelItems(unpinnedIds);
+
+  // Cleanup stale agents when workspace agents change
+  useEffect(() => {
+    if (agents.length > 0) {
+      cleanupStaleAgents(agents.map((a) => a.id));
+    }
+  }, [agents, cleanupStaleAgents]);
+
+  // --- Drag-hold merge state (unpinned section) ---
+  const [dragActiveId, setDragActiveId] = useState<string | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
+  const [sortingDisabled, setSortingDisabled] = useState(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const hoverTargetRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    };
+  }, []);
+
+  // --- Folder anchor refs for popover positioning ---
+  const folderAnchorRefs = useRef<Map<string, HTMLElement | null>>(new Map());
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  function handleDragEnd(event: DragEndEvent) {
+  // Build sortable IDs for unpinned: mix of agent IDs and folder IDs
+  const unpinnedSortableIds = topLevelUnpinnedItems.map((item) =>
+    item.type === "agent" ? item.id : item.folder.id
+  );
+
+  // --- Pinned section drag (unchanged, simple reorder) ---
+  function handlePinnedDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const oldIndex = pinned.findIndex((a) => a.id === active.id);
@@ -163,14 +138,110 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
     handleReorderPins(reordered.map((a) => a.id));
   }
 
+  // --- Unpinned section drag (with folder merge support) ---
+  function handleUnpinnedDragStart(event: DragStartEvent) {
+    setDragActiveId(event.active.id as string);
+    setExpandedFolderId(null);
+  }
+
+  function handleUnpinnedDragOver(event: DragOverEvent) {
+    const { over } = event;
+    if (!over) {
+      clearMergeTimer();
+      return;
+    }
+
+    const overId = over.id as string;
+    if (overId === dragActiveId) {
+      clearMergeTimer();
+      return;
+    }
+
+    if (hoverTargetRef.current !== overId) {
+      clearMergeTimer();
+      hoverTargetRef.current = overId;
+      hoverTimerRef.current = setTimeout(() => {
+        setSortingDisabled(true);
+        setMergeTargetId(overId);
+      }, 300);
+    }
+  }
+
+  function clearMergeTimer() {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    hoverTargetRef.current = null;
+    setMergeTargetId(null);
+    setSortingDisabled(false);
+  }
+
   function handleUnpinnedDragEnd(event: DragEndEvent) {
     const { active, over } = event;
+    clearMergeTimer();
+    setDragActiveId(null);
+
     if (!over || active.id === over.id) return;
-    const oldIndex = unpinned.findIndex((a) => a.id === active.id);
-    const newIndex = unpinned.findIndex((a) => a.id === over.id);
-    const reordered = arrayMove(unpinned, oldIndex, newIndex);
-    handleReorderUnpinned(reordered.map((a) => a.id));
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    if (mergeTargetId === overId) {
+      handleMerge(activeId, overId);
+      setMergeTargetId(null);
+      return;
+    }
+
+    const oldIndex = unpinnedSortableIds.indexOf(activeId);
+    const newIndex = unpinnedSortableIds.indexOf(overId);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(topLevelUnpinnedItems, oldIndex, newIndex);
+    const flatIds: string[] = [];
+    for (const item of reordered) {
+      if (item.type === "agent") {
+        flatIds.push(item.id);
+      } else {
+        flatIds.push(...item.folder.agentIds);
+      }
+    }
+    handleReorderUnpinned(flatIds);
   }
+
+  function handleUnpinnedDragCancel() {
+    clearMergeTimer();
+    setDragActiveId(null);
+  }
+
+  function handleMerge(draggedId: string, targetId: string) {
+    const targetFolder = folders.find((f) => f.id === targetId);
+    if (targetFolder) {
+      const draggedFolder = folders.find((f) => f.id === draggedId);
+      if (draggedFolder) {
+        mergeFolders(draggedId, targetId);
+      } else {
+        removeAgentFromAnyFolder(draggedId);
+        addToFolder(targetId, draggedId);
+      }
+    } else {
+      const draggedFolder = folders.find((f) => f.id === draggedId);
+      if (draggedFolder) {
+        addToFolder(draggedId, targetId);
+      } else {
+        createFolder([targetId, draggedId]);
+      }
+    }
+  }
+
+  // Wrapped pin handler: removes agent from folder before pinning
+  const handlePinWithFolderCleanup = useCallback(
+    (agentId: string) => {
+      removeAgentFromAnyFolder(agentId);
+      handlePinAgent(agentId);
+    },
+    [removeAgentFromAnyFolder, handlePinAgent]
+  );
 
   const prefix = `/w/${slug}`;
   const isHome = pathname === `${prefix}/home`;
@@ -181,7 +252,6 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const isSettings = pathname === `${prefix}/settings`;
   const isCreateAgent = pathname === `${prefix}/agents/new`;
 
-  // Detect active agent from ?agent= param or /w/[slug]/agents/[id] route
   const urlAgentId = searchParams.get("agent");
   const pathnameAgentMatch = pathname.match(/^\/w\/[^/]+\/agents\/([^/]+)/);
   const activeAgentId = urlAgentId ?? pathnameAgentMatch?.[1] ?? null;
@@ -215,7 +285,15 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
     }, total);
   }, [pinned.length, unpinned.length]);
 
-  const renderAgentButton = (agent: typeof agents[number], animIndex: number) => (
+  // Get the drag overlay content for the unpinned section
+  const dragActiveAgent = dragActiveId
+    ? agents.find((a) => a.id === dragActiveId)
+    : null;
+  const dragActiveFolder = dragActiveId
+    ? folders.find((f) => f.id === dragActiveId)
+    : null;
+
+  const renderAgentButton = (agent: typeof agents[number], animIndex: number, extraContextMenuItems?: React.ReactNode) => (
     <div
       className={cn(wiggling && "sidebar-agent-pop")}
       style={wiggling ? { animationDelay: `${animIndex * 60}ms` } : undefined}
@@ -227,15 +305,82 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
         isOnline={hasOnlineRuntime}
         taskCount={taskCounts[agent.id] ?? 0}
         onClick={() => handleAgentClick(agent.id)}
-        onPin={() => handlePinAgent(agent.id)}
+        onPin={() => handlePinWithFolderCleanup(agent.id)}
         onUnpin={() => handleUnpinAgent(agent.id)}
+        extraContextMenuItems={extraContextMenuItems}
       />
     </div>
   );
 
+  // Build folder-related context menu items for a standalone unpinned agent
+  const buildUnpinnedAgentContextMenu = (agentId: string) => (
+    <>
+      <ContextMenuSeparator />
+      <ContextMenuItem
+        onClick={() => {
+          setSelectedAgentIds(new Set([agentId]));
+          setSelectionMode(true);
+        }}
+      >
+        <Folder className="size-3.5 mr-1.5" />
+        Create group
+      </ContextMenuItem>
+      {folders.length > 0 && (
+        <>
+          {folders.map((f) => {
+            const folderAgents = f.agentIds
+              .map((id) => agents.find((a) => a.id === id))
+              .filter(Boolean) as Agent[];
+            const label = folderAgents
+              .slice(0, 2)
+              .map((a) => a.name)
+              .join(", ");
+            return (
+              <ContextMenuItem
+                key={f.id}
+                onClick={() => addToFolder(f.id, agentId)}
+              >
+                <ArrowRightToLine className="size-3.5 mr-1.5" />
+                Move to {label}{folderAgents.length > 2 ? "…" : ""}
+              </ContextMenuItem>
+            );
+          })}
+        </>
+      )}
+    </>
+  );
+
+  const handleSelectionConfirm = () => {
+    if (selectedAgentIds.size >= 2) {
+      createFolder(Array.from(selectedAgentIds));
+    }
+    setSelectionMode(false);
+    setSelectedAgentIds(new Set());
+  };
+
+  const handleSelectionCancel = () => {
+    setSelectionMode(false);
+    setSelectedAgentIds(new Set());
+  };
+
+  const toggleAgentSelection = (agentId: string) => {
+    setSelectedAgentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(agentId)) next.delete(agentId);
+      else next.add(agentId);
+      return next;
+    });
+  };
+
+  const closeFolderPopover = useCallback(() => setExpandedFolderId(null), [setExpandedFolderId]);
+
+  const expandedFolder = expandedFolderId
+    ? folders.find((f) => f.id === expandedFolderId) ?? null
+    : null;
+
   return (
     <nav className={cn("flex h-full w-14 flex-col items-center pt-1 pb-2 gap-0.5", wiggling && "relative z-10")}>
-      {/* Top — logo (easter egg: click to wake agents) */}
+      {/* Top — logo */}
       <div className="pb-1.5 mb-1">
         <div
           className="flex shrink-0 items-center justify-center size-8 [&>button]:pointer-events-none cursor-pointer active:scale-90 transition-transform"
@@ -328,7 +473,8 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           <Skeleton className="size-10 rounded-xl" />
         ) : (
           <>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={handleDragEnd}>
+            {/* Pinned section (flat, no folders) */}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={handlePinnedDragEnd}>
               <SortableContext items={pinned.map((a) => a.id)} strategy={verticalListSortingStrategy}>
                 {pinned.map((agent, i) => (
                   <SortableAgentButton key={agent.id} id={agent.id}>
@@ -337,18 +483,147 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
                 ))}
               </SortableContext>
             </DndContext>
+
             {pinned.length > 0 && unpinned.length > 0 && (
               <div className="w-6 border-t border-border/50" />
             )}
-            <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={handleUnpinnedDragEnd}>
-              <SortableContext items={unpinned.map((a) => a.id)} strategy={verticalListSortingStrategy}>
-                {unpinned.map((agent, i) => (
-                  <SortableAgentButton key={agent.id} id={agent.id}>
-                    {renderAgentButton(agent, pinned.length + i)}
-                  </SortableAgentButton>
-                ))}
+
+            {/* Unpinned section with folders */}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              modifiers={[restrictToVerticalAxis]}
+              onDragStart={handleUnpinnedDragStart}
+              onDragOver={handleUnpinnedDragOver}
+              onDragEnd={handleUnpinnedDragEnd}
+              onDragCancel={handleUnpinnedDragCancel}
+            >
+              <SortableContext items={unpinnedSortableIds} strategy={sortingDisabled ? undefined : verticalListSortingStrategy}>
+                {topLevelUnpinnedItems.map((item, i) => {
+                  if (item.type === "folder") {
+                    const folder = item.folder;
+                    const isAnyActive = folder.agentIds.includes(activeAgentId ?? "");
+                    return (
+                      <ContextMenu key={folder.id}>
+                        <ContextMenuTrigger render={<div />}>
+                          <SortableFolderItem
+                            folder={folder}
+                            agents={agents}
+                            isActive={isAnyActive}
+                            isMergeTarget={mergeTargetId === folder.id}
+                            dragActiveId={dragActiveId}
+                            onExpand={() =>
+                              setExpandedFolderId(
+                                expandedFolderId === folder.id ? null : folder.id
+                              )
+                            }
+                            nodeRefCallback={(el) =>
+                              folderAnchorRefs.current.set(folder.id, el)
+                            }
+                          />
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem onClick={() => dissolveFolder(folder.id)}>
+                            <Ungroup className="size-3.5 mr-1.5" />
+                            Ungroup agents
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
+                    );
+                  }
+
+                  // Standalone unpinned agent in selection mode
+                  if (selectionMode) {
+                    const agent = agents.find((a) => a.id === item.id);
+                    if (!agent) return null;
+                    const isSelected = selectedAgentIds.has(agent.id);
+                    return (
+                      <div
+                        key={agent.id}
+                        className="relative cursor-pointer"
+                        onClick={() => toggleAgentSelection(agent.id)}
+                      >
+                        <div className={cn(
+                          "transition-all duration-150",
+                          isSelected && "ring-2 ring-primary rounded-xl"
+                        )}>
+                          {renderAgentButton(agent, pinned.length + i)}
+                        </div>
+                        {isSelected && (
+                          <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-primary ring-2 ring-background" />
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // Standalone unpinned agent (normal mode)
+                  const agent = agents.find((a) => a.id === item.id);
+                  if (!agent) return null;
+                  return (
+                    <SortableAgentButton key={agent.id} id={agent.id}>
+                      {mergeTargetId === agent.id && dragActiveId ? (
+                        <FolderCollapsed
+                          folder={{ id: "merge-preview", agentIds: [agent.id, dragActiveId] }}
+                          agents={agents}
+                          isActive={false}
+                          onClick={() => {}}
+                        />
+                      ) : (
+                        renderAgentButton(agent, pinned.length + i, buildUnpinnedAgentContextMenu(agent.id))
+                      )}
+                    </SortableAgentButton>
+                  );
+                })}
               </SortableContext>
+
+              <DragOverlay>
+                {dragActiveAgent ? (
+                  <div className="opacity-80">
+                    {(() => {
+                      const avatarConfig = parseAvatarUrl(dragActiveAgent.avatar_url);
+                      if (avatarConfig) {
+                        return <AnimatedAvatar config={avatarConfig} size={40} className="rounded-xl" isHovered={false} />;
+                      }
+                      return (
+                        <div className="flex items-center justify-center size-10 rounded-xl bg-secondary text-sm font-medium">
+                          {dragActiveAgent.name.charAt(0).toUpperCase()}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : dragActiveFolder ? (
+                  <div className="opacity-80">
+                    <FolderCollapsed
+                      folder={dragActiveFolder}
+                      agents={agents}
+                      isActive={false}
+                      onClick={() => {}}
+                    />
+                  </div>
+                ) : null}
+              </DragOverlay>
             </DndContext>
+
+            {/* Selection mode confirmation bar */}
+            {selectionMode && (
+              <div className="flex flex-col gap-1 w-full px-1">
+                <button
+                  type="button"
+                  onClick={handleSelectionConfirm}
+                  disabled={selectedAgentIds.size < 2}
+                  className="flex items-center justify-center h-7 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  Done ({selectedAgentIds.size})
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectionCancel}
+                  className="flex items-center justify-center h-7 rounded-lg bg-secondary text-secondary-foreground text-xs cursor-pointer hover:bg-accent"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </>
         )}
 
@@ -393,6 +668,27 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           </button>
         )}
       </div>
+
+      {/* Folder popover */}
+      {expandedFolder && (
+        <FolderPopover
+          folder={expandedFolder}
+          agents={agents}
+          activeAgentId={activeAgentId}
+          isOnline={hasOnlineRuntime}
+          taskCounts={taskCounts}
+          anchorRef={folderAnchorRefs.current.get(expandedFolder.id) ?? null}
+          onAgentClick={handleAgentClick}
+          onRemoveFromFolder={(agentId) =>
+            removeFromFolder(expandedFolder.id, agentId)
+          }
+          onPinAgent={handlePinWithFolderCleanup}
+          onReorder={(ordered) =>
+            reorderInFolder(expandedFolder.id, ordered)
+          }
+          onClose={closeFolderPopover}
+        />
+      )}
 
       {/* Bottom section */}
       <div className="flex flex-col items-center gap-1 pt-2 border-t border-border/50 mt-1">
