@@ -236,7 +236,7 @@ export function IssueSheet({
     } else {
       setTitle(draft?.title ?? "");
       setDescription(draft?.description ?? "");
-      setAgentId(draft?.agentId ?? defaultAgentId ?? "");
+      setAgentId(draft?.agentId || defaultAgentId || "");
     }
   }, [open, issue?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -251,7 +251,7 @@ export function IssueSheet({
     if (timelineRef.current) {
       timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
     }
-  }, [detail?.messages?.length, detail?.comments?.length]);
+  }, [detail?.messages?.length, detail?.comments?.length, traceTasks?.length]);
 
   // Auto-save (detail mode): debounce title/description changes
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -413,7 +413,7 @@ export function IssueSheet({
                           isRunning ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/40"
                         )} />
                         <div className={cn(
-                          "rounded-md border px-3 py-2",
+                          "rounded-md border px-3 py-2.5",
                           isRunning ? "border-emerald-500/30 bg-emerald-500/10" : "border-border/60 bg-muted/30"
                         )}>
                           <div className="flex items-center gap-2 text-xs">
@@ -430,7 +430,7 @@ export function IssueSheet({
                 return (
                   <div className="relative">
                     <div className="absolute -left-4 top-2.5 size-2.5 rounded-full border-2 border-background bg-emerald-500 animate-pulse" />
-                    <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
+                    <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
                       <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">Working</div>
                     </div>
                   </div>

@@ -25,9 +25,12 @@ import {
   getActiveTask,
   retryTask,
   markInboxRead,
+  getIssue,
+  getTrace,
+  updateIssue,
 } from "@/lib/api";
-import type { PreviousConversation } from "@/lib/api";
-import type { Artifact, Conversation, Message, TaskApi as Task, TaskMessage, WsMessage } from "@alook/shared";
+import type { PreviousConversation, TraceTask } from "@/lib/api";
+import type { Artifact, Conversation, Issue, IssueComment, Message, TaskApi as Task, TaskMessage, WsMessage } from "@alook/shared";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useInboxCount } from "@/contexts/inbox-count-context";
 import { useChannel } from "@/contexts/channel-context";
@@ -42,6 +45,7 @@ import { MentionPopup } from "@/components/agent-chat/mention-popup";
 import { highlightMentions } from "@/lib/highlight-mentions";
 import { ArtifactSheet, formatSize } from "@/components/agent-chat/artifact-sheet";
 import { EmailEventSheet } from "@/components/agent-chat/email-event-sheet";
+import { IssueSheet } from "@/components/issues/issue-sheet";
 import { isPreviewable, getArtifactUrl } from "@/components/artifact-content-renderer";
 import { FollowUpBuffer } from "@/components/agent-chat/follow-up-buffer";
 import { ScrollToBottomButton } from "@/components/ui/scroll-to-bottom-button";
@@ -261,7 +265,7 @@ function ArtifactCard({ artifact, onClick }: { artifact: Artifact; onClick: (a: 
 export function AgentChatView() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const { workspaceId } = useWorkspace();
+  const { workspaceId, slug } = useWorkspace();
   const { agents, agentLinks, activeTaskCounts, subscribeWs } = useAgentContext();
   const { refresh: refreshInboxCount } = useInboxCount();
   const { activeChannel, loading: channelLoading } = useChannel();
@@ -288,6 +292,18 @@ export function AgentChatView() {
   const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null);
   const [emailSheetOpen, setEmailSheetOpen] = useState(false);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [issueSheetOpen, setIssueSheetOpen] = useState(false);
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [issueDetail, setIssueDetail] = useState<{
+    issue: Issue & { trace_id?: string | null };
+    messages: Message[];
+    comments: IssueComment[];
+    artifacts: Artifact[];
+  } | null>(null);
+  const [issueDetailLoading, setIssueDetailLoading] = useState(false);
+  const [issueTraceTasks, setIssueTraceTasks] = useState<TraceTask[] | null>(null);
+  const [issueActiveTask, setIssueActiveTask] = useState<Task | null>(null);
+  const [issueSidecarWidth, setIssueSidecarWidth] = useState(448);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [bufferedMessages, setBufferedMessages] = useState<Message[]>([]);
   const [caretIndex, setCaretIndex] = useState<number | null>(null);
@@ -1216,6 +1232,68 @@ export function AgentChatView() {
     startPolling(newTask.id, conversation.id);
   }, [activeTask, conversation, workspaceId, startPolling]);
 
+  const openIssue = useCallback(async (issueId: string) => {
+    setSelectedIssueId(issueId);
+    setIssueSheetOpen(true);
+    setIssueDetailLoading(true);
+    setIssueTraceTasks(null);
+    setIssueActiveTask(null);
+    try {
+      const res = await getIssue(workspaceId, issueId);
+      setIssueDetail(res);
+      if (res.issue.latest_task_id) {
+        getTask(res.issue.latest_task_id, workspaceId)
+          .then(task => setIssueActiveTask(task))
+          .catch(() => setIssueActiveTask(null));
+      }
+      if (res.issue.trace_id) {
+        getTrace(res.issue.trace_id, workspaceId)
+          .then(t => setIssueTraceTasks(t.tasks))
+          .catch(() => setIssueTraceTasks(null));
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load issue");
+      setIssueSheetOpen(false);
+    } finally {
+      setIssueDetailLoading(false);
+    }
+  }, [workspaceId]);
+
+  const issueConvId = issueDetail?.issue?.conversation_id ?? null;
+  const issueTaskId = issueDetail?.issue?.latest_task_id ?? null;
+
+  useEffect(() => {
+    if (!issueSheetOpen || !selectedIssueId) return;
+
+    return subscribeWs((msg: WsMessage) => {
+      if (msg.type === "task.updated" && issueTaskId && msg.taskId === issueTaskId) {
+        getTask(issueTaskId, workspaceId)
+          .then(task => setIssueActiveTask(task))
+          .catch(() => {});
+      }
+      if (msg.type === "conversation.message" && issueConvId && msg.conversationId === issueConvId) {
+        setIssueDetail(prev => {
+          if (!prev) return prev;
+          if (prev.messages.some(m => m.id === msg.message.id)) return prev;
+          return { ...prev, messages: [...prev.messages, msg.message] };
+        });
+        if (msg.message.role === "event" && msg.message.content.startsWith("Issue status changed:")) {
+          const match = msg.message.content.match(/-> (\w+)/);
+          if (match) {
+            setIssueDetail(prev => prev ? { ...prev, issue: { ...prev.issue, status: match[1] as Issue["status"] } } : prev);
+          }
+        }
+      }
+      if (msg.type === "issue.comment" && msg.issueId === selectedIssueId) {
+        setIssueDetail(prev => {
+          if (!prev) return prev;
+          if (prev.comments.some(c => c.id === msg.comment.id)) return prev;
+          return { ...prev, comments: [...prev.comments, msg.comment] };
+        });
+      }
+    });
+  }, [issueSheetOpen, selectedIssueId, issueConvId, issueTaskId, workspaceId, subscribeWs]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [napping, setNapping] = useState(false);
 
   const currentConvHasMessages = useMemo(
@@ -1433,6 +1511,7 @@ export function AgentChatView() {
                     setSelectedEmailId(emailId);
                     setEmailSheetOpen(true);
                   }}
+                  onIssueClick={(issueId) => openIssue(issueId)}
                   onRetry={handleRetryTask}
                   mentionComponents={MENTION_COMPONENTS}
                 />
@@ -1737,6 +1816,52 @@ export function AgentChatView() {
         }}
         emailId={selectedEmailId}
         workspaceId={workspaceId}
+      />
+
+      <IssueSheet
+        open={issueSheetOpen}
+        onOpenChange={(v) => {
+          setIssueSheetOpen(v);
+          if (!v) setTimeout(() => {
+            setSelectedIssueId(null);
+            setIssueDetail(null);
+            setIssueActiveTask(null);
+          }, 300);
+        }}
+        agents={agents}
+        issue={issueDetail?.issue ?? null}
+        detail={issueDetail ? {
+          messages: issueDetail.messages,
+          comments: issueDetail.comments,
+          artifacts: issueDetail.artifacts,
+          traceId: issueDetail.issue.trace_id,
+        } : null}
+        detailLoading={issueDetailLoading}
+        activeTask={issueActiveTask}
+        traceTasks={issueTraceTasks}
+        slug={slug}
+        workspaceId={workspaceId}
+        width={issueSidecarWidth}
+        onWidthChange={setIssueSidecarWidth}
+        onUpdate={async (issueId, patch) => {
+          try {
+            const updated = await updateIssue(workspaceId, issueId, patch);
+            setIssueDetail(prev => prev && prev.issue.id === issueId ? { ...prev, issue: { ...prev.issue, ...patch, updated_at: updated.updated_at } } : prev);
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Failed to update issue");
+          }
+        }}
+        onStatusChange={async (issueId, status) => {
+          try {
+            await updateIssue(workspaceId, issueId, { status: status as Issue["status"] });
+            setIssueDetail(prev => prev && prev.issue.id === issueId ? { ...prev, issue: { ...prev.issue, status: status as Issue["status"] } } : prev);
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Failed to update status");
+          }
+        }}
+        onCommented={() => {
+          if (selectedIssueId) openIssue(selectedIssueId);
+        }}
       />
     </>
   );

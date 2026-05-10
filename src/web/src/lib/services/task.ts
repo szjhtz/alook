@@ -201,6 +201,7 @@ export class TaskService {
       role: "event",
       content: `Issue status changed: ${issue.status} -> ${status}`,
       taskId: task.id,
+      metadata: JSON.stringify({ issueId: issue.id }),
     });
   }
 

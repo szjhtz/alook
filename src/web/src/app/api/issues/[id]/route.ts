@@ -75,6 +75,7 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
       conversationId: existing.conversationId,
       role: "event",
       content: `Issue status changed: ${existing.status} -> ${body.status}`,
+      metadata: JSON.stringify({ issueId: existing.id }),
     });
   }
 

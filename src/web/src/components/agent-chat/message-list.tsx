@@ -28,6 +28,7 @@ export interface MessageItemProps {
   pendingFilesByMessage: Map<string, File[]>;
   onArtifactClick: (a: Artifact) => void;
   onEmailClick: (emailId: string) => void;
+  onIssueClick: (issueId: string) => void;
   onRetry?: () => void;
   mentionComponents: Record<string, React.ComponentType<Record<string, unknown> & { children?: React.ReactNode }>>;
 }
@@ -113,6 +114,7 @@ export const MessageItem = memo(function MessageItem({
   pendingFilesByMessage,
   onArtifactClick,
   onEmailClick,
+  onIssueClick,
   onRetry,
   mentionComponents,
 }: MessageItemProps) {
@@ -172,14 +174,16 @@ export const MessageItem = memo(function MessageItem({
         );
       })() : msg.role === "event" ? (() => {
         const eventEmailId = msg.metadata?.emailId as string | undefined;
+        const eventIssueId = msg.metadata?.issueId as string | undefined;
+        const isClickable = !!eventEmailId || !!eventIssueId;
         return (
           <div className="flex justify-start" {...(msg.task_id ? { "data-task-id": msg.task_id } : {})}>
             <div
               className={cn(
                 "w-full rounded-md border bg-muted/50 text-muted-foreground text-sm px-3 py-2 flex items-start gap-2",
-                eventEmailId && "cursor-pointer hover:bg-muted transition-colors"
+                isClickable && "cursor-pointer hover:bg-muted transition-colors"
               )}
-              onClick={eventEmailId ? () => onEmailClick(eventEmailId) : undefined}
+              onClick={eventEmailId ? () => onEmailClick(eventEmailId) : eventIssueId ? () => onIssueClick(eventIssueId) : undefined}
             >
               <EventMessageIcon content={msg.content} conversationType={conversationType} />
               <span>{msg.content}</span>
