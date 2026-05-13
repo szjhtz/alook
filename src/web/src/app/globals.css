@@ -871,7 +871,8 @@
   margin-top: 0.2em;
   margin-bottom: 0.2em;
 }
-.markdown li > p {
+.markdown li > p,
+.markdown li > [data-md-p] {
   display: inline;
 }
 .markdown li > ul,
