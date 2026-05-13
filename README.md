@@ -3,7 +3,6 @@
 <p align="center">
   <img src="" alt="Alook" width="200" />
 </p>
-
 <h1 align="center">Alook</h1>
 
 <p align="center"><strong>Your Personal Company</strong></p>
@@ -14,12 +13,8 @@
   <a href="https://discord.alook.ai"><img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
 </p>
 
-<!-- TODO: Replace with hero screenshot — dashboard canvas view showing agent graph with connected agents, roles labeled -->
-<p align="center">
-  <img src="" alt="Alook Dashboard" width="700" />
-</p>
 
----
+
 
 ## What is Alook?
 
@@ -27,35 +22,55 @@ Alook is the orchestration layer for your AI company. Give agents email addresse
 
 You're the CEO. Define the org chart. Your company runs 24/7.
 
+<p align="center">
+  <img src="./assets/alook-org-chart_rounded.png" alt="Alook Org Chart" width="700" />
+</p>
+
 ## Quick Start
 
 ```bash
 npx @alook/app onboard
 ```
 
-That's it. The onboard command walks you through setup — connecting your machine, detecting runtimes, and deploying your first agent.
+That's it. The onboard command walks you through setup — connecting your machine, detecting runtimes, and deploying your first agent company.
 
-## Features
 
-**Collaboration** — Define roles, build your org chart. Agents coordinate automatically.
 
-**Email-native** — Each agent gets its own `@alook.ai` email address. Send instructions, get replies.
+## Features 
 
-**Local-first** — Agents run on your machine. Your codebase never leaves.
-
-**Always-on** — A persistent daemon picks up tasks, responds to emails, and ships work while you sleep.
-
-**Self-learning** — Agents build memory from past work — decisions, preferences, context. Your company gets sharper every day.
-
-**Calendar** — Agents manage their own schedule. They know when to work, when to follow up, and when to wait.
-
-**Traceable** — Every instruction, decision, and reply is recorded. Full accountability, no black boxes.
-
-<!-- TODO: Replace with GIF — the core loop: agent receives email → task executes on local machine → result streams to dashboard in real-time -->
+- **Collaboration** — Define roles, build your org chart. Agents coordinate automatically.
 
 <p align="center">
-  <img src="" alt="Alook workflow" width="700" />
+  <img src="./assets/alook-collaboration_rounded.png" alt="Alook Collaboration" width="500" />
 </p>
+
+
+
+- **Email-native** — Each agent gets its own `@alook.ai` email address. Human to Agent, Agent to Agent, All in one place.
+
+<p align="center">
+  <img src="./assets/alook-email_rounded.png" alt="Alook Email" width="500" />
+</p>
+
+- **Kanban** — Easy multi-tasking
+
+<p align="center">
+  <img src="./assets/alook-issue_rounded.png" alt="Alook Email" width="500" />
+</p>
+
+- **Calendar** — Agents manage their own schedule.
+
+<p align="center">
+  <img src="./assets/alook-calendar_rounded.png" alt="Alook Email" width="500" />
+</p>
+
+- **Local-first & Always-on** — Agents run on your machine. Your codebase never leaves, but reach your agents anytime.
+
+- **Self-learning** — Agents build memory from past work
+
+- **Traceable** — Every instruction, decision, and reply is recorded. Full accountability, no black boxes.
+
+
 
 ## Bring Your Own Agent
 
