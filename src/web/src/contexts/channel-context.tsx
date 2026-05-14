@@ -64,6 +64,7 @@ export function ChannelProvider({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!agentId) return;
     const stored = localStorage.getItem(storageKey(workspaceId, agentId));
     setActiveChannelState(stored ?? "default");
   }, [workspaceId, agentId]);

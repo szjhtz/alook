@@ -360,7 +360,6 @@ export function AgentChatView({
 
   useEffect(() => {
     setChannelAgentId(agentId);
-    return () => setChannelAgentId(null);
   }, [agentId, setChannelAgentId]);
 
   const handleSpeechResult = useCallback((text: string) => {
