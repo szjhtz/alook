@@ -1,9 +1,10 @@
 "use client"
 import { useEffect, useRef, useCallback } from "react"
 import type { WsMessage } from "@alook/shared"
+import { isLocalMode } from "@/lib/utils"
 
-const isDev = process.env.NODE_ENV === "development"
-const WS_DO_PORT = Number(process.env.NEXT_PUBLIC_WS_DO_PORT) || 8789
+const isDev = isLocalMode()
+const WS_DO_PORT_DEFAULT = Number(process.env.NEXT_PUBLIC_WS_DO_PORT) || 8789
 const WS_RECONNECT_INIT = Number(process.env.NEXT_PUBLIC_WS_RECONNECT_DELAY_MS) || 1000
 const WS_RECONNECT_MAX = Number(process.env.NEXT_PUBLIC_WS_RECONNECT_MAX_DELAY_MS) || 30_000
 
@@ -30,6 +31,7 @@ export function useUserWs(onMessage: (msg: WsMessage) => void) {
   const connect = useCallback(async () => {
     let userId: string
     let authToken: string
+    let wsPort: number = WS_DO_PORT_DEFAULT
     try {
       const res = await fetch("/api/ws/token")
       if (!res.ok) {
@@ -37,9 +39,10 @@ export function useUserWs(onMessage: (msg: WsMessage) => void) {
         scheduleReconnect()
         return
       }
-      const body = await res.json() as { userId: string; token: string }
+      const body = await res.json() as { userId: string; token: string; wsPort?: number }
       userId = body.userId
       authToken = body.token
+      if (body.wsPort) wsPort = body.wsPort
     } catch (err) {
       console.warn("[ws] token fetch error:", err)
       scheduleReconnect()
@@ -47,7 +50,7 @@ export function useUserWs(onMessage: (msg: WsMessage) => void) {
     }
 
     const url = isDev
-      ? `ws://localhost:${WS_DO_PORT}/?userId=${userId}`
+      ? `ws://localhost:${wsPort}/?userId=${userId}`
       : `${location.origin.replace("http", "ws")}/api/ws/user?userId=${userId}`
 
     let ws: WebSocket
@@ -76,8 +79,6 @@ export function useUserWs(onMessage: (msg: WsMessage) => void) {
     ws.onerror = () => {}
 
     ws.onclose = () => {
-      // Ownership check: only reconnect if this WS is still the current one.
-      // If effect cleanup already replaced wsRef.current, this is an orphan — skip.
       if (ws !== wsRef.current) return
       scheduleReconnect()
     }
@@ -90,12 +91,10 @@ export function useUserWs(onMessage: (msg: WsMessage) => void) {
   useEffect(() => {
     connect()
     return () => {
-      // Clear any pending reconnect timer first
       if (reconnectTimerRef.current !== null) {
         clearTimeout(reconnectTimerRef.current)
         reconnectTimerRef.current = null
       }
-      // Nullify wsRef BEFORE closing so the onclose handler's ownership check fails
       const ws = wsRef.current
       wsRef.current = null
       ws?.close()

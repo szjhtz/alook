@@ -99,9 +99,10 @@ export function startServices(ports: ServicePorts, opts: StartOptions = {}): voi
     emailChild = spawnService("email-worker", "npx", ["wrangler", "dev", "--local", "--port", String(ports.emailWorker), ...persistTo], emailDir, foreground);
     wsChild = spawnService("ws-do", "npx", ["wrangler", "dev", "--local", "--port", String(ports.wsDo), ...persistTo], wsDir, foreground);
   } else {
-    webChild = spawnService("web", "npx", ["wrangler", "dev", "--local", "--port", String(ports.web)], join(SELF_HOSTED_DIR, "web"), foreground);
-    emailChild = spawnService("email-worker", "npx", ["wrangler", "dev", "--local", "--port", String(ports.emailWorker)], join(SELF_HOSTED_DIR, "email-worker"), foreground);
-    wsChild = spawnService("ws-do", "npx", ["wrangler", "dev", "--local", "--port", String(ports.wsDo)], join(SELF_HOSTED_DIR, "ws-do"), foreground);
+    const persistTo = ["--persist-to", join(SELF_HOSTED_DIR, "web", ".wrangler", "state")];
+    webChild = spawnService("web", "npx", ["wrangler", "dev", "--local", "--port", String(ports.web), ...persistTo], join(SELF_HOSTED_DIR, "web"), foreground);
+    emailChild = spawnService("email-worker", "npx", ["wrangler", "dev", "--local", "--port", String(ports.emailWorker), ...persistTo], join(SELF_HOSTED_DIR, "email-worker"), foreground);
+    wsChild = spawnService("ws-do", "npx", ["wrangler", "dev", "--local", "--port", String(ports.wsDo), ...persistTo], join(SELF_HOSTED_DIR, "ws-do"), foreground);
   }
 
   if (!webChild.pid || !emailChild.pid || !wsChild.pid) {
@@ -116,6 +117,11 @@ export function startServices(ports: ServicePorts, opts: StartOptions = {}): voi
     web: webChild.pid,
     emailWorker: emailChild.pid,
     wsDo: wsChild.pid,
+    ports: {
+      web: ports.web,
+      emailWorker: ports.emailWorker,
+      wsDo: ports.wsDo,
+    },
   });
 
   console.log(`  Web:          http://localhost:${ports.web} (pid=${webChild.pid})`);

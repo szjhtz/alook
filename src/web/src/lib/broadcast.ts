@@ -4,40 +4,60 @@ import { DEV_WS_DO_URL, createLogger } from "@alook/shared"
 
 const log = createLogger({ service: "broadcast" })
 
-async function sendBroadcast(url: string, body: string, label: Record<string, string>) {
+async function doSend(url: string, body: string, label: Record<string, string>) {
+  let wsDoUrl: string | undefined
   try {
-    const { env, ctx } = getCloudflareContext()
+    const { env } = getCloudflareContext()
     const wsEnv = env as Env
-    const promise = wsEnv.WS_DO_WORKER.fetch(`http://internal${url}`, {
+    wsDoUrl = (wsEnv as unknown as Record<string, unknown>).DEV_WS_DO_URL as string | undefined
+
+    const res = await wsEnv.WS_DO_WORKER.fetch(`http://internal${url}`, {
       method: "POST",
       body,
-    }).then(
-      () => {},
-      (err) => log.warn("broadcast service-binding failed", { ...label, err: String(err) }),
-    )
-    ctx.waitUntil(promise)
+    })
+    if (res.ok) return
+    log.warn("broadcast service-binding non-ok", { ...label, status: res.status })
+    return
   } catch {
-    const res = await fetch(`${DEV_WS_DO_URL}${url}`, {
+    // Service binding unavailable — fall through to HTTP
+  }
+
+  const fallbackUrl = wsDoUrl || DEV_WS_DO_URL
+  try {
+    const res = await fetch(`${fallbackUrl}${url}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
     })
     if (!res.ok) {
-      log.warn("broadcast fallback failed", { ...label, status: res.status })
+      log.warn("broadcast failed", { ...label, status: res.status })
     }
+  } catch (err) {
+    log.warn("broadcast error", { ...label, err: String(err) })
   }
 }
 
-export async function broadcastToUser(userId: string, message: WsMessage) {
-  await sendBroadcast(
+function sendBroadcast(url: string, body: string, label: Record<string, string>): Promise<void> {
+  const promise = doSend(url, body, label)
+  try {
+    const { ctx } = getCloudflareContext()
+    ctx.waitUntil(promise)
+  } catch {
+    // Not in CF context — promise runs on its own
+  }
+  return promise
+}
+
+export function broadcastToUser(userId: string, message: WsMessage): Promise<void> {
+  return sendBroadcast(
     `/broadcast/user/${userId}`,
     JSON.stringify(message),
     { userId, type: message.type },
   )
 }
 
-export async function broadcastToAgent(agentId: string, message: WsMessage) {
-  await sendBroadcast(
+export function broadcastToAgent(agentId: string, message: WsMessage): Promise<void> {
+  return sendBroadcast(
     `/broadcast/${agentId}`,
     JSON.stringify(message),
     { agentId, type: message.type },

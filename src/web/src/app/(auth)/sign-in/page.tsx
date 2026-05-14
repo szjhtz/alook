@@ -22,8 +22,9 @@ import {
 import { SiGithub, SiGoogle } from "@icons-pack/react-simple-icons"
 import { GradientBackground } from "@/components/gradient-background"
 import { TypewriterVisual, EMAILS_PLAYFUL } from "@/components/typewriter-visual"
+import { isLocalMode } from "@/lib/utils"
 
-const isProd = process.env.NODE_ENV === "production"
+const isProd = !isLocalMode()
 
 import { DEV_PASSWORD } from "@alook/shared"
 const DEFAULT_POST_LOGIN = "/workspaces?auto"

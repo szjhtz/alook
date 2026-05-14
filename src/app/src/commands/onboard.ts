@@ -1,5 +1,8 @@
 import { Command } from "commander";
 import { execSync, spawnSync, spawn as spawnAsync } from "child_process";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+import { createInterface } from "readline";
 import { checkNodeVersion, checkAIRuntime, checkPorts } from "../lib/checks.js";
 import { isInstalled, installBundled } from "../lib/install.js";
 import { ensureSecrets } from "../lib/secrets.js";
@@ -10,11 +13,13 @@ import {
   registerUser,
   createWorkspace,
   createMachineToken,
-  activateToken,
   waitForServer,
 } from "../lib/register.js";
 import { DEFAULT_PORTS, WEB_URL, SELF_HOSTED_DIR } from "../lib/constants.js";
 import { patchWranglerConfigs } from "../lib/wrangler-config.js";
+import { buildCliEnv } from "../lib/cli-env.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export function onboardCommand(): Command {
   return new Command("onboard")
@@ -48,6 +53,12 @@ export function onboardCommand(): Command {
       }
       console.log(`  Found: ${runtimes.map((r) => r.type).join(", ")}\n`);
 
+      // 4. Collect user input before heavy install/migrate work
+      let email: string | undefined;
+      if (!opts.skipRegister) {
+        email = await collectEmail();
+      }
+
       const devMode = !!process.env.ALOOK_PROJECT_ROOT;
 
       if (devMode) {
@@ -57,7 +68,7 @@ export function onboardCommand(): Command {
         try {
           execSync("pnpm predev", { cwd: root, stdio: "inherit" });
         } catch {}
-        execSync("pnpm db:migrate", { cwd: root, stdio: "inherit" });
+        execSync("pnpm db:migrate", { cwd: root, stdio: ["pipe", "inherit", "inherit"] });
       } else {
         // Production: install bundled assets
         if (!isInstalled()) {
@@ -70,12 +81,6 @@ export function onboardCommand(): Command {
         ensureSecrets(ports.web);
         patchWranglerConfigs(ports);
         runMigrations();
-      }
-
-      // 7. Collect user input before starting services
-      let email: string | undefined;
-      if (!opts.skipRegister) {
-        email = await collectEmail();
       }
 
       // 8. Start services
@@ -96,34 +101,24 @@ export function onboardCommand(): Command {
         const { sessionCookie } = await registerUser(baseURL, email);
         const workspace = await createWorkspace(baseURL, sessionCookie);
         const { token } = await createMachineToken(baseURL, sessionCookie, workspace.id);
-        const { runtimeIds } = await activateToken(baseURL, token, runtimes);
 
-        console.log(`  ✓ Daemon registered with ${runtimes.map((r) => r.type).join(", ")} runtime`);
-        console.log(`  ✓ Machine token activated\n`);
-
-        // Start the daemon pointing to local server
-        // Pass ALOOK_PROJECT_ROOT so CLI stores config in the same .alook/ dir
-        const cliEnv: Record<string, string> = {
-          ...process.env as Record<string, string>,
-          ALOOK_SERVER_URL: baseURL,
-        };
-        if (process.env.ALOOK_PROJECT_ROOT) {
-          cliEnv.ALOOK_PROJECT_ROOT = process.env.ALOOK_PROJECT_ROOT;
-        }
+        // Let CLI register handle token activation + config save
+        const cliEntry = join(__dirname, "cli", "index.js");
+        const cliEnv = buildCliEnv(ports.web);
         console.log("Starting daemon...");
         try {
-          spawnSync("npx", ["@alook/cli", "register", "--token", token], {
+          spawnSync("node", [cliEntry, "register", "--token", token], {
             stdio: "inherit",
             env: cliEnv,
           });
-          spawnSync("npx", ["@alook/cli", "daemon", "start"], {
+          spawnSync("node", [cliEntry, "daemon", "start"], {
             stdio: "inherit",
             env: cliEnv,
           });
         } catch {
           console.warn("  Warning: daemon auto-start failed. Start manually:");
-          console.warn(`  ALOOK_SERVER_URL=${baseURL} npx @alook/cli register --token ${token}`);
-          console.warn(`  ALOOK_SERVER_URL=${baseURL} npx @alook/cli daemon start`);
+          console.warn(`  npx @alook/app cli register --token ${token}`);
+          console.warn(`  npx @alook/app cli daemon start`);
         }
       }
 
@@ -134,17 +129,41 @@ export function onboardCommand(): Command {
       console.log("─".repeat(50));
       console.log(`\n🎉 Alook is running!`);
       console.log(`   Dashboard: ${baseURL}`);
+      if (email) {
+        console.log(`   Login:     ${email}`);
+      }
       console.log(`\n   Stop:   npx @alook/app stop`);
       console.log(`   Start:  npx @alook/app start`);
       console.log(`   Update: npx @alook/app update\n`);
 
-      // 12. Open browser
+      // 12. Copy email & open browser on Enter
+      const signInURL = `${baseURL}/sign-in`;
+      if (email) {
+        try {
+          execSync(`printf '%s' ${JSON.stringify(email)} | pbcopy`, { stdio: "ignore" });
+          console.log(`   Email copied to clipboard.\n`);
+        } catch {
+          try {
+            execSync(`printf '%s' ${JSON.stringify(email)} | xclip -selection clipboard`, { stdio: "ignore" });
+            console.log(`   Email copied to clipboard.\n`);
+          } catch {}
+        }
+      }
+
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      await new Promise<void>((resolve) => {
+        rl.question("Press Enter to open the dashboard...", () => {
+          rl.close();
+          resolve();
+        });
+      });
+
       const openCmd = process.platform === "darwin" ? "open" :
         process.platform === "win32" ? "cmd" : "xdg-open";
       try {
         const openArgs = process.platform === "win32"
-          ? ["/c", "start", "", baseURL]
-          : [baseURL];
+          ? ["/c", "start", "", signInURL]
+          : [signInURL];
         spawnAsync(openCmd, openArgs, { stdio: "ignore", detached: true }).unref();
       } catch {}
     });
