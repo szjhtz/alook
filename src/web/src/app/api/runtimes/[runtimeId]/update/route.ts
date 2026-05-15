@@ -27,7 +27,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   const result = await fetchLatestCliVersion();
   if (!result) return writeError("failed to fetch latest CLI version from npm", 502);
 
-  await queries.machine.setPendingUpdateVersion(db, runtime.daemonId, result.version);
+  await queries.machine.setPendingUpdateVersion(db, runtime.daemonId, ws.workspaceId, result.version);
 
   return writeJSON({ pending_update_version: result.version });
 });
@@ -49,7 +49,7 @@ export const DELETE = withAuth(async (req: NextRequest, ctx) => {
   );
   if (!runtime) return writeError("runtime not found", 404);
 
-  await queries.machine.clearPendingUpdateVersion(db, runtime.daemonId);
+  await queries.machine.clearPendingUpdateVersion(db, runtime.daemonId, ws.workspaceId);
 
   return new Response(null, { status: 204 });
 });

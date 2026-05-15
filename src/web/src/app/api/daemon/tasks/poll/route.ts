@@ -202,7 +202,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   let pendingUpdate: { version: string } | undefined;
   if (machineRow?.pendingUpdateVersion && body.cli_version) {
     if (semverGte(body.cli_version, machineRow.pendingUpdateVersion)) {
-      await queries.machine.clearPendingUpdateVersion(db, body.daemon_id);
+      await queries.machine.clearPendingUpdateVersion(db, body.daemon_id, ctx.workspaceId);
       broadcastToUser(ctx.userId, {
         type: "runtime.status",
         daemonId: body.daemon_id,

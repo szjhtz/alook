@@ -92,7 +92,7 @@ describe("POST /api/runtimes/[runtimeId]/update", () => {
 
     expect(res.status).toBe(200);
     expect(body.pending_update_version).toBe("1.0.0");
-    expect(mockSetPendingUpdateVersion).toHaveBeenCalledWith({}, "d1", "1.0.0");
+    expect(mockSetPendingUpdateVersion).toHaveBeenCalledWith({}, "d1", "w1", "1.0.0");
   });
 
   it("returns 404 for non-existent runtime", async () => {
@@ -146,7 +146,7 @@ describe("DELETE /api/runtimes/[runtimeId]/update", () => {
     const res = await DELETE(makeReq("DELETE", "rt1", "w1"));
 
     expect(res.status).toBe(204);
-    expect(mockClearPendingUpdateVersion).toHaveBeenCalledWith({}, "d1");
+    expect(mockClearPendingUpdateVersion).toHaveBeenCalledWith({}, "d1", "w1");
   });
 
   it("returns 404 for non-existent runtime", async () => {

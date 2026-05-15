@@ -351,7 +351,7 @@ describe("POST /api/daemon/tasks/poll", () => {
 
     expect(res.status).toBe(200);
     expect(body.pending_update).toBeUndefined();
-    expect(mockClearPendingUpdateVersion).toHaveBeenCalledWith({}, "d1");
+    expect(mockClearPendingUpdateVersion).toHaveBeenCalledWith({}, "d1", "w1");
   });
 
   it("does not attach pending_update when cli_version is missing (backward compat)", async () => {
