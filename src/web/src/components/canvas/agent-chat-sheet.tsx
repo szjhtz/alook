@@ -78,19 +78,19 @@ export function AgentChatSheet({ open, onOpenChange, agent, targetConvId, scroll
             const qs = params.toString();
             const fullPageUrl = `/w/${slug}/agents/${agent.id}${qs ? `?${qs}` : ""}`;
             return (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                render={<a href={fullPageUrl} title="Open full page" />}
-                onClick={(e: React.MouseEvent) => {
+              <a
+                href={fullPageUrl}
+                onClick={(e) => {
                   if (e.metaKey || e.ctrlKey || e.shiftKey) return;
                   e.preventDefault();
                   onOpenChange(false);
                   router.push(fullPageUrl);
                 }}
+                title="Open full page"
+                className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
               >
                 <ArrowUpRight />
-              </Button>
+              </a>
             );
           })()}
           <SheetClose
