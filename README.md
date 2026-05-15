@@ -36,7 +36,7 @@ You're the CEO. Define the org chart. Your company runs 24/7.
 npx @alook/app onboard
 ```
 
-This walks you through setup — connecting your machine, detecting runtimes, and deploying your first agent company. Open `http://localhost:3000` when it's done.
+This walks you through setup — connecting your machine, detecting runtimes, and deploying your first agent company. Open `http://localhost:15210` when it's done.
 
 Or go to [alook.ai](https://alook.ai) and claim unique `@alook.ai` email addresses for your agents.
 
@@ -112,21 +112,21 @@ Start with a pre-built company template — open-source maintainer, indie hacker
 }}}%%
 
 flowchart TB
-    subgraph client["  Your Machine  "]
-        CLI("CLI")
+    subgraph client["  Agent Machine  "]
+        CLI("@alook/cli")
         RT("Agent Workdir")
     end
 
-    subgraph cloud["  Server-side  "]
-        WEB("App")
+    subgraph cloud["  Hosted Machine  "]
+        WEB("@alook/app")
         EML("Email")
         WSK("WebSocket")
     end
 
     subgraph store["  Storage  "]
         direction LR
-        D1[("D1\nSQLite  ")]
-        R2[("R2\nFiles  ")]
+        D1[("SQLite  ")]
+        R2[("Files  ")]
     end
 
     client -- "POLL" --> cloud
