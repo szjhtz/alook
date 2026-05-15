@@ -6,7 +6,7 @@ import { Streamdown } from "streamdown";
 import { highlightMentions } from "@/lib/highlight-mentions";
 import { TaskStream } from "@/components/task-stream";
 import { HistoricalTaskSteps } from "@/components/agent-chat/historical-task-steps";
-import { FileText, Calendar, CircleDot, Mail } from "lucide-react";
+import { FileText, Calendar, CircleDot, Mail, Flag } from "lucide-react";
 
 import { getEventIconType } from "@/components/agent-chat/agent-chat-view";
 
@@ -31,6 +31,8 @@ export interface MessageItemProps {
   onIssueClick: (issueId: string) => void;
   onRetry?: () => void;
   mentionComponents: Record<string, React.ComponentType<Record<string, unknown> & { children?: React.ReactNode }>>;
+  isFlagged?: boolean;
+  onToggleFlag?: (messageId: string) => void;
 }
 
 function EventMessageIcon({ content, conversationType }: { content: string; conversationType?: string | null }) {
@@ -117,11 +119,14 @@ export const MessageItem = memo(function MessageItem({
   onIssueClick,
   onRetry,
   mentionComponents,
+  isFlagged,
+  onToggleFlag,
 }: MessageItemProps) {
   const hasTaskStream =
     activeTask &&
     msg.role === "assistant" &&
     msg.task_id === activeTask.id &&
+    msg.conversation_id === activeTask.conversation_id &&
     taskMessages.length > 0;
 
   const historicalStepCount =
@@ -191,10 +196,28 @@ export const MessageItem = memo(function MessageItem({
           </div>
         );
       })() : !hasTaskStream ? (
-        <div className="flex justify-start" data-quote-source {...(msg.task_id ? { "data-task-id": msg.task_id } : {})}>
+        <div className={cn(
+          "group/msg flex flex-col justify-start",
+          isFlagged && "bg-muted/30 rounded-lg px-2 -mx-2"
+        )} data-quote-source {...(msg.task_id ? { "data-task-id": msg.task_id } : {})}>
           <div className="markdown max-w-full min-w-0 px-1 py-1 text-base text-foreground">
             <Streamdown controls={{ code: { copy: true, download: false }, table: { copy: true, download: false, fullscreen: true } }} linkSafety={{ enabled: false }} allowedTags={MENTION_ALLOWED_TAGS} literalTagContent={MENTION_LITERAL_TAGS} components={mentionComponents}>{highlightMentions(msg.content, agents)}</Streamdown>
           </div>
+          {onToggleFlag && (
+            <button
+              type="button"
+              onClick={() => onToggleFlag(msg.id)}
+              className={cn(
+                "self-start mb-1 flex items-center justify-center size-6 rounded-md transition-all duration-150 cursor-pointer shrink-0",
+                isFlagged
+                  ? "text-primary opacity-100"
+                  : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-foreground hover:bg-muted"
+              )}
+              title={isFlagged ? "Unflag" : "Flag"}
+            >
+              <Flag className={cn("size-3.5", isFlagged && "fill-current")} />
+            </button>
+          )}
         </div>
       ) : null}
     </React.Fragment>

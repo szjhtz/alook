@@ -640,6 +640,28 @@ export const machineToken = sqliteTable(
   (t) => [index("idx_machine_token").on(t.token)]
 );
 
+export const messageFlag = sqliteTable(
+  "message_flag",
+  {
+    id: text("id").primaryKey().$defaultFn(() => nanoid()),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => message.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  },
+  (t) => [
+    unique("message_flag_message_user").on(t.messageId, t.userId),
+    index("idx_message_flag_ws_user_created").on(t.workspaceId, t.userId, t.createdAt),
+    index("idx_message_flag_message_user").on(t.messageId, t.userId),
+  ]
+);
+
 // ---------------------------------------------------------------------------
 // Workspace file request (ephemeral queue for file browsing)
 // ---------------------------------------------------------------------------

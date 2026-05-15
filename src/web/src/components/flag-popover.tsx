@@ -4,28 +4,27 @@ import { useState, useCallback } from "react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { listInboxItems, type InboxItem } from "@/lib/api";
+import { listFlaggedItems, type FlaggedItem } from "@/lib/api";
 import { useWorkspace } from "@/contexts/workspace-context";
-import { useInboxCount } from "@/contexts/inbox-count-context";
+import { useFlagCount } from "@/contexts/flag-count-context";
 import { useAgentChatSheet } from "@/contexts/agent-chat-sheet-context";
 import { AgentAvatar } from "@/components/avatar";
 import { relativeTime } from "@/lib/time";
-import { getInboxFilterTypes } from "@/lib/inbox-filter";
-import { Inbox, ArrowUpRight } from "lucide-react";
+import { Flag, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
-function InboxPopoverRow({
+function FlagPopoverRow({
   item,
   slug,
   onClick,
 }: {
-  item: InboxItem;
+  item: FlaggedItem;
   slug: string;
   onClick: (e: React.MouseEvent) => void;
 }) {
   return (
     <a
-      href={`/w/${slug}/agents/${item.agent_id}?conv=${item.id}`}
+      href={`/w/${slug}/agents/${item.agent_id}?conv=${item.conversation_id}`}
       onClick={onClick}
       className="block w-full py-1.5 px-2 hover:bg-muted rounded-md transition-colors cursor-pointer"
     >
@@ -37,11 +36,11 @@ function InboxPopoverRow({
               {item.agent_name}
             </span>
             <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
-              {relativeTime(item.latest_response_at)}
+              {relativeTime(item.flagged_at)}
             </span>
           </div>
           <p className="text-xs text-muted-foreground truncate mt-0.5">
-            {item.root_prompt ?? item.title}
+            {item.message_content}
           </p>
         </div>
       </div>
@@ -51,7 +50,7 @@ function InboxPopoverRow({
 
 const POPOVER_LIMIT = 30;
 
-export function InboxPopover({
+export function FlagPopover({
   isActive,
   onNavigate,
 }: {
@@ -59,9 +58,9 @@ export function InboxPopover({
   onNavigate?: () => void;
 }) {
   const { slug, workspaceId } = useWorkspace();
-  const { count: inboxCount, decrement, refresh } = useInboxCount();
+  const { count: flagCount } = useFlagCount();
   const { openAgentChat } = useAgentChatSheet();
-  const [items, setItems] = useState<InboxItem[] | null>(null);
+  const [items, setItems] = useState<FlaggedItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -69,10 +68,7 @@ export function InboxPopover({
     setItems(null);
     setLoading(true);
     try {
-      const result = await listInboxItems(workspaceId, {
-        limit: POPOVER_LIMIT,
-        types: getInboxFilterTypes(),
-      });
+      const result = await listFlaggedItems(workspaceId, { limit: POPOVER_LIMIT });
       setItems(result.items);
     } catch {
       setItems([]);
@@ -81,24 +77,20 @@ export function InboxPopover({
     }
   }, [workspaceId]);
 
-  const handleRowClick = useCallback((item: InboxItem, e: React.MouseEvent) => {
+  const handleRowClick = useCallback((item: FlaggedItem, e: React.MouseEvent) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     e.preventDefault();
-    decrement();
     setOpen(false);
     onNavigate?.();
-    openAgentChat(item.agent_id, { conversationId: item.id });
-  }, [decrement, onNavigate, openAgentChat]);
+    openAgentChat(item.agent_id, { conversationId: item.conversation_id });
+  }, [onNavigate, openAgentChat]);
 
   return (
     <Popover
       open={open}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
-        if (nextOpen) {
-          fetchItems();
-          refresh();
-        }
+        if (nextOpen) fetchItems();
       }}
     >
       <PopoverTrigger
@@ -113,18 +105,18 @@ export function InboxPopover({
           />
         }
       >
-        <Inbox className="size-4" />
-        {inboxCount > 0 && (
+        <Flag className="size-4" />
+        {flagCount > 0 && (
           <span className="absolute top-1 right-1 flex items-center justify-center min-w-3.5 h-3.5 rounded-full bg-primary text-primary-foreground text-[9px] font-bold px-0.5">
-            {inboxCount > 99 ? "99+" : inboxCount}
+            {flagCount > 99 ? "99+" : flagCount}
           </span>
         )}
       </PopoverTrigger>
       <PopoverContent side="right" className="w-80 p-0">
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
-          <span className="text-xs font-medium">Unread</span>
+          <span className="text-xs font-medium">Flagged</span>
           <Link
-            href={`/w/${slug}/unread`}
+            href={`/w/${slug}/flags`}
             onClick={() => {
               setOpen(false);
               onNavigate?.();
@@ -151,13 +143,13 @@ export function InboxPopover({
             </div>
           ) : !items || items.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-6 text-muted-foreground">
-              <Inbox className="size-6 opacity-30" />
-              <p className="text-xs">No unread messages</p>
+              <Flag className="size-6 opacity-30" />
+              <p className="text-xs">No flagged messages</p>
             </div>
           ) : (
-            <div className="max-h-96 overflow-y-auto">
+            <div className="max-h-96 overflow-y-auto thin-scrollbar">
               {items.map((item) => (
-                <InboxPopoverRow
+                <FlagPopoverRow
                   key={item.id}
                   item={item}
                   slug={slug}

@@ -1089,6 +1089,52 @@ export const markAllInboxRead = (workspaceId: string) =>
     method: "POST",
   });
 
+// Flags
+export interface FlaggedItem {
+  id: string;
+  message_id: string;
+  message_content: string;
+  message_role: string;
+  message_created_at: string;
+  conversation_id: string;
+  conversation_title: string;
+  agent_id: string;
+  agent_name: string | null;
+  agent_avatar_url: string | null;
+  flagged_at: string;
+}
+
+export const listFlaggedItems = (
+  workspaceId: string,
+  opts?: { limit?: number; before?: string }
+) => {
+  const extra: Record<string, string> = {};
+  if (opts?.limit) extra.limit = String(opts.limit);
+  if (opts?.before) extra.before = opts.before;
+  return apiFetch<{ items: FlaggedItem[]; has_more: boolean }>(
+    `/api/flags${wsQuery(workspaceId, extra)}`
+  );
+};
+
+export const getFlaggedCount = (workspaceId: string) =>
+  apiFetch<{ count: number }>(`/api/flags/count${wsQuery(workspaceId)}`);
+
+export const flagMessage = (workspaceId: string, messageId: string) =>
+  apiFetch<{ flagged: boolean }>(`/api/flags${wsQuery(workspaceId)}`, {
+    method: "POST",
+    body: JSON.stringify({ messageId }),
+  });
+
+export const unflagMessage = (workspaceId: string, messageId: string) =>
+  apiFetch<void>(`/api/flags/${messageId}${wsQuery(workspaceId)}`, {
+    method: "DELETE",
+  });
+
+export const listFlaggedMessageIds = (workspaceId: string, conversationId: string) =>
+  apiFetch<{ message_ids: string[] }>(
+    `/api/flags${wsQuery(workspaceId, { conversation_id: conversationId, ids_only: "true" })}`
+  );
+
 // Traces
 export interface TraceListItem {
   trace_id: string;

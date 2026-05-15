@@ -8,6 +8,7 @@ import { WorkspaceProvider } from "@/contexts/workspace-context"
 import { AgentProvider } from "@/contexts/agent-context"
 import { ChannelProvider } from "@/contexts/channel-context"
 import { InboxCountProvider } from "@/contexts/inbox-count-context"
+import { FlagCountProvider } from "@/contexts/flag-count-context"
 import { WorkspaceShell } from "@/components/workspace-shell"
 
 export default async function WorkspaceLayout({
@@ -53,9 +54,11 @@ export default async function WorkspaceLayout({
     <WorkspaceProvider workspaceId={ws.id} slug={slug}>
       <AgentProvider workspaceId={ws.id}>
         <InboxCountProvider>
-          <ChannelProvider workspaceId={ws.id}>
-            <WorkspaceShell>{children}</WorkspaceShell>
-          </ChannelProvider>
+          <FlagCountProvider>
+            <ChannelProvider workspaceId={ws.id}>
+              <WorkspaceShell>{children}</WorkspaceShell>
+            </ChannelProvider>
+          </FlagCountProvider>
         </InboxCountProvider>
       </AgentProvider>
     </WorkspaceProvider>

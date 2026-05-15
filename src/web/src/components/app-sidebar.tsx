@@ -6,6 +6,7 @@ import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { Agent } from "@alook/shared";
 import { InboxPopover } from "@/components/inbox-popover";
+import { FlagPopover } from "@/components/flag-popover";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 import { Monitor, SunMoon, Plus, CalendarDays, Settings, ArrowLeftRight, Home, CircleDot, Folder, Ungroup, ArrowRightToLine } from "lucide-react";
@@ -247,6 +248,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const isRuntimes = pathname === `${prefix}/runtimes`;
   const isCalendar = pathname === `${prefix}/calendar`;
   const isInbox = pathname.startsWith(`${prefix}/unread`);
+  const isFlags = pathname.startsWith(`${prefix}/flags`);
   const isIssues = pathname.startsWith(`${prefix}/issues`);
   const isSettings = pathname === `${prefix}/settings`;
   const isCreateAgent = pathname === `${prefix}/agents/new`;
@@ -409,6 +411,8 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
         </Tooltip>
 
         <InboxPopover isActive={isInbox} onNavigate={onNavigate} />
+
+        <FlagPopover isActive={isFlags} onNavigate={onNavigate} />
 
         <Tooltip>
           <TooltipTrigger render={

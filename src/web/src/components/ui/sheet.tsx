@@ -48,7 +48,7 @@ function SheetContent({
 }) {
   return (
     <SheetPortal>
-      <SheetOverlay />
+      <SheetOverlay forceRender />
       <SheetPrimitive.Popup
         data-slot="sheet-content"
         data-side={side}

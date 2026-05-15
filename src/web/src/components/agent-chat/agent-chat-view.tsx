@@ -28,11 +28,15 @@ import {
   getIssue,
   getTrace,
   updateIssue,
+  listFlaggedMessageIds,
+  flagMessage as apiFlagMessage,
+  unflagMessage as apiUnflagMessage,
 } from "@/lib/api";
 import type { PreviousConversation, TraceTask } from "@/lib/api";
 import type { Artifact, Conversation, Issue, IssueComment, Message, TaskApi as Task, TaskMessage, WsMessage } from "@alook/shared";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useInboxCount } from "@/contexts/inbox-count-context";
+import { useFlagCount } from "@/contexts/flag-count-context";
 import { useChannel } from "@/contexts/channel-context";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -311,8 +315,8 @@ export function AgentChatView({
   const { refresh: refreshInboxCount } = useInboxCount();
   const { activeChannel, loading: channelLoading, setAgentId: setChannelAgentId } = useChannel();
   const agentId = propAgentId ?? (params.id as string);
-  const scrollToTaskId = propScrollToTaskId ?? searchParams.get("task");
-  const targetConvId = propTargetConvId ?? searchParams.get("conv");
+  const scrollToTaskId = propScrollToTaskId !== undefined ? propScrollToTaskId : searchParams.get("task");
+  const targetConvId = propTargetConvId !== undefined ? propTargetConvId : searchParams.get("conv");
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -357,6 +361,11 @@ export function AgentChatView({
   const [pendingFilesByMessage, setPendingFilesByMessage] = useState<Map<string, File[]>>(() => new Map());
   const [quotedText, setQuotedText] = useState<string | null>(null);
   const [selectionPopup, setSelectionPopup] = useState<{ text: string; x: number; y: number } | null>(null);
+  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set());
+  const flaggedIdsRef = useRef(flaggedIds);
+  flaggedIdsRef.current = flaggedIds;
+
+  const { increment: flagIncrement, decrement: flagDecrement } = useFlagCount();
 
   useEffect(() => {
     setChannelAgentId(agentId);
@@ -399,6 +408,7 @@ export function AgentChatView({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const markReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTaskIdRef = useRef<string | null>(null);
   const lastSeqRef = useRef(0);
   const pollFailures = useRef(0);
@@ -493,6 +503,9 @@ export function AgentChatView({
                 .then((counts) => { if (!ignore) setStepCounts(counts); })
                 .catch(() => {});
             }
+            listFlaggedMessageIds(workspaceId, targetConvId)
+              .then((r) => { if (!ignore) setFlaggedIds(new Set(r.message_ids)); })
+              .catch(() => {});
             if (scrollToTaskId) {
               const task = await getTask(scrollToTaskId, workspaceId).catch(() => null);
               if (ignore) return;
@@ -548,15 +561,24 @@ export function AgentChatView({
     return () => { ignore = true; };
   }, [agentId, workspaceId, targetConvId, scrollToTaskId, activeChannel, channelLoading]);
 
+  const refreshInboxCountRef = useRef(refreshInboxCount);
+  useEffect(() => { refreshInboxCountRef.current = refreshInboxCount; }, [refreshInboxCount]);
+
   const markedReadRef = useRef<string | null>(null);
   useEffect(() => {
     if (!conversation?.id || !workspaceId) return;
     if (markedReadRef.current === conversation.id) return;
     markedReadRef.current = conversation.id;
-    markInboxRead(conversation.id, workspaceId)
-      .then(() => refreshInboxCount())
-      .catch(() => {});
-  }, [conversation?.id, workspaceId, refreshInboxCount]);
+    const timer = setTimeout(() => {
+      markInboxRead(conversation.id, workspaceId)
+        .then(() => refreshInboxCountRef.current())
+        .catch(() => {});
+    }, 5000);
+    return () => {
+      markedReadRef.current = null;
+      clearTimeout(timer);
+    };
+  }, [conversation?.id, workspaceId]);
 
   // Scroll to bottom on initial load (skip if scroll-to-task is active)
   useEffect(() => {
@@ -856,9 +878,12 @@ export function AgentChatView({
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
 
-            markInboxRead(conversationId, workspaceId)
-              .then(() => refreshInboxCount())
-              .catch(() => {});
+            if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current);
+            markReadTimerRef.current = setTimeout(() => {
+              markInboxRead(conversationId, workspaceId)
+                .then(() => refreshInboxCountRef.current())
+                .catch(() => {});
+            }, 5000);
 
             const shouldScroll = isNearBottom.current;
             try {
@@ -928,6 +953,7 @@ export function AgentChatView({
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current);
     };
   }, []);
 
@@ -1294,6 +1320,33 @@ export function AgentChatView({
     startPolling(newTask.id, conversation.id);
   }, [activeTask, conversation, workspaceId, startPolling]);
 
+  const handleToggleFlag = useCallback(async (messageId: string) => {
+    const wasFlagged = flaggedIdsRef.current.has(messageId);
+    setFlaggedIds((prev) => {
+      const next = new Set(prev);
+      if (wasFlagged) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+    if (wasFlagged) {
+      flagDecrement();
+      apiUnflagMessage(workspaceId, messageId).catch(() => {
+        setFlaggedIds((prev) => new Set(prev).add(messageId));
+        flagIncrement();
+      });
+    } else {
+      flagIncrement();
+      apiFlagMessage(workspaceId, messageId).catch(() => {
+        setFlaggedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(messageId);
+          return next;
+        });
+        flagDecrement();
+      });
+    }
+  }, [workspaceId, flagIncrement, flagDecrement]);
+
   const openIssue = useCallback(async (issueId: string) => {
     setSelectedIssueId(issueId);
     setIssueSheetOpen(true);
@@ -1578,12 +1631,14 @@ export function AgentChatView({
                   onIssueClick={(issueId) => openIssue(issueId)}
                   onRetry={handleRetryTask}
                   mentionComponents={MENTION_COMPONENTS}
+                  isFlagged={flaggedIds.has(msg.id)}
+                  onToggleFlag={msg.role === "assistant" ? handleToggleFlag : undefined}
                 />
               );
             })}
 
             {/* Show trace while task is in progress (no assistant message yet) */}
-            {activeTask && !["completed", "failed", "cancelled", "superseded"].includes(activeTask.status) && (
+            {activeTask && activeTask.conversation_id === conversation?.id && !["completed", "failed", "cancelled", "superseded"].includes(activeTask.status) && (
               <TaskStream
                 task={activeTask}
                 messages={taskMessages}
