@@ -44,7 +44,7 @@ export default function RuntimesPage() {
   const [sheetOpen, setSheetOpen] = useState(() => searchParams.has("connect"));
   const [generatedToken, setGeneratedToken] = useState("");
   const [generatingToken, setGeneratingToken] = useState(false);
-  const [machineRegistered, setMachineRegistered] = useState(false);
+  const [registeredDaemonId, setRegisteredDaemonId] = useState<string | null>(null);
 
   const [latestCliVersion, setLatestCliVersion] = useState<string | null>(null);
   const [updatingDaemons, setUpdatingDaemons] = useState<Set<string>>(new Set());
@@ -77,20 +77,24 @@ export default function RuntimesPage() {
   useEffect(() => { sheetOpenRef.current = sheetOpen; }, [sheetOpen]);
   const agentsRef = useRef(agents);
   useEffect(() => { agentsRef.current = agents; }, [agents]);
+  const registeredDaemonIdRef = useRef(registeredDaemonId);
+  useEffect(() => { registeredDaemonIdRef.current = registeredDaemonId; }, [registeredDaemonId]);
   useEffect(() => {
     return subscribeWs((msg) => {
       if (!sheetOpenRef.current) return;
       if (msg.type === "runtime.registered" && msg.workspaceId === workspaceId) {
-        setMachineRegistered(true);
+        setRegisteredDaemonId(msg.daemonId);
       }
       if (
         msg.type === "runtime.status" &&
         msg.workspaceId === workspaceId &&
-        msg.status === "online"
+        msg.status === "online" &&
+        registeredDaemonIdRef.current &&
+        msg.daemonId === registeredDaemonIdRef.current
       ) {
         setSheetOpen(false);
         setGeneratedToken("");
-        setMachineRegistered(false);
+        setRegisteredDaemonId(null);
         toast.success("Machine connected");
         if (agentsRef.current.length === 0) {
           const slug = pathname.split("/")[2];
@@ -270,7 +274,7 @@ export default function RuntimesPage() {
           variant="outline"
           onClick={() => {
             setGeneratedToken("");
-            setMachineRegistered(false);
+            setRegisteredDaemonId(null);
             setSheetOpen(true);
           }}
           disabled={generatingToken}
@@ -485,7 +489,7 @@ export default function RuntimesPage() {
               generatedToken={generatedToken}
               generatingToken={generatingToken}
               onGenerateToken={onGenerateToken}
-              registered={machineRegistered}
+              registered={!!registeredDaemonId}
             />
           </SheetBody>
         </SheetContent>
