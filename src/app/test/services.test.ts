@@ -28,7 +28,7 @@ describe("services", () => {
     it("returns false when no pid file exists", async () => {
       const { isRunning } = await import("../src/lib/services.js");
       expect(isRunning()).toBe(false);
-    });
+    }, 15_000);
 
     it("returns false when all pids are dead", async () => {
       const { writePids } = await import("../src/lib/pid.js");

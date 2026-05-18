@@ -13,9 +13,9 @@ const EMAIL_NOTICE =
 
 const ISSUE_NOTICE =
   "This task was triggered by an assigned issue. The issue_id is provided in this message." +
-  " Use `alook issue show --agent_id <your_agent_id> --issue_id <issue_id>` to read full context." +
-  " Use `alook issue update --agent_id <your_agent_id> --issue_id <issue_id> --status <status>` to change status." +
-  " Use `alook issue comment --agent_id <your_agent_id> --issue_id <issue_id> --body <text>` to leave a comment." +
+  " Use `alook issue show --issue_id <issue_id>` to read full context." +
+  " Use `alook issue update --issue_id <issue_id> --status <status>` to change status." +
+  " Use `alook issue comment --issue_id <issue_id> --body <text>` to leave a comment." +
   " CRITICAL — You MUST manage the issue status correctly. This is NOT optional:" +
   " 1. Set status to 'in_progress' when you start working." +
   " 2. If you complete the work yourself: leave a summary comment, then set status to 'review' as your last action. 'review' means there is actual completed work (code, artifact, result) ready for the owner to look at." +

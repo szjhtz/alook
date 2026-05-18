@@ -26,8 +26,10 @@ describe("buildInstructionContent email tool injection", () => {
     });
     const content = buildInstructionContent(task);
 
-    expect(content).toContain("npx @alook/cli email pull --agent_id agent-123 --status unread");
-    expect(content).toContain("npx @alook/cli email set --agent_id agent-123 --email_id <EMAIL_ID> --status read");
+    expect(content).toContain("npx @alook/cli email pull --status unread");
+    expect(content).toContain("npx @alook/cli email set --email_id <EMAIL_ID> --status read");
+    expect(content).not.toContain("email pull --agent_id");
+    expect(content).not.toContain("email set --agent_id");
     expect(content).toContain(`${tempDir("alook-emails")}/ws1/agent-123/`);
     expect(content).toContain("metadata.json");
     expect(content).toContain("'myagent@alook.ai' (default, Alook platform address)");
@@ -39,7 +41,7 @@ describe("buildInstructionContent email tool injection", () => {
     });
     const content = buildInstructionContent(task);
 
-    expect(content).toContain("npx @alook/cli email send --agent_id agent-123");
+    expect(content).toContain("npx @alook/cli email send --to");
     expect(content).toContain("--body-file");
     expect(content).toContain("--attachment");
   });
@@ -61,7 +63,7 @@ describe("buildInstructionContent email tool injection", () => {
     });
     const content = buildInstructionContent(task);
 
-    expect(content).not.toContain("email send --agent_id");
+    expect(content).not.toContain("email send --to");
   });
 
   it("includes owner email in opening line when user email is provided", () => {
@@ -112,14 +114,17 @@ describe("buildInstructionContent email tool injection", () => {
     expect(content).not.toContain("## Email Tools");
   });
 
-  it("uses correct agent ID in email tool commands", () => {
+  it("does not include --agent_id in CLI examples and shows auto-detect note", () => {
     const task = makeTask({
       agentId: "specific-agent-id",
       agent: { name: "test", instructions: "", emailHandle: "handle" },
     });
     const content = buildInstructionContent(task);
 
-    expect(content).toContain("--agent_id specific-agent-id");
+    expect(content).not.toContain("--agent_id specific-agent-id");
+    expect(content).not.toContain("email pull --agent_id");
+    expect(content).not.toContain("calendar set --agent_id");
+    expect(content).toContain("The CLI auto-detects your identity from the environment");
   });
 
   it("still includes big boss instructions alongside email tools", () => {

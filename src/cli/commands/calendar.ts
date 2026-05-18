@@ -3,6 +3,7 @@ import { APIClient } from "../lib/client.js";
 import { loadCLIConfigForProfile } from "../lib/config.js";
 import { printJSON } from "../lib/output.js";
 import { cmdPrefix } from "../lib/env.js";
+import { resolveAgentId } from "../lib/flags.js";
 
 interface CalendarEventResponse {
   id: string;
@@ -97,7 +98,7 @@ export function calendarCommand(): Command {
   cmd
     .command("set")
     .description("Create a calendar event")
-    .requiredOption("--agent_id <id>", "Agent ID")
+    .option("--agent_id <id>", "Agent ID")
     .requiredOption("--event_title <title>", "Event title (used as the task prompt)")
     .requiredOption(
       "--datetime <iso>",
@@ -111,9 +112,10 @@ export function calendarCommand(): Command {
     )
     .option("--json", "Output as JSON")
     .action(async (opts, command) => {
+      const agentId = resolveAgentId(opts);
       const { serverUrl, token, workspaceId } = resolveClientOpts(
         command,
-        opts.agent_id
+        agentId
       );
       const client = new APIClient(serverUrl, token, workspaceId);
 
@@ -137,7 +139,7 @@ export function calendarCommand(): Command {
       }
 
       const body: Record<string, unknown> = {
-        agent_id: opts.agent_id,
+        agent_id: agentId,
         title: opts.event_title,
         scheduled_at: scheduledAt,
       };
@@ -168,14 +170,15 @@ export function calendarCommand(): Command {
   cmd
     .command("list")
     .description("List calendar events for an agent")
-    .requiredOption("--agent_id <id>", "Agent ID")
+    .option("--agent_id <id>", "Agent ID")
     .option("--future_days <n>", "Include events scheduled in the next N days", "30")
     .option("--past_days <n>", "Include events scheduled in the past N days", "0")
     .option("--json", "Output as JSON")
     .action(async (opts, command) => {
+      const agentId = resolveAgentId(opts);
       const { serverUrl, token, workspaceId } = resolveClientOpts(
         command,
-        opts.agent_id
+        agentId
       );
       const client = new APIClient(serverUrl, token, workspaceId);
 
@@ -189,7 +192,7 @@ export function calendarCommand(): Command {
 
       try {
         const events = await client.getJSON<CalendarEventResponse[]>(
-          `/api/calendar?agentId=${encodeURIComponent(opts.agent_id)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+          `/api/calendar?agentId=${encodeURIComponent(agentId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
         );
         if (opts.json) {
           printJSON(events);
@@ -217,13 +220,14 @@ export function calendarCommand(): Command {
   cmd
     .command("show")
     .description("Show the full detail of a single calendar event")
-    .requiredOption("--agent_id <id>", "Agent ID")
+    .option("--agent_id <id>", "Agent ID")
     .requiredOption("--event_id <id>", "Event ID")
     .option("--json", "Output as JSON")
     .action(async (opts, command) => {
+      const agentId = resolveAgentId(opts);
       const { serverUrl, token, workspaceId } = resolveClientOpts(
         command,
-        opts.agent_id
+        agentId
       );
       const client = new APIClient(serverUrl, token, workspaceId);
 
@@ -231,9 +235,9 @@ export function calendarCommand(): Command {
         const ev = await client.getJSON<CalendarEventResponse>(
           `/api/calendar/${opts.event_id}`
         );
-        if (ev.agent_id !== opts.agent_id) {
+        if (ev.agent_id !== agentId) {
           console.error(
-            `Error: event ${ev.id} does not belong to agent ${opts.agent_id}`
+            `Error: event ${ev.id} does not belong to agent ${agentId}`
           );
           process.exit(1);
         }
@@ -251,7 +255,7 @@ export function calendarCommand(): Command {
   cmd
     .command("update")
     .description("Update fields on an existing calendar event")
-    .requiredOption("--agent_id <id>", "Agent ID")
+    .option("--agent_id <id>", "Agent ID")
     .requiredOption("--event_id <id>", "Event ID")
     .option("--event_title <title>", "New event title (task prompt)")
     .option("--description <text>", "New description text")
@@ -320,9 +324,10 @@ export function calendarCommand(): Command {
         process.exit(1);
       }
 
+      const agentId = resolveAgentId(opts);
       const { serverUrl, token, workspaceId } = resolveClientOpts(
         command,
-        opts.agent_id
+        agentId
       );
       const client = new APIClient(serverUrl, token, workspaceId);
 
@@ -331,9 +336,9 @@ export function calendarCommand(): Command {
           `/api/calendar/${opts.event_id}`,
           body
         );
-        if (updated.agent_id !== opts.agent_id) {
+        if (updated.agent_id !== agentId) {
           console.error(
-            `Error: event ${updated.id} does not belong to agent ${opts.agent_id}`
+            `Error: event ${updated.id} does not belong to agent ${agentId}`
           );
           process.exit(1);
         }
@@ -351,12 +356,13 @@ export function calendarCommand(): Command {
   cmd
     .command("delete")
     .description("Delete a calendar event")
-    .requiredOption("--agent_id <id>", "Agent ID")
+    .option("--agent_id <id>", "Agent ID")
     .requiredOption("--event_id <id>", "Event ID")
     .action(async (opts, command) => {
+      const agentId = resolveAgentId(opts);
       const { serverUrl, token, workspaceId } = resolveClientOpts(
         command,
-        opts.agent_id
+        agentId
       );
       const client = new APIClient(serverUrl, token, workspaceId);
 

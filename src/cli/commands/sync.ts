@@ -5,6 +5,7 @@ import { APIClient } from "../lib/client.js";
 import { loadCLIConfigForProfile } from "../lib/config.js";
 import { printJSON } from "../lib/output.js";
 import { cmdPrefix } from "../lib/env.js";
+import { resolveAgentId } from "../lib/flags.js";
 
 const MIME_BY_EXT: Record<string, string> = {
   ".pdf": "application/pdf",
@@ -56,11 +57,12 @@ export function syncCommand(): Command {
   cmd
     .command("upload-artifact")
     .description("Upload a file artifact to a conversation")
-    .requiredOption("--agent_id <id>", "Agent ID")
+    .option("--agent_id <id>", "Agent ID")
     .requiredOption("--conversation_id <id>", "Conversation ID")
     .requiredOption("--file <path>", "Path to file to upload")
     .action(async (opts, command) => {
-      const { serverUrl, token, workspaceId } = resolveClientOpts(command, opts.agent_id);
+      const agentId = resolveAgentId(opts);
+      const { serverUrl, token, workspaceId } = resolveClientOpts(command, agentId);
       const client = new APIClient(serverUrl, token, workspaceId);
 
       let bytes: Buffer;
@@ -80,7 +82,7 @@ export function syncCommand(): Command {
         new Blob([new Uint8Array(bytes)], { type: contentType }),
         filename
       );
-      form.append("agent_id", opts.agent_id);
+      form.append("agent_id", agentId);
       form.append("conversation_id", opts.conversation_id);
 
       try {
