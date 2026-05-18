@@ -6,8 +6,13 @@ compatibility_flags = ["nodejs_compat"]
 [observability]
 enabled = true
 
+[observability.logs]
+invocation_logs = true
+destinations = ["grafana-logs"]
+
 [observability.traces]
 enabled = true
+destinations = ["grafana-traces"]
 
 [dev]
 port = 8787
