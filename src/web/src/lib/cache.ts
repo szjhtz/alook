@@ -1,3 +1,9 @@
+const log = {
+  warn(msg: string, ctx: Record<string, unknown>) {
+    console.log(JSON.stringify({ level: "warn", service: "cache", msg, ...ctx, ts: new Date().toISOString() }));
+  },
+};
+
 let _kv: KVNamespace | null | undefined;
 
 export function bindCacheKV(kv: KVNamespace | null) {
@@ -21,7 +27,7 @@ export async function cached<T>(
       const raw = await kv.get(key);
       if (raw) return JSON.parse(raw) as T;
     } catch (err) {
-      console.warn(`[cache] KV read failed for ${key}:`, err);
+      log.warn("KV read failed", { key, err });
     }
   }
 
@@ -29,7 +35,7 @@ export async function cached<T>(
 
   if (value != null && kv) {
     kv.put(key, JSON.stringify(value), { expirationTtl: Math.max(ttlSeconds, MIN_KV_TTL) }).catch((err) => {
-      console.warn(`[cache] KV write failed for ${key}:`, err);
+      log.warn("KV write failed", { key, err });
     });
   }
 
@@ -63,7 +69,7 @@ export async function cachedBatch<T>(
             hits.push(key);
           }
         } catch (err) {
-          console.warn(`[cache] KV batch read failed for ${key}:`, err);
+          log.warn("KV batch read failed", { key, err });
         }
       }),
     );
@@ -76,7 +82,7 @@ export async function cachedBatch<T>(
       result.set(key, value);
       if (value != null && kv) {
         kv.put(key, JSON.stringify(value), { expirationTtl: Math.max(ttlSeconds, MIN_KV_TTL) }).catch((err) => {
-          console.warn(`[cache] KV batch write failed for ${key}:`, err);
+          log.warn("KV batch write failed", { key, err });
         });
       }
     }
@@ -120,7 +126,7 @@ export async function throttled(
 export async function invalidate(key: string): Promise<void> {
   const kv = getKV();
   if (kv) await kv.delete(key).catch((err) => {
-    console.warn(`[cache] KV delete failed for ${key}:`, err);
+    log.warn("KV invalidate failed", { key, err });
   });
 }
 
@@ -128,7 +134,7 @@ export async function invalidateMany(keys: string[]): Promise<void> {
   const kv = getKV();
   if (!kv || keys.length === 0) return;
   await Promise.all(keys.map((key) => kv.delete(key).catch((err) => {
-    console.warn(`[cache] KV delete failed for ${key}:`, err);
+    log.warn("KV invalidate failed", { key, err });
   })));
 }
 

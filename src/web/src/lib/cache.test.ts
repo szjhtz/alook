@@ -49,34 +49,31 @@ describe("cache", () => {
     it("falls back to fn when KV read throws", async () => {
       (mockKV.get as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("KV down"));
       const fn = vi.fn(async () => ({ data: "fallback" }));
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       const result = await cached("error-key", 300, fn);
 
       expect(result).toEqual({ data: "fallback" });
       expect(fn).toHaveBeenCalledOnce();
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[cache] KV read failed for error-key"),
-        expect.any(Error),
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"msg":"KV read failed"'),
       );
-      warnSpy.mockRestore();
+      logSpy.mockRestore();
     });
 
     it("still returns value when KV write throws", async () => {
       (mockKV.put as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("KV write error"));
       const fn = vi.fn(async () => ({ data: "ok" }));
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       const result = await cached("write-fail-key", 300, fn);
 
       expect(result).toEqual({ data: "ok" });
-      // Wait for async catch handler
       await new Promise((r) => setTimeout(r, 10));
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[cache] KV write failed for write-fail-key"),
-        expect.any(Error),
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"msg":"KV write failed"'),
       );
-      warnSpy.mockRestore();
+      logSpy.mockRestore();
     });
 
     it("clamps TTL to minimum 60s for KV write", async () => {
@@ -175,16 +172,15 @@ describe("cache", () => {
 
     it("logs warning on KV delete failure", async () => {
       (mockKV.delete as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("fail"));
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       await invalidate("fail-key");
 
       await new Promise((r) => setTimeout(r, 10));
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[cache] KV delete failed for fail-key"),
-        expect.any(Error),
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"msg":"KV invalidate failed"'),
       );
-      warnSpy.mockRestore();
+      logSpy.mockRestore();
     });
 
     it("does nothing when KV is not bound", async () => {
