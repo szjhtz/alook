@@ -149,6 +149,7 @@ export const cacheKeys = {
   allAgents: (workspaceId: string) => `agents:${workspaceId}`,
   allEmailAccounts: (workspaceId: string) => `ea:${workspaceId}`,
   allColleagues: (workspaceId: string) => `col:${workspaceId}`,
+  agentLinks: (workspaceId: string) => `al:${workspaceId}`,
   allHandles: (workspaceId: string) => `handles:${workspaceId}`,
   overviewEmailStats: (workspaceId: string) => `ov_email:${workspaceId}`,
   overviewTaskStats: (workspaceId: string, dateStr: string) => `ov_task:${workspaceId}:${dateStr}`,

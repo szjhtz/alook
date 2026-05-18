@@ -3,7 +3,7 @@ import { type DaemonConfig, loadDaemonConfig, sessionRunnerLogDir, daemonLogFile
 import { createHealthServer } from "./health.js";
 import { detectVersion } from "./agent/index.js";
 import { type Task, type SessionRunnerInput, fromApiTask } from "./types.js";
-import type { MarkerData } from "./session-runner.js";
+import { type MarkerData, writeMarkerFile } from "./session-runner.js";
 import { loadCLIConfigForProfile, saveCLIConfigForProfile } from "../lib/config.js";
 import { createLogger } from "../lib/logger.js";
 
@@ -11,7 +11,7 @@ const log = createLogger({ module: "daemon" });
 import { cmdPrefix } from "../lib/env.js";
 import { acquireDaemonPid, releaseDaemonPid } from "./pidfile.js";
 import { handleCliUpdate, isUpdating, readUpdateMarker, clearUpdateMarker } from "./update-handler.js";
-import { findRunningPidByTaskId, findRunningEntryByContextKey } from "./execenv/timeline.js";
+import { findRunningPidByTaskId, findRunningEntryByContextKey, updateEntry } from "./execenv/timeline.js";
 import {
   writeKillIntent,
   acquireSteeringLock,
@@ -865,6 +865,42 @@ async function handleTask(
   };
 
   const child = spawnSessionRunner(input);
-  child.on("close", () => activeTasks.delete(task.id));
+  child.on("close", async (code) => {
+    activeTasks.delete(task.id);
+    if (code !== 0) {
+      const msg = code === null
+        ? `session-runner killed by signal (task ${task.id})`
+        : `session-runner crashed (exit code ${code}, task ${task.id})`;
+      log.warn(msg);
+
+      // Update timeline JSONL as fallback
+      const timelineDir = join(config.workspacesRoot, task.workspaceId, task.agentId, "workdir", ".context_timeline");
+      updateEntry(timelineDir, task.id, (entry) => {
+        entry.pid = null;
+        entry.status = "failed";
+        entry.errmsg = msg;
+      });
+
+      try {
+        await client.failTask(token, task.id, msg);
+      } catch (e) {
+        if (isClientError(e)) {
+          log.info(`Backstop: task ${task.id} already in terminal state`);
+          return;
+        }
+        log.error(`Backstop: failed to report crash for task ${task.id}`, e);
+        try {
+          await writeMarkerFile(config.workspacesRoot, {
+            taskId: task.id,
+            type: "fail",
+            payload: { error: msg },
+            token,
+            serverURL: config.serverURL,
+            createdAt: new Date().toISOString(),
+          });
+        } catch { /* best-effort */ }
+      }
+    }
+  });
   log.info(`Task ${task.id} dispatched to session-runner (pid=${child.pid})`);
 }

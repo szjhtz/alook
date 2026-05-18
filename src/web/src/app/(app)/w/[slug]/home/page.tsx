@@ -35,7 +35,6 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { AgentPreviewCard } from "@/components/agent-preview-card";
 import {
-  listAgentLinks,
   createAgentLink,
   updateAgentLink,
   deleteAgentLink,
@@ -77,36 +76,24 @@ function savePositions(workspaceId: string, nodes: Node[]) {
 
 function AgentCanvas({ onAgentClick }: { onAgentClick?: (agent: Agent) => void }) {
   const router = useRouter();
-  const { agents, runtimes, loading, activeTaskCounts } = useAgentContext();
+  const { agents, runtimes, loading, activeTaskCounts, agentLinks } = useAgentContext();
   const { slug, workspaceId } = useWorkspace();
   const { zoomIn, zoomOut, fitView } = useReactFlow();
 
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [links, setLinks] = useState<AgentLink[]>([]);
-  const [linksLoaded, setLinksLoaded] = useState(false);
+  const linksLoaded = !loading;
   const [sidecarLink, setSidecarLink] = useState<AgentLink | null>(null);
   const [sidecarOpen, setSidecarOpen] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const initialLayoutDone = useRef(false);
   const handleMap = useRef<Record<string, { sourceHandle: string; targetHandle: string }>>({});
 
-  // Fetch links
+  // Sync links from context
   useEffect(() => {
-    if (!workspaceId || loading || agents.length === 0) return;
-    let cancelled = false;
-    listAgentLinks(workspaceId)
-      .then((data) => {
-        if (!cancelled) {
-          setLinks(data);
-          setLinksLoaded(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setLinksLoaded(true);
-      });
-    return () => { cancelled = true; };
-  }, [workspaceId, loading, agents.length]);
+    if (!loading) setLinks(agentLinks);
+  }, [agentLinks, loading]);
 
   // Build edges from links
   useEffect(() => {
@@ -189,6 +176,14 @@ function AgentCanvas({ onAgentClick }: { onAgentClick?: (agent: Agent) => void }
 
     const hasAnyPosition = Object.keys(validPositions).length > 0;
     const newAgentIds = agents.filter((a) => !validPositions[a.id]).map((a) => a.id);
+
+    // Case 1: No saved positions and links not loaded yet — wait for links before setting nodes
+    if (!hasAnyPosition && !linksLoaded) return;
+
+    // Case 2: Some saved positions but new agents need layout — only show positioned nodes until links load
+    if (hasAnyPosition && newAgentIds.length > 0 && !linksLoaded) {
+      newNodes = newNodes.filter((n) => validPositions[n.id]);
+    }
 
     if (!hasAnyPosition) {
       // First visit — auto-layout all
