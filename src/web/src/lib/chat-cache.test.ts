@@ -4,6 +4,7 @@ import type { Message } from "@alook/shared";
 import {
   openCacheDB,
   getCachedMessages,
+  getCachedMessagesBefore,
   mergeCachedMessages,
   appendCachedMessage,
   removeCachedMessage,
@@ -79,6 +80,27 @@ describe("chat-cache", () => {
       const cached = await getCachedMessages("conv_1", WORKSPACE_ID);
       expect(cached).toHaveLength(3);
       expect(cached!.map((m) => m.id)).toEqual(["m1", "m2", "m3"]);
+    });
+
+    it("does not regress newestMessageId when merging older messages", async () => {
+      const newer = [
+        makeMessage({ id: "m3", conversation_id: "conv_1", created_at: "2024-01-01T00:02:00Z" }),
+        makeMessage({ id: "m4", conversation_id: "conv_1", created_at: "2024-01-01T00:03:00Z" }),
+      ];
+      await mergeCachedMessages("conv_1", newer, true, WORKSPACE_ID);
+
+      const metaBefore = await getCacheMeta("conv_1", WORKSPACE_ID);
+      expect(metaBefore!.newestMessageId).toBe("m4");
+
+      const older = [
+        makeMessage({ id: "m1", conversation_id: "conv_1", created_at: "2024-01-01T00:00:00Z" }),
+        makeMessage({ id: "m2", conversation_id: "conv_1", created_at: "2024-01-01T00:01:00Z" }),
+      ];
+      await mergeCachedMessages("conv_1", older, null, WORKSPACE_ID);
+
+      const metaAfter = await getCacheMeta("conv_1", WORKSPACE_ID);
+      expect(metaAfter!.newestMessageId).toBe("m4");
+      expect(metaAfter!.messageCount).toBe(4);
     });
 
     it("filters out buffered messages", async () => {
@@ -241,6 +263,157 @@ describe("chat-cache", () => {
       expect(meta2).not.toBeNull();
       expect(meta3).not.toBeNull();
       expect(meta4).not.toBeNull();
+    });
+  });
+
+  describe("getCachedMessagesBefore", () => {
+    it("returns older messages from cache correctly", async () => {
+      const msgs = Array.from({ length: 10 }, (_, i) =>
+        makeMessage({
+          id: `m${i + 1}`,
+          conversation_id: "conv_1",
+          created_at: `2024-01-01T00:0${i}:00Z`,
+        })
+      );
+      await mergeCachedMessages("conv_1", msgs, false, WORKSPACE_ID);
+
+      const result = await getCachedMessagesBefore("conv_1", "2024-01-01T00:06:00Z", "m7", 10, WORKSPACE_ID);
+      expect(result).not.toBeNull();
+      expect(result!.messages.map((m) => m.id)).toEqual(["m1", "m2", "m3", "m4", "m5", "m6"]);
+    });
+
+    it("respects limit parameter", async () => {
+      const msgs = Array.from({ length: 20 }, (_, i) =>
+        makeMessage({
+          id: `m${String(i + 1).padStart(2, "0")}`,
+          conversation_id: "conv_1",
+          created_at: `2024-01-01T00:${String(i).padStart(2, "0")}:00Z`,
+        })
+      );
+      await mergeCachedMessages("conv_1", msgs, false, WORKSPACE_ID);
+
+      const result = await getCachedMessagesBefore("conv_1", "2024-01-01T00:19:00Z", "m20", 5, WORKSPACE_ID);
+      expect(result).not.toBeNull();
+      expect(result!.messages).toHaveLength(5);
+      expect(result!.messages.map((m) => m.id)).toEqual(["m15", "m16", "m17", "m18", "m19"]);
+      expect(result!.hasMore).toBe(true);
+    });
+
+    it("hasMore is false when results exactly equal limit and meta.hasMore=false", async () => {
+      const msgs = Array.from({ length: 6 }, (_, i) =>
+        makeMessage({
+          id: `m${i + 1}`,
+          conversation_id: "conv_1",
+          created_at: `2024-01-01T00:0${i}:00Z`,
+        })
+      );
+      await mergeCachedMessages("conv_1", msgs, false, WORKSPACE_ID);
+
+      const result = await getCachedMessagesBefore("conv_1", "2024-01-01T00:05:00Z", "m6", 5, WORKSPACE_ID);
+      expect(result).not.toBeNull();
+      expect(result!.messages).toHaveLength(5);
+      expect(result!.hasMore).toBe(false);
+    });
+
+    it("returns null when cache is incomplete (hasMore=true and fewer results than limit)", async () => {
+      const msgs = [
+        makeMessage({ id: "m1", conversation_id: "conv_1", created_at: "2024-01-01T00:00:00Z" }),
+        makeMessage({ id: "m2", conversation_id: "conv_1", created_at: "2024-01-01T00:01:00Z" }),
+        makeMessage({ id: "m3", conversation_id: "conv_1", created_at: "2024-01-01T00:02:00Z" }),
+      ];
+      await mergeCachedMessages("conv_1", msgs, true, WORKSPACE_ID);
+
+      const result = await getCachedMessagesBefore("conv_1", "2024-01-01T00:02:00Z", "m3", 10, WORKSPACE_ID);
+      expect(result).toBeNull();
+    });
+
+    it("returns partial results when cache is complete (hasMore=false)", async () => {
+      const msgs = [
+        makeMessage({ id: "m1", conversation_id: "conv_1", created_at: "2024-01-01T00:00:00Z" }),
+        makeMessage({ id: "m2", conversation_id: "conv_1", created_at: "2024-01-01T00:01:00Z" }),
+        makeMessage({ id: "m3", conversation_id: "conv_1", created_at: "2024-01-01T00:02:00Z" }),
+      ];
+      await mergeCachedMessages("conv_1", msgs, false, WORKSPACE_ID);
+
+      const result = await getCachedMessagesBefore("conv_1", "2024-01-01T00:02:00Z", "m3", 10, WORKSPACE_ID);
+      expect(result).not.toBeNull();
+      expect(result!.messages.map((m) => m.id)).toEqual(["m1", "m2"]);
+      expect(result!.hasMore).toBe(false);
+    });
+
+    it("returns null for unknown conversation", async () => {
+      const result = await getCachedMessagesBefore("nonexistent", "2024-01-01T00:00:00Z", "x", 10, WORKSPACE_ID);
+      expect(result).toBeNull();
+    });
+
+    it("handles equal timestamps with ID tiebreaker", async () => {
+      const msgs = [
+        makeMessage({ id: "aaa", conversation_id: "conv_1", created_at: "2024-01-01T00:00:00Z" }),
+        makeMessage({ id: "bbb", conversation_id: "conv_1", created_at: "2024-01-01T00:00:00Z" }),
+        makeMessage({ id: "ccc", conversation_id: "conv_1", created_at: "2024-01-01T00:00:00Z" }),
+      ];
+      await mergeCachedMessages("conv_1", msgs, false, WORKSPACE_ID);
+
+      const result = await getCachedMessagesBefore("conv_1", "2024-01-01T00:00:00Z", "ccc", 10, WORKSPACE_ID);
+      expect(result).not.toBeNull();
+      expect(result!.messages.map((m) => m.id)).toEqual(["aaa", "bbb"]);
+    });
+
+    it("filters out buffered and temp- messages", async () => {
+      const db = await openCacheDB(WORKSPACE_ID)!;
+      const msgs = [
+        makeMessage({ id: "m1", conversation_id: "conv_1", created_at: "2024-01-01T00:00:00Z" }),
+        makeMessage({ id: "m2", conversation_id: "conv_1", created_at: "2024-01-01T00:01:00Z", status: "buffered" }),
+        makeMessage({ id: "temp-1", conversation_id: "conv_1", created_at: "2024-01-01T00:02:00Z" }),
+        makeMessage({ id: "m3", conversation_id: "conv_1", created_at: "2024-01-01T00:03:00Z" }),
+        makeMessage({ id: "m4", conversation_id: "conv_1", created_at: "2024-01-01T00:04:00Z" }),
+      ];
+      // Write directly to include buffered/temp that mergeCachedMessages would filter
+      for (const msg of msgs) {
+        await db.put("messages", msg);
+      }
+      await db.put("cache_meta", {
+        conversation_id: "conv_1",
+        lastFetchedAt: Date.now(),
+        lastAccessedAt: Date.now(),
+        messageCount: 5,
+        newestMessageId: "m4",
+        hasMore: false,
+      });
+
+      const result = await getCachedMessagesBefore("conv_1", "2024-01-01T00:04:00Z", "m4", 10, WORKSPACE_ID);
+      expect(result).not.toBeNull();
+      expect(result!.messages.map((m) => m.id)).toEqual(["m1", "m3"]);
+    });
+
+    it("correctly excludes the cursor message itself", async () => {
+      const msgs = [
+        makeMessage({ id: "m1", conversation_id: "conv_1", created_at: "2024-01-01T00:00:00Z" }),
+        makeMessage({ id: "m2", conversation_id: "conv_1", created_at: "2024-01-01T00:01:00Z" }),
+        makeMessage({ id: "m3", conversation_id: "conv_1", created_at: "2024-01-01T00:02:00Z" }),
+      ];
+      await mergeCachedMessages("conv_1", msgs, false, WORKSPACE_ID);
+
+      const result = await getCachedMessagesBefore("conv_1", "2024-01-01T00:02:00Z", "m3", 10, WORKSPACE_ID);
+      expect(result).not.toBeNull();
+      expect(result!.messages.every((m) => m.id !== "m3")).toBe(true);
+    });
+
+    it("no meta corruption on cache-hit path", async () => {
+      const msgs = [
+        makeMessage({ id: "m1", conversation_id: "conv_1", created_at: "2024-01-01T00:00:00Z" }),
+        makeMessage({ id: "m2", conversation_id: "conv_1", created_at: "2024-01-01T00:01:00Z" }),
+        makeMessage({ id: "m3", conversation_id: "conv_1", created_at: "2024-01-01T00:02:00Z" }),
+      ];
+      await mergeCachedMessages("conv_1", msgs, false, WORKSPACE_ID);
+
+      const metaBefore = await getCacheMeta("conv_1", WORKSPACE_ID);
+      await getCachedMessagesBefore("conv_1", "2024-01-01T00:02:00Z", "m3", 10, WORKSPACE_ID);
+      const metaAfter = await getCacheMeta("conv_1", WORKSPACE_ID);
+
+      expect(metaAfter!.messageCount).toBe(metaBefore!.messageCount);
+      expect(metaAfter!.hasMore).toBe(metaBefore!.hasMore);
+      expect(metaAfter!.newestMessageId).toBe(metaBefore!.newestMessageId);
     });
   });
 

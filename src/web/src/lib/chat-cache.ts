@@ -88,10 +88,62 @@ export async function getCachedMessages(conversationId: string, workspaceId?: st
   }
 }
 
+export async function getCachedMessagesBefore(
+  conversationId: string,
+  beforeCreatedAt: string,
+  beforeId: string,
+  limit: number,
+  workspaceId?: string
+): Promise<{ messages: Message[]; hasMore: boolean } | null> {
+  const p = getDB(workspaceId);
+  if (!p) return null;
+
+  try {
+    const db = await p;
+    const meta = await db.get("cache_meta", conversationId);
+    if (!meta) return null;
+
+    const range = IDBKeyRange.bound(
+      [conversationId, ""],
+      [conversationId, beforeCreatedAt],
+      false,
+      false
+    );
+
+    const allInRange = await db.getAllFromIndex("messages", "by-created", range);
+
+    const filtered = allInRange.filter((m) => {
+      if (m.status === "buffered" || m.id.startsWith("temp-")) return false;
+      if (m.created_at === beforeCreatedAt && m.id >= beforeId) return false;
+      return true;
+    });
+
+    filtered.sort((a, b) => {
+      const cmp = b.created_at.localeCompare(a.created_at);
+      if (cmp !== 0) return cmp;
+      return b.id.localeCompare(a.id);
+    });
+
+    const topN = filtered.slice(0, limit);
+
+    if (topN.length < limit && meta.hasMore) return null;
+
+    await db.put("cache_meta", { ...meta, lastAccessedAt: Date.now() });
+
+    const result = topN.reverse();
+    return {
+      messages: result,
+      hasMore: filtered.length > limit || meta.hasMore,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function mergeCachedMessages(
   conversationId: string,
   messages: Message[],
-  hasMore: boolean,
+  hasMore: boolean | null,
   workspaceId?: string
 ): Promise<void> {
   const p = getDB(workspaceId);
@@ -116,17 +168,29 @@ export async function mergeCachedMessages(
     const allKeys = await msgStore.index("by-conversation").getAllKeys(conversationId);
 
     const now = Date.now();
-    const newest = validMessages.reduce((a, b) =>
+    const newestInBatch = validMessages.reduce((a, b) =>
       a.created_at > b.created_at ? a : b
     );
+
+    const existingMeta = await metaStore.get(conversationId);
+    const resolvedHasMore = hasMore ?? existingMeta?.hasMore ?? true;
+
+    const newestMessageId =
+      existingMeta?.newestMessageId && existingMeta.newestMessageId !== newestInBatch.id
+        ? await (async () => {
+            const existing = await msgStore.get([conversationId, existingMeta.newestMessageId!]);
+            if (existing && existing.created_at > newestInBatch.created_at) return existing.id;
+            return newestInBatch.id;
+          })()
+        : newestInBatch.id;
 
     const meta: CacheMeta = {
       conversation_id: conversationId,
       lastFetchedAt: now,
       lastAccessedAt: now,
       messageCount: allKeys.length,
-      newestMessageId: newest.id,
-      hasMore,
+      newestMessageId,
+      hasMore: resolvedHasMore,
     };
     await metaStore.put(meta);
 
@@ -150,18 +214,18 @@ export async function appendCachedMessage(
 
   try {
     const db = await p;
+    const meta = await db.get("cache_meta", conversationId);
+    if (!meta) return;
+
     const existing = await db.get("messages", [conversationId, message.id]);
     await db.put("messages", message);
 
-    const meta = await db.get("cache_meta", conversationId);
-    if (meta) {
-      await db.put("cache_meta", {
-        ...meta,
-        lastAccessedAt: Date.now(),
-        messageCount: existing ? meta.messageCount : meta.messageCount + 1,
-        newestMessageId: message.id,
-      });
-    }
+    await db.put("cache_meta", {
+      ...meta,
+      lastAccessedAt: Date.now(),
+      messageCount: existing ? meta.messageCount : meta.messageCount + 1,
+      newestMessageId: message.id,
+    });
   } catch {
     // Graceful degradation
   }

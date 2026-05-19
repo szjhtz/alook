@@ -150,12 +150,25 @@ export class TaskService {
       typeof payload?.output === "string" ? payload.output : "";
 
     if (output) {
-      await messageQueries.createMessage(this.db, {
+      const msg = await messageQueries.createMessage(this.db, {
         conversationId: task.conversationId,
         role: "assistant",
         content: output,
         taskId,
       });
+
+      try {
+        const conversation = await conversationQueries.getConversation(this.db, task.conversationId, workspaceId);
+        if (conversation) {
+          broadcastToUser(conversation.userId, {
+            type: "conversation.message",
+            conversationId: task.conversationId,
+            message: messageToResponse(msg),
+          }).catch(() => {});
+        }
+      } catch {
+        // non-critical: don't let broadcast failure block task lifecycle
+      }
     }
 
     await this.reconcileAgentStatus(task.agentId, task.workspaceId);
@@ -178,12 +191,25 @@ export class TaskService {
     }
 
     if (error) {
-      await messageQueries.createMessage(this.db, {
+      const msg = await messageQueries.createMessage(this.db, {
         conversationId: task.conversationId,
         role: "assistant",
         content: `Error: ${error}`,
         taskId,
       });
+
+      try {
+        const conversation = await conversationQueries.getConversation(this.db, task.conversationId, workspaceId);
+        if (conversation) {
+          broadcastToUser(conversation.userId, {
+            type: "conversation.message",
+            conversationId: task.conversationId,
+            message: messageToResponse(msg),
+          }).catch(() => {});
+        }
+      } catch {
+        // non-critical: don't let broadcast failure block task lifecycle
+      }
     }
 
     await this.reconcileAgentStatus(task.agentId, task.workspaceId);
