@@ -49,7 +49,7 @@ export default function BlogPage() {
           <h1 className="font-news text-5xl sm:text-6xl font-semibold tracking-[-0.025em] leading-none">
             Blog
           </h1>
-          <p className="mt-4 text-[1.0625rem] text-muted-foreground font-news leading-relaxed max-w-xl">
+          <p className="mt-4 text-[1.0625rem] text-muted-foreground font-sans leading-relaxed max-w-xl">
             {description}
           </p>
         </header>
@@ -73,7 +73,7 @@ export default function BlogPage() {
               })}{" "}
               &middot; {featured.readingTime}
             </p>
-            <p className="mt-4 font-news text-lg text-foreground/80 leading-relaxed max-w-2xl">
+            <p className="mt-4 font-sans text-lg text-foreground/80 leading-relaxed max-w-2xl">
               {featured.excerpt}
             </p>
           </Link>
@@ -102,7 +102,7 @@ export default function BlogPage() {
                       })}{" "}
                       &middot; {post.readingTime}
                     </p>
-                    <p className="mt-3 font-news text-foreground/75 leading-relaxed">
+                    <p className="mt-3 font-sans text-foreground/75 leading-relaxed">
                       {post.excerpt}
                     </p>
                   </div>

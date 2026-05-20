@@ -86,20 +86,20 @@ export default async function BlogPostPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(blogPostingJsonLd) }}
       />
-      <article className="mx-auto max-w-3xl px-6 pt-20 pb-24">
+      <article className="mx-auto max-w-3xl px-6 pt-24 pb-28">
         <Link
           href="/blog"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-12"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-14"
         >
           <ArrowLeft className="size-3.5" />
           All posts
         </Link>
 
-        <header className="mb-14">
+        <header className="mb-16">
           <h1 className="font-news text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.12]">
             {post.title}
           </h1>
-          <div className="mt-5 flex items-center gap-3 text-sm text-muted-foreground">
+          <div className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
             <span className="font-medium text-foreground/70">{post.author}</span>
             <span className="text-muted-foreground/40">/</span>
             <span>
@@ -115,7 +115,7 @@ export default async function BlogPostPage({
         </header>
 
         <div
-          className="blog-content blog-content-editorial font-news text-lg leading-[1.8] text-foreground [&_h2]:font-news [&_h2]:text-[1.625rem] [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:mt-14 [&_h2]:mb-5 [&_p]:mb-7 [&_blockquote]:border-l-[3px] [&_blockquote]:border-foreground/20 [&_blockquote]:pl-6 [&_blockquote]:italic [&_blockquote]:text-foreground/70 [&_blockquote]:my-8 [&_blockquote]:text-xl [&_blockquote]:leading-relaxed [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[0.875em] [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:px-5 [&_pre]:py-4 [&_pre]:my-8 [&_pre]:overflow-x-auto [&_pre]:text-[0.875rem] [&_pre]:leading-relaxed [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_img]:rounded-lg [&_img]:my-10 [&_img]:w-full [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-6 [&_ul]:mt-[-0.25rem] [&_li]:mb-2.5 [&_li]:leading-[1.7] [&_strong]:font-semibold [&_em]:italic [&_a]:underline [&_a]:underline-offset-3 [&_a]:decoration-foreground/30 [&_a]:hover:decoration-foreground/60 [&_a]:transition-colors"
+          className="blog-content blog-content-editorial font-sans text-lg leading-[1.7] text-foreground max-w-[65ch] [&_h2]:font-sans [&_h2]:text-[1.625rem] [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:mt-16 [&_h2]:mb-6 [&_p]:mb-8 [&_blockquote]:border-l-[3px] [&_blockquote]:border-foreground/20 [&_blockquote]:pl-6 [&_blockquote]:italic [&_blockquote]:text-foreground/70 [&_blockquote]:my-10 [&_blockquote]:text-xl [&_blockquote]:leading-relaxed [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[0.875em] [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:px-5 [&_pre]:py-4 [&_pre]:my-10 [&_pre]:overflow-x-auto [&_pre]:text-[0.875rem] [&_pre]:leading-relaxed [&_pre]:max-w-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_img]:rounded-lg [&_img]:my-12 [&_img]:w-full [&_img]:max-w-none [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-8 [&_ul]:mt-[-0.25rem] [&_li]:mb-3 [&_li]:leading-[1.7] [&_strong]:font-semibold [&_em]:italic [&_a]:underline [&_a]:underline-offset-3 [&_a]:decoration-foreground/30 [&_a]:hover:decoration-foreground/60 [&_a]:transition-colors"
           dangerouslySetInnerHTML={{ __html: highlightedContent }}
         />
 
@@ -129,7 +129,7 @@ export default async function BlogPostPage({
                 <ArrowLeft className="size-3" />
                 Previous
               </span>
-              <span className="text-[15px] font-news group-hover:translate-x-[-2px] transition-transform duration-200 leading-snug">
+              <span className="text-[15px] font-sans group-hover:translate-x-[-2px] transition-transform duration-200 leading-snug">
                 {prevPost.title}
               </span>
             </Link>
@@ -145,7 +145,7 @@ export default async function BlogPostPage({
                 Next
                 <ArrowRight className="size-3" />
               </span>
-              <span className="text-[15px] font-news group-hover:translate-x-[2px] transition-transform duration-200 leading-snug">
+              <span className="text-[15px] font-sans group-hover:translate-x-[2px] transition-transform duration-200 leading-snug">
                 {nextPost.title}
               </span>
             </Link>
