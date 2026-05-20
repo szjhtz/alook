@@ -43,12 +43,14 @@ export async function highlightCodeBlocks(html: string): Promise<string> {
 
       const language = lang || detectLanguage(decoded);
 
-      const highlighted = hl.codeToHtml(decoded.trim(), {
-        lang: language,
-        themes: { light: "vitesse-light", dark: "vitesse-dark" },
-      });
-
-      return highlighted;
+      try {
+        return hl.codeToHtml(decoded.trim(), {
+          lang: language,
+          themes: { light: "vitesse-light", dark: "vitesse-dark" },
+        });
+      } catch {
+        return `<pre><code>${code}</code></pre>`;
+      }
     }
   );
 }

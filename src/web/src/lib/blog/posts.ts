@@ -1,3 +1,5 @@
+// Images: place in public/blog/<slug>/, reference as <img src="/blog/<slug>/filename.png" />
+
 /**
  * HOW TO ADD A NEW BLOG POST
  * ==========================

@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx scripts/validate-blog-assets.ts && next build",
+    "validate:blog": "tsx scripts/validate-blog-assets.ts",
     "start": "next start",
     "lint": "eslint src/",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",

@@ -13,6 +13,7 @@ import {
   createConversation,
   listMessages,
   listMessagesAroundTask,
+  listPreviousConversations,
   sendMessage,
   getTask,
   getTaskMessages,
@@ -32,7 +33,7 @@ import {
   unflagMessage as apiUnflagMessage,
 } from "@/lib/api";
 import { appendCachedMessage, getCachedMessages, getCachedMessagesBefore, getCacheMeta, mergeCachedMessages } from "@/lib/chat-cache";
-import type { TraceTask } from "@/lib/api";
+import type { PreviousConversation, TraceTask } from "@/lib/api";
 import type { Artifact, Conversation, Issue, IssueComment, Message, TaskApi as Task, TaskMessage, WsMessage } from "@alook/shared";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useInboxCount } from "@/contexts/inbox-count-context";
@@ -60,6 +61,7 @@ import { AgentPreviewCard } from "@/components/agent-preview-card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 const MESSAGE_LIMIT = 20;
+const MAX_CONV_FETCHES_PER_CLICK = 5;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 function MentionHighlight(props: Record<string, unknown> & { children?: React.ReactNode }) {
@@ -359,6 +361,8 @@ export function AgentChatView({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [bufferedMessages, setBufferedMessages] = useState<Message[]>([]);
   const [caretIndex, setCaretIndex] = useState<number | null>(null);
+  const [previousConversations, setPreviousConversations] = useState<PreviousConversation[]>([]);
+  const [hasMoreConversations, setHasMoreConversations] = useState(false);
   const [napMarkers, setNapMarkers] = useState<NapMarker[]>([]);
   const [stepCounts, setStepCounts] = useState<Record<string, number>>({});
   const [renderNow] = useState(() => Date.now());
@@ -431,6 +435,7 @@ export function AgentChatView({
   const isNearBottom = useRef(true);
   const scrollTargetActiveRef = useRef(false);
   const startPollingRef = useRef<((taskId: string, conversationId: string, initialSeq?: number) => void) | null>(null);
+  const oldestConversationCursorRef = useRef<PreviousConversation | null>(null);
   const backfillAttemptsRef = useRef(0);
   const prevConversationIdRef = useRef<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -488,6 +493,9 @@ export function AgentChatView({
     setPendingFilesByMessage(new Map());
     setNapMarkers([]);
     setStepCounts({});
+    setPreviousConversations([]);
+    setHasMoreConversations(false);
+    oldestConversationCursorRef.current = null;
     setInput(localStorage.getItem(`chat-draft:${agentId}:${targetConvId ?? 'default'}`) ?? "");
     setMessages([]);
     async function load() {
@@ -540,6 +548,7 @@ export function AgentChatView({
           });
           if (ignore) return;
           setConversation(data.conversation);
+          setHasMoreConversations(data.has_more_conversations);
           if (!data.cache_valid && data.messages) {
             setMessages((prev) => mergeMessages(prev, data.messages!));
             writeToCacheRef.current(data.messages, data.has_more_messages).catch(() => {});
@@ -582,6 +591,7 @@ export function AgentChatView({
           setHasMore(data.has_more_messages);
           setArtifacts(data.artifacts);
           setBufferedMessages(data.buffered_messages);
+          setHasMoreConversations(data.has_more_conversations);
           writeToCacheRef.current(data.messages, data.has_more_messages).catch(() => {});
           listFlaggedMessageIds(workspaceId, data.conversation.id)
             .then((r) => { if (!ignore) setFlaggedIds(new Set(r.message_ids)); })
@@ -749,6 +759,10 @@ export function AgentChatView({
 
   const messagesRef = useLatest(messages);
   const hasMoreRef = useLatest(hasMore);
+  const prevConvsRef = useLatest(previousConversations);
+  const hasMoreConvsRef = useLatest(hasMoreConversations);
+  const agentNameRef = useLatest(agentName);
+  const activeChannelRef = useLatest(activeChannel);
 
   const loadOlderMessages = useCallback(async (scrollToEnd = false) => {
     if (!conversation || loadingMoreRef.current) return;
@@ -756,11 +770,35 @@ export function AgentChatView({
 
     const currentMessages = messagesRef.current;
     const currentHasMore = hasMoreRef.current;
+    const currentHasMoreConvs = hasMoreConvsRef.current;
+    const currentAgentName = agentNameRef.current;
+    const currentChannel = activeChannelRef.current;
+    const isSingleConvView = !!targetConvId;
 
     const oldest = currentMessages[0];
+    const paginatingConvId = oldestConversationCursorRef.current?.id ?? conversation.id;
     const canLoadMoreInConv = currentHasMore && oldest;
+    let prevConvsList = prevConvsRef.current;
 
-    if (!canLoadMoreInConv) {
+    if (!isSingleConvView && !canLoadMoreInConv && prevConvsList.length === 0 && currentHasMoreConvs) {
+      const oldestConv = oldestConversationCursorRef.current ?? { id: conversation.id, created_at: conversation.created_at };
+      try {
+        const result = await listPreviousConversations(agentId, workspaceId, {
+          exclude: conversation.id,
+          before: oldestConv.created_at,
+          channel: currentChannel,
+        });
+        prevConvsList = result.conversations;
+        setPreviousConversations(result.conversations);
+        setHasMoreConversations(result.has_more);
+      } catch {
+        setHasMoreConversations(false);
+      }
+    }
+
+    const canLoadPrevConv = !isSingleConvView && prevConvsList.length > 0;
+
+    if (!canLoadMoreInConv && !canLoadPrevConv) {
       loadingMoreRef.current = false;
       return;
     }
@@ -771,30 +809,107 @@ export function AgentChatView({
     const prevScrollHeight = el?.scrollHeight ?? 0;
 
     try {
-      let olderMessages: Message[] = [];
+      let phase1Messages: Message[] = [];
+      let phase2Messages: Message[] = [];
+      let remaining = MESSAGE_LIMIT;
       let lastHasMore = false;
+      const napMarkersToAdd: { agentName: string; created_at: string; id: string }[] = [];
 
-      const cached = await getCachedMessagesBefore(conversation.id, oldest!.created_at, oldest!.id, MESSAGE_LIMIT, workspaceId);
+      // --- Phase 1: Load from current/paginating conversation ---
+      let phase1HasMore = false;
+      if (canLoadMoreInConv) {
+        const cached = paginatingConvId === conversation.id
+          ? await getCachedMessagesBefore(paginatingConvId, oldest!.created_at, oldest!.id, MESSAGE_LIMIT, workspaceId)
+          : null;
 
-      if (cached) {
-        olderMessages = cached.messages;
-        lastHasMore = cached.hasMore;
-      } else {
-        const result = await listMessages(conversation.id, workspaceId, {
-          limit: MESSAGE_LIMIT,
-          before: oldest!.created_at,
-          beforeId: oldest!.id,
-        });
-        olderMessages = result.messages;
-        lastHasMore = result.has_more;
+        if (cached) {
+          phase1Messages = cached.messages;
+          remaining -= cached.messages.length;
+          lastHasMore = cached.hasMore;
+        } else {
+          const result = await listMessages(paginatingConvId, workspaceId, {
+            limit: MESSAGE_LIMIT,
+            before: oldest!.created_at,
+            beforeId: oldest!.id,
+          });
+          phase1Messages = result.messages;
+          remaining -= result.messages.length;
+          lastHasMore = result.has_more;
+        }
+        phase1HasMore = lastHasMore;
       }
 
+      // --- Phase 2: Load from previous conversations (only in timeline mode) ---
+      if (!isSingleConvView && !lastHasMore && remaining > 0) {
+        if (prevConvsList.length === 0 && currentHasMoreConvs) {
+          const oldestConv = oldestConversationCursorRef.current ?? { id: conversation.id, created_at: conversation.created_at };
+          try {
+            const result = await listPreviousConversations(agentId, workspaceId, {
+              exclude: conversation.id,
+              before: oldestConv.created_at,
+              channel: currentChannel,
+            });
+            prevConvsList = result.conversations;
+            setPreviousConversations(result.conversations);
+            setHasMoreConversations(result.has_more);
+          } catch {
+            setHasMoreConversations(false);
+          }
+        }
+
+        let consumed = 0;
+        let fetchCount = 0;
+
+        while (
+          consumed < prevConvsList.length &&
+          remaining > 0 &&
+          fetchCount < MAX_CONV_FETCHES_PER_CLICK
+        ) {
+          const prevConv = prevConvsList[consumed]!;
+          consumed++;
+          fetchCount++;
+          const result = await listMessages(prevConv.id, workspaceId, {
+            limit: remaining,
+          });
+
+          if (result.messages.length === 0) {
+            oldestConversationCursorRef.current = prevConv;
+            continue;
+          }
+
+          const napTs = oldestConversationCursorRef.current?.created_at ?? conversation.created_at;
+          napMarkersToAdd.push({
+            agentName: currentAgentName,
+            created_at: napTs,
+            id: `nap-${prevConv.id}`,
+          });
+
+          phase2Messages = [...result.messages, ...phase2Messages];
+          remaining -= result.messages.length;
+          lastHasMore = result.has_more;
+          oldestConversationCursorRef.current = prevConv;
+        }
+
+        if (consumed > 0) {
+          setPreviousConversations((prev) => prev.slice(consumed));
+        }
+      }
+
+      // --- Final state update ---
+      const allNewMessages = [...phase2Messages, ...phase1Messages];
       flushSync(() => {
-        if (olderMessages.length > 0) {
+        if (allNewMessages.length > 0) {
+          if (napMarkersToAdd.length > 0) {
+            setNapMarkers((prev) => {
+              const existingIds = new Set(prev.map((m) => m.id));
+              const newMarkers = napMarkersToAdd.filter((m) => !existingIds.has(m.id));
+              return [...prev, ...newMarkers];
+            });
+          }
           setHasMore(lastHasMore);
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
-            const unique = olderMessages.filter((m) => !existingIds.has(m.id));
+            const unique = allNewMessages.filter((m) => !existingIds.has(m.id));
             return [...unique, ...prev];
           });
         } else {
@@ -802,8 +917,11 @@ export function AgentChatView({
         }
       });
 
-      if (olderMessages.length > 0) {
-        mergeCachedMessages(conversation.id, olderMessages, lastHasMore, workspaceId).catch(() => {});
+      if (allNewMessages.length > 0 && conversation) {
+        const currentConvMessages = allNewMessages.filter((m) => m.conversation_id === conversation.id);
+        if (currentConvMessages.length > 0) {
+          mergeCachedMessages(conversation.id, currentConvMessages, phase1HasMore, workspaceId).catch(() => {});
+        }
       }
 
       loadingMoreRef.current = false;
@@ -827,11 +945,19 @@ export function AgentChatView({
   }, [
     conversation,
     workspaceId,
+    agentId,
+    targetConvId,
     messagesRef,
     hasMoreRef,
+    hasMoreConvsRef,
+    agentNameRef,
+    activeChannelRef,
+    prevConvsRef,
   ]);
 
-  const canLoadMore = hasMore;
+  const canLoadMore = targetConvId
+    ? hasMore
+    : hasMore || previousConversations.length > 0 || hasMoreConversations;
 
   useEffect(() => {
     if (conversation?.id === prevConversationIdRef.current) return;
@@ -1478,6 +1604,11 @@ export function AgentChatView({
         { agentName, created_at: newConv.created_at, id: `nap-${conversation.id}` },
       ]);
 
+      setPreviousConversations((prev) => [
+        { id: conversation.id, created_at: conversation.created_at },
+        ...prev,
+      ]);
+
       setConversation(newConv);
       setActiveTask(null);
       setTaskMessages([]);
@@ -1488,6 +1619,7 @@ export function AgentChatView({
       lastSeqRef.current = 0;
       setConnectionLost(false);
       setHasMore(false);
+      oldestConversationCursorRef.current = null;
 
       scrollToBottom();
     } catch {

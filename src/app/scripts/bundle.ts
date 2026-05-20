@@ -37,9 +37,12 @@ export function getPostBySlug(slug: string): BlogPost | undefined { return undef
 const blogAppDir = join(webSrc, "src", "app", "blog");
 const blogLibDir = join(webSrc, "src", "lib", "blog");
 
+const blogPublicDir = join(webSrc, "public", "blog");
+
 console.log("[bundle] Stripping blog content for app-only build...");
 rmSync(blogAppDir, { recursive: true });
 rmSync(blogLibDir, { recursive: true });
+rmSync(blogPublicDir, { recursive: true, force: true });
 mkdirSync(blogLibDir, { recursive: true });
 writeFileSync(join(blogLibDir, "posts.ts"), blogStub);
 
@@ -48,7 +51,7 @@ try {
 } finally {
   console.log("[bundle] Restoring blog source files...");
   try {
-    execSync("git checkout -- src/web/src/app/blog/ src/web/src/lib/blog/", {
+    execSync("git checkout -- src/web/src/app/blog/ src/web/src/lib/blog/ src/web/public/blog/", {
       cwd: monoRoot,
       stdio: "inherit",
     });
