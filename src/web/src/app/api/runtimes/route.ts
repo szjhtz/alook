@@ -16,19 +16,5 @@ export const GET = withAuth(async (req, ctx) => {
 
   const runtimes = await cached(cacheKeys.allRuntimes(ws.workspaceId), 120, () => queries.runtime.listAgentRuntimes(db, ws.workspaceId));
 
-  // Overlay KV heartbeats for real-time online status (deduplicated by daemonId)
-  const kv = (env as Env).CACHE_KV ?? null;
-  if (kv) {
-    const uniqueDaemonIds = [...new Set(runtimes.map((rt) => rt.daemonId).filter(Boolean))] as string[];
-    const heartbeats = await Promise.all(
-      uniqueDaemonIds.map((id) => kv.get(cacheKeys.heartbeat(ws.workspaceId, id)).catch(() => null))
-    );
-    const hbMap = new Map(uniqueDaemonIds.map((id, i) => [id, heartbeats[i]]));
-    for (const rt of runtimes) {
-      const hb = rt.daemonId ? hbMap.get(rt.daemonId) : null;
-      if (hb) rt.machineLastSeenAt = hb;
-    }
-  }
-
   return writeJSON(runtimes.map(runtimeToResponse));
 });
