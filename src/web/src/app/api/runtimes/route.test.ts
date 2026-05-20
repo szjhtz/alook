@@ -9,13 +9,6 @@ const mockListAgentRuntimes = vi.fn();
 
 vi.mock("@/lib/db", () => ({ getDb: vi.fn(() => ({})) }));
 
-vi.mock("@/lib/cache", () => ({
-  cached: vi.fn((_key: string, _ttl: number, fn: () => any) => fn()),
-  cacheKeys: {
-    allRuntimes: (ws: string) => `runtimes:${ws}`,
-    heartbeat: (ws: string, id: string) => `hb:${ws}:${id}`,
-  },
-}));
 
 vi.mock("@alook/shared", () => ({
   createDb: vi.fn(() => ({})),
