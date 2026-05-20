@@ -108,7 +108,7 @@ export function loadDaemonConfig(profile?: string): DaemonConfig {
       process.env.ALOOK_DAEMON_POLL_INTERVAL || "3s",
     ),
     wsPollInterval: parseDuration(process.env.ALOOK_DAEMON_WS_POLL_INTERVAL || "60s"),
-    heartbeatInterval: parseDuration(process.env.ALOOK_DAEMON_HEARTBEAT_INTERVAL || "5s"),
+    heartbeatInterval: parseDuration(process.env.ALOOK_DAEMON_HEARTBEAT_INTERVAL || "15s"),
     sweepInterval: parseDuration(process.env.ALOOK_DAEMON_SWEEP_INTERVAL || "60s"),
     agentTimeout: parseDuration(process.env.ALOOK_AGENT_TIMEOUT || "12h"),
     messageInactivityTimeout: parseDuration(process.env.ALOOK_MESSAGE_INACTIVITY_TIMEOUT || "20m"),

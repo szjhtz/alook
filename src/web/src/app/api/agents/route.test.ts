@@ -16,7 +16,7 @@ vi.mock("@alook/shared", async () => {
   return {
     ...actual,
     createDb: vi.fn(() => ({})),
-    isOnline: vi.fn((t: string | null) => !!t && Date.now() - new Date(t).getTime() < 9000),
+    isOnline: vi.fn((t: string | null) => !!t && Date.now() - new Date(t).getTime() < 30_000),
     queries: {
       agent: {
         listAgents: (...args: unknown[]) => mockListAgents(...args),
