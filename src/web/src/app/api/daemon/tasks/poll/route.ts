@@ -66,24 +66,16 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
         ctx.workspaceId,
       );
       if (machineRow?.pendingUpdateVersion && body.cli_version) {
-        if (semverGte(body.cli_version, machineRow.pendingUpdateVersion)) {
-          await queries.machine.clearPendingUpdateVersion(db, body.daemon_id, ctx.workspaceId);
-          broadcastToUser(ctx.userId, {
-            type: "runtime.status",
-            daemonId: body.daemon_id,
-            workspaceId: ctx.workspaceId,
-            status: "online",
-          }).catch(() => {});
-        } else {
-          pendingUpdate = { version: machineRow.pendingUpdateVersion };
-          await queries.machine.clearPendingUpdateVersion(db, body.daemon_id, ctx.workspaceId);
-          broadcastToUser(ctx.userId, {
-            type: "runtime.status",
-            daemonId: body.daemon_id,
-            workspaceId: ctx.workspaceId,
-            status: "online",
-          }).catch(() => {});
-        }
+        pendingUpdate = semverGte(body.cli_version, machineRow.pendingUpdateVersion)
+          ? undefined
+          : { version: machineRow.pendingUpdateVersion };
+        await queries.machine.clearPendingUpdateVersion(db, body.daemon_id, ctx.workspaceId);
+        broadcastToUser(ctx.userId, {
+          type: "runtime.status",
+          daemonId: body.daemon_id,
+          workspaceId: ctx.workspaceId,
+          status: "online",
+        }).catch(() => {});
       }
 
       if (machineRow?.pendingRescan) {

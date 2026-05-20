@@ -59,6 +59,10 @@ vi.mock("@/lib/logger", () => ({
   log: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock("@/lib/broadcast", () => ({
+  broadcastToDaemon: vi.fn(() => Promise.resolve()),
+}));
+
 // Mock global fetch for npm registry
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);

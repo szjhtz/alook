@@ -6,6 +6,7 @@ import { withAuth } from "@/lib/middleware/auth";
 import { withWorkspaceMember } from "@/lib/middleware/workspace";
 import { writeJSON, writeError } from "@/lib/middleware/helpers";
 import { fetchLatestCliVersion } from "@/lib/npm";
+import { broadcastToDaemon } from "@/lib/broadcast";
 
 export const POST = withAuth(async (req: NextRequest, ctx) => {
   const ws = await withWorkspaceMember(req, ctx);
@@ -28,6 +29,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   if (!result) return writeError("failed to fetch latest CLI version from npm", 502);
 
   await queries.machine.setPendingUpdateVersion(db, runtime.daemonId, ws.workspaceId, result.version);
+
+  broadcastToDaemon(runtime.daemonId, { type: "daemon.update", version: result.version }).catch(() => {});
 
   return writeJSON({ pending_update_version: result.version });
 });
