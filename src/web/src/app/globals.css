@@ -1045,31 +1045,87 @@
 /* ── Thin scrollbar (code blocks, tool panels, chat scroll) ── */
 .markdown pre,
 [data-streamdown] pre,
-.task-stream-pre {
+.task-stream-pre,
+.blog-content pre {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
 .markdown pre::-webkit-scrollbar,
 [data-streamdown] pre::-webkit-scrollbar,
-.task-stream-pre::-webkit-scrollbar {
+.task-stream-pre::-webkit-scrollbar,
+.blog-content pre::-webkit-scrollbar {
   height: 4px;
   width: 4px;
 }
 .markdown pre::-webkit-scrollbar-track,
 [data-streamdown] pre::-webkit-scrollbar-track,
-.task-stream-pre::-webkit-scrollbar-track {
+.task-stream-pre::-webkit-scrollbar-track,
+.blog-content pre::-webkit-scrollbar-track {
   background: transparent;
 }
 .markdown pre::-webkit-scrollbar-thumb,
 [data-streamdown] pre::-webkit-scrollbar-thumb,
-.task-stream-pre::-webkit-scrollbar-thumb {
+.task-stream-pre::-webkit-scrollbar-thumb,
+.blog-content pre::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 2px;
 }
 .markdown pre::-webkit-scrollbar-thumb:hover,
 [data-streamdown] pre::-webkit-scrollbar-thumb:hover,
-.task-stream-pre::-webkit-scrollbar-thumb:hover {
+.task-stream-pre::-webkit-scrollbar-thumb:hover,
+.blog-content pre::-webkit-scrollbar-thumb:hover {
   background: var(--muted-foreground);
+}
+
+/* ── Blog: Editorial drop cap ── */
+.blog-content-editorial > p:first-of-type::first-letter {
+  font-family: var(--font-literata);
+  font-size: 3.4em;
+  font-weight: 600;
+  float: left;
+  line-height: 0.75;
+  margin-right: 0.06em;
+  margin-top: 0.07em;
+  padding-bottom: 0.04em;
+  color: var(--foreground);
+}
+
+/* ── Blog: responsive h2 (arbitrary variants don't support sm: inside [&_]) ── */
+@media (min-width: 640px) {
+  .blog-content-editorial h2 {
+    font-size: 1.875rem;
+  }
+}
+
+/* ── Blog: Shiki syntax highlighting ── */
+.blog-content .shiki {
+  background-color: var(--muted) !important;
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  font-family: var(--font-dm-mono);
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+.blog-content .shiki code {
+  background: transparent !important;
+  padding: 0;
+  font-size: inherit;
+}
+html.light .blog-content .shiki,
+html:not(.dark) .blog-content .shiki {
+  background-color: var(--muted) !important;
+}
+html.light .blog-content .shiki span,
+html:not(.dark) .blog-content .shiki span {
+  color: var(--shiki-light) !important;
+}
+html.dark .blog-content .shiki span {
+  color: var(--shiki-dark) !important;
+}
+html.dark .blog-content .shiki {
+  background-color: var(--muted) !important;
 }
 
 /* ── Streamdown code block: everything inside the dark area ── */

@@ -8,13 +8,15 @@ import type { AgentRuntime as Runtime } from "@alook/shared";
 import { cn } from "@/lib/utils";
 import { LockIcon } from "lucide-react";
 import { CustomEmailForm } from "@/components/custom-email-form";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
+import { RuntimeSelect } from "@/components/runtime-select";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { updateAgent as updateAgentApi } from "@/lib/api";
 import { toast } from "sonner";
 import {
   GeneralFields,
-  PinToggle,
   AllowedSendersTab,
   AgentAccessTab,
 } from "@/components/agent-form-fields";
@@ -55,6 +57,62 @@ function UsageRing({ ratio, size = 16, stroke = 1.5 }: { ratio: number; size?: n
   );
 }
 
+function RuntimeTab({
+  model,
+  setModel,
+  runtimeId,
+  setRuntimeId,
+  runtimes,
+  providerModels,
+}: {
+  model: string;
+  setModel: (v: string) => void;
+  runtimeId: string;
+  setRuntimeId: (v: string) => void;
+  runtimes: Runtime[];
+  providerModels: string[];
+}) {
+  return (
+    <>
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Runtime</Label>
+        <RuntimeSelect
+          value={runtimeId}
+          onValueChange={(newId) => {
+            const oldProvider = runtimes.find((r) => r.id === runtimeId)?.provider;
+            const newProvider = runtimes.find((r) => r.id === newId)?.provider;
+            setRuntimeId(newId);
+            if (oldProvider && oldProvider !== newProvider) {
+              setModel("");
+            }
+          }}
+          runtimes={runtimes}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Model</Label>
+        <Input
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder="Default (runtime model)"
+          list="agent-model-options-edit"
+        />
+        {providerModels.length > 0 && (
+          <datalist id="agent-model-options-edit">
+            {providerModels.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+        )}
+        <p className="text-xs text-muted-foreground/70">
+          Optional. Leave blank to use the runtime&apos;s default model.
+        </p>
+      </div>
+    </>
+  );
+}
+
 interface AgentEditFormProps {
   agent: Agent;
   runtimes: Runtime[];
@@ -70,7 +128,7 @@ interface AgentEditFormProps {
   saving: boolean;
 }
 
-type TabId = "general" | "instruction" | "email" | "permission";
+type TabId = "general" | "instruction" | "runtime" | "email" | "permission";
 
 export function AgentEditForm({
   agent,
@@ -196,11 +254,12 @@ export function AgentEditForm({
   const tabs: { id: TabId; label: string }[] = [
     { id: "general", label: "General" },
     { id: "instruction", label: "Instruction" },
+    { id: "runtime", label: "Runtime" },
     { id: "email", label: "Email" },
     { id: "permission", label: "Permission" },
   ];
 
-  const isFormTab = activeTab === "general" || activeTab === "email";
+  const isFormTab = activeTab === "general" || activeTab === "runtime" || activeTab === "email";
   const instructionRatio = instructions.length / MAX_INSTRUCTION_LENGTH;
 
   return (
@@ -281,11 +340,21 @@ export function AgentEditForm({
                       setModel={setModel}
                       runtimeId={runtimeId}
                       setRuntimeId={setRuntimeId}
-                      runtimes={runtimes}
-                      providerModels={providerModels}
+                      runtimes={[]}
+                      providerModels={[]}
                     />
-                    <PinToggle agentId={agent.id} />
                   </>
+                )}
+
+                {activeTab === "runtime" && (
+                  <RuntimeTab
+                    model={model}
+                    setModel={setModel}
+                    runtimeId={runtimeId}
+                    setRuntimeId={setRuntimeId}
+                    runtimes={runtimes}
+                    providerModels={providerModels}
+                  />
                 )}
 
                 {activeTab === "email" && (

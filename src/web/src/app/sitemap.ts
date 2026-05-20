@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { TEMPLATES } from "@/lib/templates";
+import { getAllPosts } from "@/lib/blog/posts";
 
 const SITE_URL = "https://alook.ai";
 
@@ -9,6 +10,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified: new Date(),
     changeFrequency: "monthly",
     priority: 0.7,
+  }));
+
+  const blogEntries: MetadataRoute.Sitemap = getAllPosts().map((post) => ({
+    url: `${SITE_URL}/blog/${post.slug}`,
+    lastModified: new Date(post.date),
+    changeFrequency: "monthly",
+    priority: 0.6,
   }));
 
   return [
@@ -25,6 +33,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     ...templateEntries,
+    {
+      url: `${SITE_URL}/blog`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    ...blogEntries,
     {
       url: `${SITE_URL}/sign-in`,
       lastModified: new Date(),

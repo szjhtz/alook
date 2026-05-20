@@ -213,8 +213,8 @@ export function AgentCreateForm({
   };
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-5 py-6">
-      <form onSubmit={handleSubmit} noValidate className="mx-auto max-w-md space-y-4">
+    <div className="flex-1 min-h-0 overflow-y-auto thin-scrollbar">
+      <form onSubmit={handleSubmit} noValidate className="mx-auto max-w-md flex flex-col gap-5 px-8 pt-8 pb-6">
         <AvatarPickerDialog
           config={avatarConfig}
           onChange={setAvatarConfig}
@@ -235,21 +235,21 @@ export function AgentCreateForm({
           errors={fieldErrors}
           runtimeAsRadio
           onShuffle={shuffleName}
+          emailHandleSlot={
+            <EmailHandleField
+              emailHandle={emailHandle}
+              setEmailHandle={setEmailHandle}
+              derivedHandle={derivedHandle}
+            />
+          }
+          advancedSection={
+            <CustomEmailForm
+              workspaceId={workspaceId}
+              onDataChange={setCustomEmailData}
+              getDataRef={customEmailGetDataRef}
+            />
+          }
         />
-
-        <div className="border-t border-border/50 pt-4 mt-4 space-y-4">
-          <EmailHandleField
-            emailHandle={emailHandle}
-            setEmailHandle={setEmailHandle}
-            derivedHandle={derivedHandle}
-          />
-
-          <CustomEmailForm
-            workspaceId={workspaceId}
-            onDataChange={setCustomEmailData}
-            getDataRef={customEmailGetDataRef}
-          />
-        </div>
 
         <div className="flex items-center gap-2 pt-2">
           <Button type="button" variant="ghost" size="sm" onClick={onCancel}>

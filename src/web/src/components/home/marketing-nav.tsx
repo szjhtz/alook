@@ -39,6 +39,16 @@ export function MarketingNav({ isLoggedIn }: { isLoggedIn: boolean }) {
           >
             Templates
           </Link>
+          <Link
+            href="/blog"
+            className="hidden sm:block px-3 py-1.5 text-xs uppercase tracking-widest transition-opacity duration-150 hover:opacity-70"
+            style={{
+              fontFamily: "var(--font-mono)",
+              color: "var(--landing-text)",
+            }}
+          >
+            Blog
+          </Link>
           <a
             href="https://github.com/alookai/alook"
             target="_blank"
