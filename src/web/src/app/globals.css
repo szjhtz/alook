@@ -1109,8 +1109,8 @@
   }
 }
 
-/* ── Blog: Shiki syntax highlighting ── */
-.blog-content .shiki {
+/* ── Blog: Shiki syntax highlighting (rehype-pretty-code v0.14+) ── */
+.blog-content [data-rehype-pretty-code-figure] pre {
   background-color: var(--muted) !important;
   border-radius: 0.5rem;
   padding: 1.25rem;
@@ -1120,24 +1120,17 @@
   font-size: 0.875rem;
   line-height: 1.7;
 }
-.blog-content .shiki code {
+.blog-content [data-rehype-pretty-code-figure] code {
   background: transparent !important;
   padding: 0;
   font-size: inherit;
 }
-html.light .blog-content .shiki,
-html:not(.dark) .blog-content .shiki {
-  background-color: var(--muted) !important;
-}
-html.light .blog-content .shiki span,
-html:not(.dark) .blog-content .shiki span {
+html.light .blog-content [data-rehype-pretty-code-figure] span,
+html:not(.dark) .blog-content [data-rehype-pretty-code-figure] span {
   color: var(--shiki-light) !important;
 }
-html.dark .blog-content .shiki span {
+html.dark .blog-content [data-rehype-pretty-code-figure] span {
   color: var(--shiki-dark) !important;
-}
-html.dark .blog-content .shiki {
-  background-color: var(--muted) !important;
 }
 
 /* ── Streamdown code block: everything inside the dark area ── */
