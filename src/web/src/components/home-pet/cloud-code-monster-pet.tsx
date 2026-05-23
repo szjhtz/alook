@@ -2,7 +2,6 @@
 
 import {
   type CSSProperties,
-  type PointerEvent as ReactPointerEvent,
   type RefObject,
   useCallback,
   useEffect,
@@ -14,30 +13,23 @@ import {
 import styles from "./cloud-code-monster-pet.module.css";
 
 import {
-  calculateMonsterWalkIntensity,
   clampPetPosition,
   createCloudCodeMonsterHiddenState,
   createCloudCodeMonsterIdleState,
-  createCloudCodeMonsterPreviewAwayState,
   createCloudCodeMonsterWalkVelocity,
   getBounds,
   getMonsterFootstepIntervalMs,
-  hasViolentMonsterDirectionChange,
-  isMonsterFaintShakeEvent,
-  isViolentMonsterDrag,
   readStoredActivity,
   reflectCloudCodeMonsterWalk,
   resolveCloudCodeMonsterPeekPosition,
   resolveCloudCodeMonsterPreviewComebackState,
   resolveCloudCodeMonsterVisibleState,
   shouldCloudCodeMonsterAutoWalk,
-  shouldFaintFromMonsterShake,
   writeStoredActivity,
 } from "./cloud-code-monster-pet-activity";
 import { CLOUD_CODE_MONSTER_ACTIVITIES } from "./cloud-code-monster-pet-activity-data";
 import {
   CLOUD_CODE_MONSTER_AUTO_WALK_STEP_MS,
-  CLOUD_CODE_MONSTER_FAINT_EVENT_WINDOW_MS,
   CLOUD_CODE_MONSTER_FAINT_MS,
   CLOUD_CODE_MONSTER_PEEK_INTERVAL_MS,
   CLOUD_CODE_MONSTER_PEEK_MS,
@@ -47,6 +39,7 @@ import {
   CLOUD_CODE_MONSTER_SHAKE_REACTION_MS,
   CLOUD_CODE_MONSTER_SIZE,
 } from "./cloud-code-monster-pet-constants";
+import { usePetDrag } from "./cloud-code-monster-pet-drag";
 import { MonsterSvg } from "./cloud-code-monster-pet-pixel-parts";
 import {
   CLOUD_CODE_MONSTER_PET_PRESETS,
@@ -111,18 +104,6 @@ export type {
   PetPoint,
   StoredCloudCodeMonsterActivity,
 } from "./cloud-code-monster-pet-types";
-
-function getPointerPoint(
-  event: ReactPointerEvent<HTMLButtonElement>,
-  boundary: HTMLElement | null
-): PetPoint {
-  const boundaryRect = boundary?.getBoundingClientRect();
-
-  return {
-    x: event.clientX - (boundaryRect?.left ?? 0),
-    y: event.clientY - (boundaryRect?.top ?? 0),
-  };
-}
 
 export type CloudCodeMonsterPetProps = {
   boundaryRef: RefObject<HTMLElement | null>;
@@ -214,15 +195,10 @@ export function CloudCodeMonsterPet({
   const [walkIntensity, setWalkIntensity] = useState(1);
   const [walkDirection, setWalkDirection] = useState<"left" | "right">("right");
   const [footprints, setFootprints] = useState<Footprint[]>([]);
-  const dragOffsetRef = useRef<PetPoint>({ x: 0, y: 0 });
-  const dragStartPointRef = useRef<PetPoint | null>(null);
-  const lastPointerRef = useRef<{ point: PetPoint; time: number } | null>(null);
-  const lastDragDeltaRef = useRef<PetPoint | null>(null);
   const lastFootstepAtRef = useRef(0);
   const autoWalkVelocityRef = useRef<PetPoint | null>(null);
   const nextFootprintIdRef = useRef(1);
   const nextFootSideRef = useRef<"left" | "right">("left");
-  const didDragRef = useRef(false);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const violentDragEventsRef = useRef<number[]>([]);
   const peekTargetsRef = useRef(peekTargets);
@@ -520,7 +496,7 @@ export function CloudCodeMonsterPet({
     setPetTimer,
   ]);
 
-  const wakeMonsterToDefault = () => {
+  const wakeMonsterToDefault = useCallback(() => {
     setActivityState((current) => {
       if (current && !current.activityId && current.hiddenAt === null) {
         return current;
@@ -530,9 +506,9 @@ export function CloudCodeMonsterPet({
       writeStoredActivity(nextState);
       return nextState;
     });
-  };
+  }, []);
 
-  const stopTemporaryMotion = () => {
+  const stopTemporaryMotion = useCallback(() => {
     setIsAutoWalking(false);
     setIsPeeking(false);
     violentDragEventsRef.current = [];
@@ -541,14 +517,14 @@ export function CloudCodeMonsterPet({
     clearPetTimer("autonomousWalk");
     clearPetTimer("peek");
     clearPetTimer("peekStop");
-  };
+  }, [clearPetTimer]);
 
-  const startShockReaction = () => {
+  const startShockReaction = useCallback(() => {
     setReacting(true);
     setPetTimer("reaction", () => {
       setReacting(false);
     }, CLOUD_CODE_MONSTER_REACTION_MS);
-  };
+  }, [setPetTimer]);
 
   useEffect(() => {
     if (notificationToken <= 0) {
@@ -565,9 +541,16 @@ export function CloudCodeMonsterPet({
     setPetTimer("notification", () => {
       setNotificationActive(false);
     }, CLOUD_CODE_MONSTER_REACTION_MS + 1_500);
-  }, [notificationToken]);
+  }, [
+    activityState?.activityId,
+    notificationToken,
+    setPetTimer,
+    startShockReaction,
+    stopTemporaryMotion,
+    wakeMonsterToDefault,
+  ]);
 
-  const startShakeReaction = () => {
+  const startShakeReaction = useCallback(() => {
     if (fainted) {
       return;
     }
@@ -580,9 +563,14 @@ export function CloudCodeMonsterPet({
     setPetTimer("shake", () => {
       setShaken(false);
     }, CLOUD_CODE_MONSTER_SHAKE_REACTION_MS);
-  };
+  }, [
+    activityState?.activityId,
+    fainted,
+    setPetTimer,
+    wakeMonsterToDefault,
+  ]);
 
-  const startFaintReaction = () => {
+  const startFaintReaction = useCallback(() => {
     clearPetTimer("faint");
     clearPetTimer("reaction");
     clearPetTimer("shake");
@@ -597,169 +585,42 @@ export function CloudCodeMonsterPet({
     setPetTimer("faint", () => {
       setFainted(false);
     }, CLOUD_CODE_MONSTER_FAINT_MS);
-  };
+  }, [
+    clearPetTimer,
+    setPetTimer,
+    stopTemporaryMotion,
+    wakeMonsterToDefault,
+  ]);
 
-  const handlePetClick = () => {
-    stopTemporaryMotion();
-    setNotificationActive(false);
-    clearPetTimer("notification");
-
-    if (didDragRef.current) {
-      didDragRef.current = false;
-      return;
-    }
-
-    if (isDragging) {
-      return;
-    }
-
-    if (activityState?.activityId) {
-      wakeMonsterToDefault();
-    }
-
-    if (fainted) {
-      setFainted(false);
-      clearPetTimer("faint");
-    }
-
-    startShockReaction();
-  };
-
-  const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0) {
-      return;
-    }
-
-    const bounds = getBounds(boundaryRef.current);
-    const currentPosition =
-      position ??
-      clampPetPosition(
-        initialPosition ?? {
-          x: bounds.width - CLOUD_CODE_MONSTER_SIZE.width - 112,
-          y: bounds.height * 0.48,
-        },
-        bounds,
-        CLOUD_CODE_MONSTER_SIZE
-      );
-    const pointerPoint = getPointerPoint(event, boundaryRef.current);
-    const now = performance.now();
-
-    dragOffsetRef.current = {
-      x: pointerPoint.x - currentPosition.x,
-      y: pointerPoint.y - currentPosition.y,
-    };
-    dragStartPointRef.current = pointerPoint;
-    lastPointerRef.current = { point: pointerPoint, time: now };
-    lastDragDeltaRef.current = null;
-    lastFootstepAtRef.current = now;
-    didDragRef.current = false;
-    stopTemporaryMotion();
-    setIsDragging(true);
-    setWalkIntensity(1.1);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!isDragging) {
-      return;
-    }
-
-    const bounds = getBounds(boundaryRef.current);
-    const pointerPoint = getPointerPoint(event, boundaryRef.current);
-    const now = performance.now();
-    const lastPointer = lastPointerRef.current ?? {
-      point: pointerPoint,
-      time: now,
-    };
-    const deltaX = pointerPoint.x - lastPointer.point.x;
-    const deltaY = pointerPoint.y - lastPointer.point.y;
-    const nextDelta = { x: deltaX, y: deltaY };
-    const distance = Math.hypot(deltaX, deltaY);
-    const elapsed = Math.max(1, now - lastPointer.time);
-    const intensity = calculateMonsterWalkIntensity(distance, elapsed);
-    const nextPosition = clampPetPosition(
-      {
-        x: pointerPoint.x - dragOffsetRef.current.x,
-        y: pointerPoint.y - dragOffsetRef.current.y,
-      },
-      bounds,
-      CLOUD_CODE_MONSTER_SIZE
-    );
-    const dragStartPoint = dragStartPointRef.current ?? pointerPoint;
-    const movementX = Math.abs(pointerPoint.x - dragStartPoint.x);
-    const movementY = Math.abs(pointerPoint.y - dragStartPoint.y);
-
-    if (movementX > 3 || movementY > 3) {
-      didDragRef.current = true;
-    }
-    if (Math.abs(deltaX) > 0.5) {
-      setWalkDirection(deltaX >= 0 ? "right" : "left");
-    }
-    const hasSharpDirectionChange = hasViolentMonsterDirectionChange(
-      lastDragDeltaRef.current,
-      nextDelta
-    );
-
-    if (
-      !fainted &&
-      isViolentMonsterDrag(distance, elapsed, hasSharpDirectionChange)
-    ) {
-      startShakeReaction();
-    }
-
-    if (
-      !fainted &&
-      isMonsterFaintShakeEvent(distance, elapsed, hasSharpDirectionChange)
-    ) {
-      violentDragEventsRef.current = [
-        ...violentDragEventsRef.current.filter(
-          (eventTime) =>
-            now - eventTime <= CLOUD_CODE_MONSTER_FAINT_EVENT_WINDOW_MS
-        ),
-        now,
-      ];
-
-      if (shouldFaintFromMonsterShake(violentDragEventsRef.current, now)) {
-        startFaintReaction();
-        return;
-      }
-    }
-
-    setWalkIntensity(intensity);
-    setPosition(nextPosition);
-    lastPointerRef.current = { point: pointerPoint, time: now };
-    if (distance > 0.5) {
-      lastDragDeltaRef.current = nextDelta;
-    }
-
-    if (
-      distance > 1 &&
-      now - lastFootstepAtRef.current >= getMonsterFootstepIntervalMs(intensity)
-    ) {
-      pushFootprint(nextPosition, intensity);
-      lastFootstepAtRef.current = now;
-    }
-  };
-
-  const stopDragging = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!isDragging) {
-      return;
-    }
-
-    setIsDragging(false);
-    violentDragEventsRef.current = [];
-    dragStartPointRef.current = null;
-    lastPointerRef.current = null;
-    lastDragDeltaRef.current = null;
-
-    setPetTimer("walkSettle", () => {
-      setWalkIntensity(1);
-    }, 180);
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  };
+  const {
+    handlePetClick,
+    handlePointerDown,
+    handlePointerMove,
+    stopDragging,
+  } = usePetDrag({
+    activityState,
+    boundaryRef,
+    fainted,
+    initialPosition,
+    isDragging,
+    lastFootstepAtRef,
+    position,
+    pushFootprint,
+    setFainted,
+    setIsDragging,
+    setNotificationActive,
+    setPetTimer,
+    setPosition,
+    setWalkDirection,
+    setWalkIntensity,
+    clearPetTimer,
+    startFaintReaction,
+    startShakeReaction,
+    startShockReaction,
+    stopTemporaryMotion,
+    violentDragEventsRef,
+    wakeMonsterToDefault,
+  });
 
   if (!position || !activityState) {
     return null;
@@ -769,11 +630,11 @@ export function CloudCodeMonsterPet({
 
   return (
     <div className={styles.petLayer}>
-      <div className="cloud-code-monster-pet-footsteps" aria-hidden="true">
+      <div className={styles.footsteps} aria-hidden="true">
         {footprints.map((footprint) => (
           <span
             key={footprint.id}
-            className="cloud-code-monster-pet-footprint"
+            className={styles.footprint}
             data-side={footprint.side}
             onAnimationEnd={() => {
               setFootprints((currentFootprints) =>
@@ -800,7 +661,7 @@ export function CloudCodeMonsterPet({
               ? "peeking at work"
               : displayedActivity?.label ?? "idle"
         }`}
-        className="cloud-code-monster-pet"
+        className={styles.pet}
         data-activity={displayedActivity?.id ?? "idle"}
         data-dragging={isDragging}
         data-walking={isWalking}
@@ -826,10 +687,10 @@ export function CloudCodeMonsterPet({
         }
       >
         {notificationActive ? (
-          <span className="cloud-code-monster-pet-notification-bell" aria-hidden="true">
+          <span className={styles.notificationBell} aria-hidden="true">
             <svg
               viewBox="0 0 24 24"
-              className="cloud-code-monster-pet-notification-bell-pixel size-6"
+              className={`${styles.notificationBellPixel} size-6`}
               role="img"
               shapeRendering="crispEdges"
             >
@@ -848,7 +709,7 @@ export function CloudCodeMonsterPet({
         ) : null}
         <button
           type="button"
-          className="cloud-code-monster-pet-button"
+          className={styles.button}
           data-dragging={isDragging}
           data-fainted={fainted}
           onClick={handlePetClick}

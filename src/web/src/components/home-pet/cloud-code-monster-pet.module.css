@@ -2,7 +2,7 @@
   display: contents;
 }
 
-.petLayer :global(.cloud-code-monster-pet) {
+.pet {
   position: absolute;
   top: 0;
   left: 0;
@@ -14,7 +14,7 @@
   touch-action: none;
 }
 
-.petLayer :global(.cloud-code-monster-pet-footsteps) {
+.footsteps {
   position: absolute;
   inset: 0;
   z-index: 11;
@@ -22,7 +22,7 @@
   pointer-events: none;
 }
 
-.petLayer :global(.cloud-code-monster-pet-footprint) {
+.footprint {
   position: absolute;
   left: 0;
   top: 0;
@@ -37,11 +37,11 @@
   animation: cloud-code-monster-footprint 980ms ease-out both;
 }
 
-.petLayer :global(.cloud-code-monster-pet-footprint[data-side="right"]) {
+.footprint[data-side="right"] {
   --monster-footprint-rotate: 8deg;
 }
 
-.petLayer :global(.cloud-code-monster-pet-button) {
+.button {
   position: relative;
   display: grid;
   width: 82px;
@@ -56,16 +56,16 @@
   transform-origin: 50% 88%;
 }
 
-.petLayer :global(.cloud-code-monster-pet-button:active),
-.petLayer :global(.cloud-code-monster-pet-button[data-dragging="true"]) {
+.button:active,
+.button[data-dragging="true"] {
   cursor: grabbing;
 }
 
-.petLayer :global(.cloud-code-monster-pet-button[data-fainted="true"]) {
+.button[data-fainted="true"] {
   cursor: pointer;
 }
 
-.petLayer :global(.cloud-code-monster-pet-button:focus-visible) {
+.button:focus-visible {
   outline: 2px solid color-mix(in oklch, var(--primary) 55%, transparent);
   outline-offset: 5px;
   border-radius: 8px;
@@ -80,7 +80,7 @@
   transform-origin: 50% 50%;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-direction="left"] .cloud-code-monster-pet-svg) {
+.pet[data-direction="left"] :global(.cloud-code-monster-pet-svg) {
   transform: scaleX(-1);
 }
 
@@ -100,47 +100,47 @@
   transform-origin: 50% 80%;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-walking="true"] .cloud-code-monster-pet-character) {
+.pet[data-walking="true"] :global(.cloud-code-monster-pet-character) {
   animation: cloud-code-monster-walk var(--monster-walk-duration, 260ms) steps(2, end) infinite;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-walking="true"] .cloud-code-monster-pet-left-foot) {
+.pet[data-walking="true"] :global(.cloud-code-monster-pet-left-foot) {
   animation: cloud-code-monster-left-foot var(--monster-walk-duration, 260ms) steps(2, end) infinite;
   transform-origin: 50% 50%;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-walking="true"] .cloud-code-monster-pet-right-foot) {
+.pet[data-walking="true"] :global(.cloud-code-monster-pet-right-foot) {
   animation: cloud-code-monster-right-foot var(--monster-walk-duration, 260ms) steps(2, end) infinite;
   transform-origin: 50% 50%;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-reacting="true"] .cloud-code-monster-pet-button) {
+.pet[data-reacting="true"] .button {
   animation: cloud-code-monster-startled 900ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-shaken="true"] .cloud-code-monster-pet-button) {
+.pet[data-shaken="true"] .button {
   animation: cloud-code-monster-shaken 180ms steps(2, end) infinite;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-fainted="true"] .cloud-code-monster-pet-button) {
+.pet[data-fainted="true"] .button {
   animation: cloud-code-monster-faint 10s ease-in-out both;
   filter: drop-shadow(0 6px 9px color-mix(in oklch, var(--foreground) 12%, transparent));
   transform-origin: 50% 92%;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-fainted="true"] .cloud-code-monster-pet-character) {
+.pet[data-fainted="true"] :global(.cloud-code-monster-pet-character) {
   animation: none;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-peeking="true"]) {
+.pet[data-peeking="true"] {
   z-index: 2;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-peeking="true"] .cloud-code-monster-pet-button) {
+.pet[data-peeking="true"] .button {
   animation: cloud-code-monster-peek 4.2s ease-in-out both;
 }
 
-.petLayer :global(.cloud-code-monster-pet-notification-bell) {
+.notificationBell {
   position: absolute;
   left: 50%;
   top: -18px;
@@ -155,6 +155,10 @@
   transform: translateX(-50%);
   animation: cloud-code-monster-bell-alert 980ms cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
   pointer-events: none;
+}
+
+.notificationBellPixel {
+  display: block;
 }
 
 .petLayer :global(.cloud-code-monster-pet-shock rect) {
@@ -173,38 +177,38 @@
   animation-delay: 140ms;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="sleeping"] .cloud-code-monster-pet-character) {
+.pet[data-activity="sleeping"] :global(.cloud-code-monster-pet-character) {
   animation: cloud-code-monster-sleep 5.2s steps(2, end) infinite;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="sleeping"] .cloud-code-monster-pet-sleep rect) {
+.pet[data-activity="sleeping"] :global(.cloud-code-monster-pet-sleep rect) {
   animation: cloud-code-monster-sleep-pixels 2.6s ease-in-out infinite;
   transform-box: fill-box;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="sleeping"] .cloud-code-monster-pet-sleep-z) {
+.pet[data-activity="sleeping"] :global(.cloud-code-monster-pet-sleep-z) {
   animation: cloud-code-monster-sleep-pixels 2.6s ease-in-out infinite;
   transform-box: fill-box;
   transform-origin: center;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="sleeping"] .cloud-code-monster-pet-sleep-z rect) {
+.pet[data-activity="sleeping"] :global(.cloud-code-monster-pet-sleep-z rect) {
   animation: none;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="sleeping"] .cloud-code-monster-pet-sleep-z:nth-child(2)) {
+.pet[data-activity="sleeping"] :global(.cloud-code-monster-pet-sleep-z:nth-child(2)) {
   animation-delay: 320ms;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="sleeping"] .cloud-code-monster-pet-sleep-z:nth-child(3)) {
+.pet[data-activity="sleeping"] :global(.cloud-code-monster-pet-sleep-z:nth-child(3)) {
   animation-delay: 640ms;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="reading"] .cloud-code-monster-pet-book) {
+.pet[data-activity="reading"] :global(.cloud-code-monster-pet-book) {
   animation: cloud-code-monster-read 3.2s steps(2, end) infinite;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="phone"] .cloud-code-monster-pet-phone) {
+.pet[data-activity="phone"] :global(.cloud-code-monster-pet-phone) {
   animation: cloud-code-monster-phone 2.4s steps(2, end) infinite;
 }
 
@@ -213,24 +217,24 @@
   animation: cloud-code-monster-phone-glow 1.4s ease-in-out infinite;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="coding"] .cloud-code-monster-pet-laptop) {
+.pet[data-activity="coding"] :global(.cloud-code-monster-pet-laptop) {
   animation: cloud-code-monster-keytap 1s steps(2, end) infinite;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="thinking"] .cloud-code-monster-pet-thought rect) {
+.pet[data-activity="thinking"] :global(.cloud-code-monster-pet-thought rect) {
   animation: cloud-code-monster-thought 2.8s ease-in-out infinite;
   transform-box: fill-box;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="thinking"] .cloud-code-monster-pet-thought rect:nth-child(2)) {
+.pet[data-activity="thinking"] :global(.cloud-code-monster-pet-thought rect:nth-child(2)) {
   animation-delay: 240ms;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="thinking"] .cloud-code-monster-pet-thought rect:nth-child(3)) {
+.pet[data-activity="thinking"] :global(.cloud-code-monster-pet-thought rect:nth-child(3)) {
   animation-delay: 480ms;
 }
 
-.petLayer :global(.cloud-code-monster-pet[data-activity="snacking"] .cloud-code-monster-pet-snack) {
+.pet[data-activity="snacking"] :global(.cloud-code-monster-pet-snack) {
   animation: cloud-code-monster-snack 2.2s steps(2, end) infinite;
 }
 
@@ -340,7 +344,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .petLayer :global(.cloud-code-monster-pet-button),
+  .button,
   .petLayer :global(.cloud-code-monster-pet-character),
   .petLayer :global(.cloud-code-monster-pet-left-foot),
   .petLayer :global(.cloud-code-monster-pet-right-foot),
@@ -349,8 +353,8 @@
   .petLayer :global(.cloud-code-monster-pet-accessory rect),
   .petLayer :global(.cloud-code-monster-pet-shock rect),
   .petLayer :global(.cloud-code-monster-pet-phone-glow),
-  .petLayer :global(.cloud-code-monster-pet-notification-bell),
-  .petLayer :global(.cloud-code-monster-pet-footprint) {
+  .notificationBell,
+  .footprint {
     animation: none !important;
   }
 }

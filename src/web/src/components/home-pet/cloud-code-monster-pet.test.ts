@@ -267,6 +267,10 @@ describe("production workspace PET mounting", () => {
       path.join(root, "src/components/home-pet/cloud-code-monster-pet.tsx"),
       "utf8"
     );
+    const petDragHook = readFileSync(
+      path.join(root, "src/components/home-pet/cloud-code-monster-pet-drag.ts"),
+      "utf8"
+    );
     const petPixelParts = readFileSync(
       path.join(root, "src/components/home-pet/cloud-code-monster-pet-pixel-parts.tsx"),
       "utf8"
@@ -345,6 +349,9 @@ describe("production workspace PET mounting", () => {
     expect(petComponent).toContain("const hasPeekTargets = peekTargets.length > 0");
     expect(petComponent).toContain("function usePetTimers()");
     expect(petComponent).toContain("setPetTimer(\"peek\"");
+    expect(petComponent).toContain("usePetDrag({");
+    expect(petDragHook).toContain("export function usePetDrag");
+    expect(petDragHook).toContain("const handlePointerMove = useCallback");
     expect(petComponent).not.toContain("peekTargets = []");
     expect(petComponent).not.toContain("TimerRef = useRef");
     for (const sensitiveShapeId of sensitiveShapeIds) {
@@ -355,7 +362,10 @@ describe("production workspace PET mounting", () => {
     );
     expect(agentNode).toContain("data-agent-node-id={agent.id}");
     expect(agentNode).toContain('data-agent-working={activeTaskCount > 0 ? "true" : "false"}');
-    expect(petCssModule).toContain(":global(.cloud-code-monster-pet)");
+    expect(petCssModule).toContain(".pet {");
+    expect(petCssModule).toContain(".button {");
+    expect(petCssModule).toContain(".footprint {");
+    expect(petCssModule).not.toContain(":global(.cloud-code-monster-pet)");
     expect(globalCss).not.toContain(".cloud-code-monster-pet");
     expect(globalCss).not.toContain(".home-pet");
     expect(globalCss).not.toContain(".pet-preview-flow");
