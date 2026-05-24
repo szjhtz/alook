@@ -722,6 +722,30 @@ export const WorkspaceFileReportSchema = z.object({
 export type WorkspaceFileReport = z.infer<typeof WorkspaceFileReportSchema>;
 
 // ---------------------------------------------------------------------------
+// Workspace skill browsing (V2 — D1 cache)
+// ---------------------------------------------------------------------------
+
+export const SkillEntrySchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  isGlobal: z.boolean().optional(),
+});
+export type SkillEntry = z.infer<typeof SkillEntrySchema>;
+
+const SkillItemSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+});
+
+export const SkillSyncRequestSchema = z.object({
+  scope: z.enum(["global", "agent"]),
+  agent_id: z.string().min(1).optional(),
+  runtime: z.enum(["claude", "codex", "opencode"]),
+  skills: z.array(SkillItemSchema),
+});
+export type SkillSyncRequest = z.infer<typeof SkillSyncRequestSchema>;
+
+// ---------------------------------------------------------------------------
 // Studio onboarding
 // ---------------------------------------------------------------------------
 
