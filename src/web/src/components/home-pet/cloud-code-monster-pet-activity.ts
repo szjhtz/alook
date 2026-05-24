@@ -428,10 +428,26 @@ export function writeStoredActivity(activityState: StoredCloudCodeMonsterActivit
   } catch {}
 }
 
-export function getBounds(boundary: HTMLElement | null): PetBounds {
+export function createWalkToTargetVelocity(
+  from: PetPoint,
+  to: PetPoint,
+  speed: number
+): PetPoint {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const distance = Math.hypot(dx, dy);
+
+  if (!Number.isFinite(distance) || distance < 0.01) {
+    return { x: 0, y: 0 };
+  }
+
+  return { x: (dx / distance) * speed, y: (dy / distance) * speed };
+}
+
+export function getBounds(_boundary: HTMLElement | null): PetBounds {
   return {
-    width: boundary?.clientWidth ?? window.innerWidth,
-    height: boundary?.clientHeight ?? window.innerHeight,
+    width: window.innerWidth,
+    height: window.innerHeight,
   };
 }
 
@@ -457,20 +473,17 @@ export function resolveCloudCodeMonsterPeekPosition(
 ): PetPoint {
   if (target.agentId) {
     const agentNode = findAgentPeekNode(boundary, target.agentId);
-    const boundaryRect = boundary?.getBoundingClientRect();
     const agentRect = agentNode?.getBoundingClientRect();
 
-    if (agentRect && boundaryRect) {
+    if (agentRect) {
       return clampPetPosition(
         {
           x:
-            agentRect.left -
-            boundaryRect.left +
+            agentRect.left +
             agentRect.width / 2 -
             CLOUD_CODE_MONSTER_SIZE.width / 2,
           y:
             agentRect.top -
-            boundaryRect.top -
             CLOUD_CODE_MONSTER_SIZE.height * 0.18,
         },
         bounds,

@@ -10,6 +10,9 @@ import {
   useState,
 } from "react";
 
+import { useAgentContextSafe } from "@/contexts/agent-context";
+import { useInboxCount } from "@/contexts/inbox-count-context";
+
 import styles from "./cloud-code-monster-pet.module.css";
 
 import {
@@ -40,6 +43,7 @@ import {
   CLOUD_CODE_MONSTER_SIZE,
 } from "./cloud-code-monster-pet-constants";
 import { usePetDrag } from "./cloud-code-monster-pet-drag";
+import { useWalkToTarget } from "./cloud-code-monster-pet-walk-target";
 import { MonsterSvg } from "./cloud-code-monster-pet-pixel-parts";
 import {
   CLOUD_CODE_MONSTER_PET_PRESETS,
@@ -47,7 +51,7 @@ import {
   readCloudCodeMonsterPetPresetId,
 } from "./cloud-code-monster-pet-presets";
 import type {
-  CloudCodeMonsterActivityTriggerMode,
+  CloudCodeMonsterActivityId,
   CloudCodeMonsterPeekTarget,
   Footprint,
   PetPoint,
@@ -61,6 +65,7 @@ export {
   createCloudCodeMonsterIdleState,
   createCloudCodeMonsterPreviewAwayState,
   createCloudCodeMonsterWalkVelocity,
+  createWalkToTargetVelocity,
   getCloudCodeMonsterExpression,
   getMonsterFootstepIntervalMs,
   hasViolentMonsterDirectionChange,
@@ -96,7 +101,6 @@ export {
 } from "./cloud-code-monster-pet-presets";
 export type {
   CloudCodeMonsterActivityId,
-  CloudCodeMonsterActivityTriggerMode,
   CloudCodeMonsterExpression,
   CloudCodeMonsterPeekTarget,
   CloudCodeMonsterPetPreset,
@@ -108,7 +112,6 @@ export type {
 export type CloudCodeMonsterPetProps = {
   boundaryRef: RefObject<HTMLElement | null>;
   initialPosition?: PetPoint;
-  activityTriggerMode?: CloudCodeMonsterActivityTriggerMode;
   previewComebackToken?: number;
   notificationToken?: number;
   peekTargets?: CloudCodeMonsterPeekTarget[];
@@ -123,7 +126,8 @@ type PetTimerKey =
   | "peek"
   | "peekStop"
   | "notification"
-  | "walkSettle";
+  | "walkSettle"
+  | "walkToTargetPeek";
 
 function createPetTimerRecord(): Record<PetTimerKey, number | null> {
   return {
@@ -135,6 +139,7 @@ function createPetTimerRecord(): Record<PetTimerKey, number | null> {
     peekStop: null,
     notification: null,
     walkSettle: null,
+    walkToTargetPeek: null,
   };
 }
 
@@ -174,7 +179,6 @@ function usePetTimers() {
 export function CloudCodeMonsterPet({
   boundaryRef,
   initialPosition,
-  activityTriggerMode = "global",
   previewComebackToken = 0,
   notificationToken = 0,
   peekTargets = EMPTY_PEEK_TARGETS,
@@ -264,13 +268,8 @@ export function CloudCodeMonsterPet({
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
-      if (activityTriggerMode === "home" && document.visibilityState === "visible") {
-        writeStoredActivity(
-          createCloudCodeMonsterHiddenState(readStoredActivity(), Date.now())
-        );
-      }
     };
-  }, [activityTriggerMode]);
+  }, []);
 
   useEffect(() => {
     if (previewComebackToken <= 0) {
@@ -331,7 +330,7 @@ export function CloudCodeMonsterPet({
     );
   }, [activityState]);
   const preset = useMemo(() => getCloudCodeMonsterPreset(presetId), [presetId]);
-  const isWalking = isDragging || isAutoWalking;
+  const isWalkingBasic = isDragging || isAutoWalking;
   const hasPosition = position !== null;
   const hasPeekTargets = peekTargets.length > 0;
   const shouldAutoWalk = shouldCloudCodeMonsterAutoWalk(
@@ -341,6 +340,126 @@ export function CloudCodeMonsterPet({
   useEffect(() => {
     peekTargetsRef.current = peekTargets;
   }, [peekTargets]);
+
+  // --- Inbox walk-to-target integration ---
+  const { count: inboxCount } = useInboxCount();
+  const [inboxWalkEnabled, setInboxWalkEnabled] = useState(false);
+  const inboxDebounceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (inboxCount > 0 && !fainted && !isDragging) {
+      if (inboxDebounceRef.current === null) {
+        inboxDebounceRef.current = window.setTimeout(() => {
+          inboxDebounceRef.current = null;
+          setInboxWalkEnabled(true);
+        }, 300);
+      }
+    } else if (inboxCount === 0) {
+      if (inboxDebounceRef.current !== null) {
+        window.clearTimeout(inboxDebounceRef.current);
+        inboxDebounceRef.current = null;
+      }
+      setInboxWalkEnabled(false);
+    }
+
+    return () => {
+      if (inboxDebounceRef.current !== null) {
+        window.clearTimeout(inboxDebounceRef.current);
+        inboxDebounceRef.current = null;
+      }
+    };
+  }, [inboxCount, fainted, isDragging]);
+
+  const handleWalkToTargetStep = useCallback((nextPosition: PetPoint, intensity: number) => {
+    setWalkIntensity(intensity);
+    const now = performance.now();
+    if (now - lastFootstepAtRef.current >= getMonsterFootstepIntervalMs(intensity)) {
+      const side = nextFootSideRef.current;
+      nextFootSideRef.current = side === "left" ? "right" : "left";
+      const sideOffset = side === "left" ? 25 : 52;
+      setFootprints((current) => [
+        ...current.slice(-13),
+        {
+          id: nextFootprintIdRef.current++,
+          x: nextPosition.x + sideOffset,
+          y: nextPosition.y + CLOUD_CODE_MONSTER_SIZE.height - 7,
+          side,
+          intensity,
+        },
+      ]);
+      lastFootstepAtRef.current = now;
+    }
+  }, []);
+
+  const handleWalkToTargetArrive = useCallback(() => {
+    setIsPeeking(true);
+    setWalkIntensity(1);
+    setPetTimer("walkToTargetPeek", () => {
+      setIsPeeking(false);
+      // Re-peek periodically while inbox > 0
+      const schedulePeek = () => {
+        setPetTimer("walkToTargetPeek", () => {
+          setIsPeeking(true);
+          setPetTimer("peekStop", () => {
+            setIsPeeking(false);
+            schedulePeek();
+          }, CLOUD_CODE_MONSTER_PEEK_MS);
+        }, CLOUD_CODE_MONSTER_PEEK_INTERVAL_MS);
+      };
+      schedulePeek();
+    }, CLOUD_CODE_MONSTER_PEEK_MS);
+  }, [setPetTimer]);
+
+  const walkToTarget = useWalkToTarget({
+    boundaryRef,
+    targetId: inboxWalkEnabled ? "inbox" : null,
+    enabled: inboxWalkEnabled && !isDragging && !reacting && !shaken && !fainted,
+    position,
+    setPosition,
+    onArrive: handleWalkToTargetArrive,
+    onStep: handleWalkToTargetStep,
+  });
+
+  const isWalkingToTarget = walkToTarget.isWalking || walkToTarget.isIdlingAtTarget;
+  const isWalking = isWalkingBasic || walkToTarget.isWalking;
+  const wasWalkingToTargetRef = useRef(false);
+
+  useEffect(() => {
+    if (wasWalkingToTargetRef.current && !isWalkingToTarget) {
+      clearPetTimer("walkToTargetPeek");
+      setIsPeeking(false);
+    }
+    wasWalkingToTargetRef.current = isWalkingToTarget;
+  }, [isWalkingToTarget, clearPetTimer]);
+
+  // --- Working state: lock activity when agents have running tasks ---
+  const agentCtx = useAgentContextSafe();
+  const hasRunningTasks = (agentCtx?.activeTaskDetails.length ?? 0) > 0;
+  const workingActivityRef = useRef<CloudCodeMonsterActivityId | null>(null);
+
+  useEffect(() => {
+    if (hasRunningTasks && !isWalkingToTarget) {
+      if (!workingActivityRef.current) {
+        const workingActivities: CloudCodeMonsterActivityId[] = ["coding", "thinking", "reading"];
+        workingActivityRef.current =
+          workingActivities[Math.floor(Math.random() * workingActivities.length)]!;
+      }
+      const lockedActivity = workingActivityRef.current;
+      setActivityState((current) => {
+        if (current?.activityId === lockedActivity) return current;
+        const next = { activityId: lockedActivity, updatedAt: Date.now(), hiddenAt: null };
+        writeStoredActivity(next);
+        return next;
+      });
+    } else if (!hasRunningTasks) {
+      if (workingActivityRef.current) {
+        workingActivityRef.current = null;
+        const nextState = createCloudCodeMonsterIdleState();
+        writeStoredActivity(nextState);
+        setActivityState(nextState);
+      }
+    }
+  }, [hasRunningTasks, isWalkingToTarget]);
 
   const pushFootprint = useCallback((nextPosition: PetPoint, intensity: number) => {
     const side = nextFootSideRef.current;
@@ -368,7 +487,8 @@ export function CloudCodeMonsterPet({
       reacting ||
       shaken ||
       fainted ||
-      isPeeking
+      isPeeking ||
+      isWalkingToTarget
     ) {
       setIsAutoWalking(false);
       setWalkIntensity(1);
@@ -432,6 +552,7 @@ export function CloudCodeMonsterPet({
     hasPosition,
     isDragging,
     isPeeking,
+    isWalkingToTarget,
     reacting,
     clearPetTimer,
     pushFootprint,
@@ -447,7 +568,8 @@ export function CloudCodeMonsterPet({
       isDragging ||
       reacting ||
       shaken ||
-      fainted
+      fainted ||
+      isWalkingToTarget
     ) {
       return;
     }
@@ -491,6 +613,7 @@ export function CloudCodeMonsterPet({
     hasPeekTargets,
     hasPosition,
     isDragging,
+    isWalkingToTarget,
     reacting,
     shaken,
     setPetTimer,
@@ -517,6 +640,7 @@ export function CloudCodeMonsterPet({
     clearPetTimer("autonomousWalk");
     clearPetTimer("peek");
     clearPetTimer("peekStop");
+    clearPetTimer("walkToTargetPeek");
   }, [clearPetTimer]);
 
   const startShockReaction = useCallback(() => {
@@ -665,7 +789,7 @@ export function CloudCodeMonsterPet({
         data-activity={displayedActivity?.id ?? "idle"}
         data-dragging={isDragging}
         data-walking={isWalking}
-        data-direction={walkDirection}
+        data-direction={isWalkingToTarget ? walkToTarget.walkDirection : walkDirection}
         data-reaction={shaken ? "shake" : reacting ? "shock" : "none"}
         data-reacting={reacting}
         data-shaken={shaken}

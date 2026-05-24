@@ -24,10 +24,11 @@ interface InboxCountContextValue {
 
 const InboxCountContext = createContext<InboxCountContextValue | null>(null);
 
+const FALLBACK_INBOX_COUNT: InboxCountContextValue = { count: 0, refresh: () => {}, decrement: () => {} };
+
 export function useInboxCount() {
   const ctx = useContext(InboxCountContext);
-  if (!ctx) throw new Error("useInboxCount must be used within InboxCountProvider");
-  return ctx;
+  return ctx ?? FALLBACK_INBOX_COUNT;
 }
 
 export function InboxCountProvider({ children }: { children: ReactNode }) {

@@ -17,8 +17,6 @@ export type CloudCodeMonsterPeekTarget = PetPoint & {
   agentId?: string;
 };
 
-export type CloudCodeMonsterActivityTriggerMode = "home" | "global";
-
 export type CloudCodeMonsterActivityId =
   | "coding"
   | "sleeping"

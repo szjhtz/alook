@@ -3,10 +3,10 @@
 }
 
 .pet {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
-  z-index: 12;
+  z-index: 51;
   width: 82px;
   transform: translate3d(var(--cloud-code-monster-pet-x), var(--cloud-code-monster-pet-y), 0);
   pointer-events: none;
@@ -15,9 +15,9 @@
 }
 
 .footsteps {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 11;
+  z-index: 50;
   overflow: hidden;
   pointer-events: none;
 }
@@ -341,6 +341,13 @@
 @keyframes cloud-code-monster-snack {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
+}
+
+@media (max-width: 639px) {
+  .pet {
+    transform: translate3d(var(--cloud-code-monster-pet-x), var(--cloud-code-monster-pet-y), 0) scale(0.68);
+    transform-origin: bottom right;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

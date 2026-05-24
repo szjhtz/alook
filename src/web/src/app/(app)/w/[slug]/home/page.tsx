@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   ReactFlow,
@@ -49,16 +48,6 @@ import { LinkSidecar } from "@/components/canvas/link-sidecar";
 import { ActiveTasksFloat } from "@/components/canvas/active-tasks-float";
 import { UpcomingEventsFloat } from "@/components/canvas/upcoming-events-float";
 import { getAutoLayout } from "@/components/canvas/auto-layout";
-import type { CloudCodeMonsterPetProps } from "@/components/home-pet/cloud-code-monster-pet";
-import { useHomePetSettings } from "@/lib/home-pet-settings";
-
-const CloudCodeMonsterPet = dynamic<CloudCodeMonsterPetProps>(
-  () =>
-    import("@/components/home-pet/cloud-code-monster-pet").then(
-      (module) => module.CloudCodeMonsterPet
-    ),
-  { ssr: false }
-);
 
 const nodeTypes = { agent: AgentNode };
 const edgeTypes = { link: LinkEdge };
@@ -92,7 +81,6 @@ function AgentCanvas({ onAgentClick }: { onAgentClick?: (agent: Agent) => void }
   const { slug, workspaceId } = useWorkspace();
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const canvasRef = useRef<HTMLDivElement>(null);
-  const petSettings = useHomePetSettings();
 
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -380,15 +368,6 @@ function AgentCanvas({ onAgentClick }: { onAgentClick?: (agent: Agent) => void }
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1.5} color="var(--color-border)" />
       </ReactFlow>
-
-      {petSettings.enabled ? (
-        <CloudCodeMonsterPet
-          boundaryRef={canvasRef}
-          activityTriggerMode={
-            petSettings.displayScope === "global" ? "global" : "home"
-          }
-        />
-      ) : null}
 
       {/* Custom floating toolbar */}
       <div

@@ -13,6 +13,7 @@ import {
   createCloudCodeMonsterHiddenState,
   createCloudCodeMonsterIdleState,
   createCloudCodeMonsterWalkVelocity,
+  createWalkToTargetVelocity,
   getCloudCodeMonsterExpression,
   getCloudCodeMonsterPreset,
   getMonsterFootstepIntervalMs,
@@ -99,7 +100,6 @@ describe("Cloud Code monster PET helpers", () => {
   it("defaults to opt-in behavior", () => {
     expect(readHomePetSettings()).toMatchObject({
       enabled: false,
-      displayScope: "home",
     });
   });
 
@@ -236,7 +236,23 @@ describe("Cloud Code monster PET helpers", () => {
         boundary,
         { width: 900, height: 700 }
       )
-    ).toEqual({ x: 309, y: 305.24 });
+    ).toEqual({ x: 329, y: 345.24 });
+  });
+
+  it("computes walk-to-target velocity correctly", () => {
+    const v = createWalkToTargetVelocity({ x: 0, y: 0 }, { x: 100, y: 0 }, 3.2);
+    expect(v.x).toBeCloseTo(3.2);
+    expect(v.y).toBeCloseTo(0);
+
+    const diagonal = createWalkToTargetVelocity({ x: 0, y: 0 }, { x: 3, y: 4 }, 5);
+    expect(diagonal.x).toBeCloseTo(3);
+    expect(diagonal.y).toBeCloseTo(4);
+
+    // Zero distance → zero velocity (NaN safety)
+    expect(createWalkToTargetVelocity({ x: 5, y: 5 }, { x: 5, y: 5 }, 3.2)).toEqual({ x: 0, y: 0 });
+
+    // NaN inputs → zero velocity
+    expect(createWalkToTargetVelocity({ x: NaN, y: 0 }, { x: 10, y: 0 }, 3.2)).toEqual({ x: 0, y: 0 });
   });
 });
 
@@ -291,8 +307,28 @@ describe("production workspace PET mounting", () => {
       path.join(root, "src/components/home-pet/cloud-code-monster-pet.module.css"),
       "utf8"
     );
+    const petWalkTarget = readFileSync(
+      path.join(root, "src/components/home-pet/cloud-code-monster-pet-walk-target.ts"),
+      "utf8"
+    );
     const agentNode = readFileSync(
       path.join(root, "src/components/canvas/agent-node.tsx"),
+      "utf8"
+    );
+    const inboxPopover = readFileSync(
+      path.join(root, "src/components/inbox-popover.tsx"),
+      "utf8"
+    );
+    const landingPage = readFileSync(
+      path.join(root, "src/components/home/home-page.tsx"),
+      "utf8"
+    );
+    const inboxCountContext = readFileSync(
+      path.join(root, "src/contexts/inbox-count-context.tsx"),
+      "utf8"
+    );
+    const agentContext = readFileSync(
+      path.join(root, "src/contexts/agent-context.tsx"),
       "utf8"
     );
     const globalCss = readFileSync(path.join(root, "src/app/globals.css"), "utf8");
@@ -327,13 +363,13 @@ describe("production workspace PET mounting", () => {
       "chop" + "per",
     ];
 
-    expect(workspaceHomePage).toContain("CloudCodeMonsterPet");
-    expect(workspaceHomePage).toContain("dynamic<CloudCodeMonsterPetProps>");
-    expect(workspaceHomePage).toContain("useHomePetSettings");
+    // Home page no longer renders pet directly
+    expect(workspaceHomePage).not.toContain("CloudCodeMonsterPet");
+    expect(workspaceHomePage).not.toContain("useHomePetSettings");
     expect(settingsPage).toContain('{ id: "pet", label: "Pet" }');
     expect(petTab).toContain("Enable pet");
-    expect(petTab).toContain("Homepage only");
-    expect(petTab).toContain("Global Display");
+    expect(petTab).not.toContain("Homepage only");
+    expect(petTab).not.toContain("Global Display");
     expect(petTab).toContain("CloudCodeMonsterPresetPreview");
     expect(petTab).toContain("cloud-code-monster-pet-presets");
     expect(petTab).not.toContain(
@@ -341,7 +377,10 @@ describe("production workspace PET mounting", () => {
     );
     expect(workspaceShell).toContain("WorkspacePetLayer");
     expect(workspaceShell).toContain("RuntimeVersionGate");
-    expect(workspacePetLayer).toContain('petSettings.displayScope !== "global"');
+    // Pet layer renders on all pages — no displayScope or isHome check
+    expect(workspacePetLayer).not.toContain("displayScope");
+    expect(workspacePetLayer).not.toContain("isHome");
+    expect(workspacePetLayer).toContain("petSettings.enabled");
     expect(workspacePetLayer).toContain("dynamic<CloudCodeMonsterPetProps>");
     expect(petComponent).toContain("const EMPTY_PEEK_TARGETS");
     expect(petComponent).toContain("peekTargets = EMPTY_PEEK_TARGETS");
@@ -350,10 +389,28 @@ describe("production workspace PET mounting", () => {
     expect(petComponent).toContain("function usePetTimers()");
     expect(petComponent).toContain("setPetTimer(\"peek\"");
     expect(petComponent).toContain("usePetDrag({");
+    expect(petComponent).toContain("useInboxCount");
+    expect(petComponent).toContain("useWalkToTarget");
+    expect(petComponent).toContain("useAgentContextSafe");
+    expect(petComponent).toContain("activeTaskDetails");
+    expect(petComponent).toContain("hasRunningTasks");
+    expect(petComponent).not.toContain("activityTriggerMode");
     expect(petDragHook).toContain("export function usePetDrag");
     expect(petDragHook).toContain("const handlePointerMove = useCallback");
     expect(petComponent).not.toContain("peekTargets = []");
     expect(petComponent).not.toContain("TimerRef = useRef");
+    // Walk-to-target hook exists and has correct exports
+    expect(petWalkTarget).toContain("export function useWalkToTarget");
+    expect(petWalkTarget).toContain("createWalkToTargetVelocity");
+    expect(petWalkTarget).toContain('data-pet-target-id');
+    // Inbox button has pet target attribute
+    expect(inboxPopover).toContain('data-pet-target-id="inbox"');
+    // Landing page renders pet for logged-in users
+    expect(landingPage).toContain("CloudCodeMonsterPet");
+    expect(landingPage).toContain("isLoggedIn && petSettings.enabled");
+    // Context hooks are safe outside providers
+    expect(inboxCountContext).toContain("FALLBACK_INBOX_COUNT");
+    expect(agentContext).toContain("useAgentContextSafe");
     for (const sensitiveShapeId of sensitiveShapeIds) {
       expect(clientPetSources).not.toContain(`"${sensitiveShapeId}"`);
     }
@@ -365,6 +422,7 @@ describe("production workspace PET mounting", () => {
     expect(petCssModule).toContain(".pet {");
     expect(petCssModule).toContain(".button {");
     expect(petCssModule).toContain(".footprint {");
+    expect(petCssModule).toContain("z-index: 51");
     expect(petCssModule).not.toContain(":global(.cloud-code-monster-pet)");
     expect(globalCss).not.toContain(".cloud-code-monster-pet");
     expect(globalCss).not.toContain(".home-pet");
