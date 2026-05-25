@@ -259,7 +259,10 @@ function FlipCard({ feature }: { feature: Feature }) {
     <div
       className="flip-card panel-crt relative z-[1] cursor-pointer"
       style={{ perspective: "1200px" }}
-      onClick={() => setFlipped((f) => !f)}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("a")) return;
+        setFlipped((f) => !f);
+      }}
     >
       <div
         className="flip-card-inner relative w-full transition-transform duration-500 ease-out [transform-style:preserve-3d]"
@@ -270,6 +273,8 @@ function FlipCard({ feature }: { feature: Feature }) {
           className="flip-card-front rounded-lg p-2"
           style={{
             backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
+            pointerEvents: flipped ? "none" : undefined,
             backgroundColor: "oklch(0.82 0.02 75)",
             boxShadow:
               "0 4px 16px oklch(0.15 0.01 55 / 15%), inset 0 1px 0 oklch(0.95 0.01 80 / 40%)",
@@ -311,6 +316,7 @@ function FlipCard({ feature }: { feature: Feature }) {
           className="flip-card-back absolute inset-0 flex flex-col items-center justify-center rounded-lg p-6"
           style={{
             backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
             transform: "rotateY(180deg)",
             backgroundColor: "var(--landing-crt-bg)",
             boxShadow:
