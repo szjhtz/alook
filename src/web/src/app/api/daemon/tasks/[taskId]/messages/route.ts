@@ -75,7 +75,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   });
 
   const succeeded = filtered.filter((_, i) => results[i].status === "fulfilled");
-  const broadcastable = succeeded.filter((m) => m.type !== "tool-result");
+  const broadcastable = succeeded.filter((m) => m.type !== "tool-result" && m.type !== "tool-use" && m.type !== "thinking");
   if (broadcastable.length > 0) {
     const wsMessages: TaskMessage[] = broadcastable.map((m) => ({
       id: "",

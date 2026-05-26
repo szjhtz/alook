@@ -7,7 +7,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { Streamdown } from "streamdown";
 import { highlightMentions } from "@/lib/highlight-mentions";
 import { TaskStream } from "@/components/task-stream";
-import { HistoricalTaskSteps } from "@/components/agent-chat/historical-task-steps";
+import { HistoricalTaskThinking } from "@/components/agent-chat/historical-task-thinking";
 import { FileText, Calendar, CircleDot, Mail, Flag, Copy, Check } from "lucide-react";
 
 import { getEventIconType } from "@/components/agent-chat/agent-chat-view";
@@ -24,7 +24,7 @@ export interface MessageItemProps {
   taskMessages: TaskMessage[];
   connectionLost: boolean;
   isLastMessage: boolean;
-  stepCount: number;
+  thinkingCount: number;
   targetConvId: string | null;
   workspaceId: string;
   conversationType?: string | null;
@@ -113,7 +113,7 @@ export const MessageItem = memo(function MessageItem({
   taskMessages,
   connectionLost,
   isLastMessage,
-  stepCount,
+  thinkingCount,
   targetConvId,
   workspaceId,
   conversationType,
@@ -135,15 +135,6 @@ export const MessageItem = memo(function MessageItem({
     msg.task_id === activeTask.id &&
     msg.conversation_id === activeTask.conversation_id &&
     taskMessages.length > 0;
-
-  const historicalStepCount =
-    !hasTaskStream &&
-    targetConvId &&
-    msg.role === "assistant" &&
-    msg.task_id &&
-    stepCount > 0
-      ? stepCount
-      : 0;
 
   const isTaskDone = hasTaskStream && activeTask && ["completed", "failed", "cancelled", "superseded"].includes(activeTask.status);
 
@@ -221,13 +212,6 @@ export const MessageItem = memo(function MessageItem({
           {isTaskDone && actionButtons}
         </div>
       )}
-      {historicalStepCount > 0 && msg.task_id && (
-        <HistoricalTaskSteps
-          taskId={msg.task_id}
-          stepCount={historicalStepCount}
-          workspaceId={workspaceId}
-        />
-      )}
       {msg.role === "user" ? (() => {
         const awaitingRun = isLastMessage && !!activeTask && activeTask.status !== "running" && !["completed", "failed", "cancelled", "superseded"].includes(activeTask.status);
         const slashMatch = msg.content.match(/^\/(\S+)\s?([\s\S]*)$/);
@@ -284,6 +268,9 @@ export const MessageItem = memo(function MessageItem({
           "group/msg flex flex-col justify-start min-w-0 overflow-hidden",
           isFlagged && "bg-muted/30 rounded-lg px-2 -mx-2"
         )} data-message-id={msg.id} data-quote-source {...(msg.task_id ? { "data-task-id": msg.task_id } : {})}>
+          {targetConvId && msg.role === "assistant" && msg.task_id && thinkingCount > 1 && (
+            <HistoricalTaskThinking taskId={msg.task_id} thinkingCount={thinkingCount - 1} workspaceId={workspaceId} />
+          )}
           <div className="markdown max-w-full min-w-0 px-1 py-1 text-base text-foreground">
             <Streamdown controls={{ code: { copy: true, download: false }, table: { copy: true, download: false, fullscreen: true } }} linkSafety={{ enabled: false }} allowedTags={MENTION_ALLOWED_TAGS} literalTagContent={MENTION_LITERAL_TAGS} components={mentionComponents}>{highlightMentions(msg.content, agents)}</Streamdown>
           </div>

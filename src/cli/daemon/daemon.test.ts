@@ -91,8 +91,8 @@ vi.mock("./update-handler.js", () => ({
 const mockFindRunningPidByTaskId = vi.fn();
 const mockFindRunningEntryByContextKey = vi.fn(() => null);
 vi.mock("./execenv/timeline.js", () => ({
-  findRunningPidByTaskId: (...args: any[]) => mockFindRunningPidByTaskId(...args),
-  findRunningEntryByContextKey: (...args: any[]) => mockFindRunningEntryByContextKey(...args),
+  findRunningPidByTaskId: (...args: any[]) => mockFindRunningPidByTaskId(...(args as any[])),
+  findRunningEntryByContextKey: (...args: any[]) => mockFindRunningEntryByContextKey(...(args as any[])),
 }));
 
 const mockWriteKillIntent = vi.fn();
@@ -101,11 +101,11 @@ const mockAcquireSteeringLock = vi.fn(() => true);
 const mockReleaseSteeringLock = vi.fn();
 const mockCleanupStaleIntents = vi.fn();
 vi.mock("./execenv/steering.js", () => ({
-  writeKillIntent: (...args: any[]) => mockWriteKillIntent(...args),
-  clearKillIntent: (...args: any[]) => mockClearKillIntent(...args),
-  acquireSteeringLock: (...args: any[]) => mockAcquireSteeringLock(...args),
-  releaseSteeringLock: (...args: any[]) => mockReleaseSteeringLock(...args),
-  cleanupStaleIntents: (...args: any[]) => mockCleanupStaleIntents(...args),
+  writeKillIntent: (...args: any[]) => mockWriteKillIntent(...(args as any[])),
+  clearKillIntent: (...args: any[]) => mockClearKillIntent(...(args as any[])),
+  acquireSteeringLock: (...args: any[]) => mockAcquireSteeringLock(...(args as any[])),
+  releaseSteeringLock: (...args: any[]) => mockReleaseSteeringLock(...(args as any[])),
+  cleanupStaleIntents: (...args: any[]) => mockCleanupStaleIntents(...(args as any[])),
 }));
 
 // Track spawned children
@@ -142,13 +142,13 @@ const mockUnlinkSync = vi.fn();
 
 vi.mock("fs", () => ({
   existsSync: vi.fn((p: string) => p.endsWith("session-runner.js")),
-  openSync: (...args: any[]) => mockOpenSync(...args),
-  closeSync: (...args: any[]) => mockCloseSync(...args),
-  renameSync: (...args: any[]) => mockRenameSync(...args),
-  mkdirSync: (...args: any[]) => mockMkdirSync(...args),
-  readdirSync: (...args: any[]) => mockReaddirSync(...args),
-  statSync: (...args: any[]) => mockStatSync(...args),
-  unlinkSync: (...args: any[]) => mockUnlinkSync(...args),
+  openSync: (...args: any[]) => mockOpenSync(...(args as any[])),
+  closeSync: (...args: any[]) => mockCloseSync(...(args as any[])),
+  renameSync: (...args: any[]) => mockRenameSync(...(args as any[])),
+  mkdirSync: (...args: any[]) => mockMkdirSync(...(args as any[])),
+  readdirSync: (...args: any[]) => mockReaddirSync(...(args as any[])),
+  statSync: (...args: any[]) => mockStatSync(...(args as any[])),
+  unlinkSync: (...args: any[]) => mockUnlinkSync(...(args as any[])),
   realpathSync: vi.fn((p: string) => p),
   readFileSync: vi.fn(() => ""),
   writeFileSync: vi.fn(),
@@ -159,10 +159,10 @@ const mockReadFile = vi.fn(async () => "");
 const mockUnlink = vi.fn(async () => undefined);
 const mockFsStat = vi.fn(async () => ({ mtimeMs: Date.now() }));
 vi.mock("fs/promises", () => ({
-  readdir: (...args: any[]) => mockReaddir(...args),
-  readFile: (...args: any[]) => mockReadFile(...args),
-  unlink: (...args: any[]) => mockUnlink(...args),
-  stat: (...args: any[]) => mockFsStat(...args),
+  readdir: (...args: any[]) => mockReaddir(...(args as any[])),
+  readFile: (...args: any[]) => mockReadFile(...(args as any[])),
+  unlink: (...args: any[]) => mockUnlink(...(args as any[])),
+  stat: (...args: any[]) => mockFsStat(...(args as any[])),
 }));
 
 vi.mock("url", () => ({
@@ -273,13 +273,13 @@ describe("daemon session runner dispatch", () => {
     };
 
     let claimed = false;
-    mockClientInstance.poll.mockImplementation(async () => {
+    mockClientInstance.poll.mockImplementation((async () => {
       if (!claimed) {
         claimed = true;
         return { tasks: [fakeTask], evicted: false };
       }
       return { tasks: [], evicted: false };
-    });
+    }) as any);
 
     return fakeTask;
   }
@@ -336,13 +336,13 @@ describe("daemon session runner dispatch", () => {
     };
 
     let claimed = false;
-    mockClientInstance.poll.mockImplementation(async () => {
+    mockClientInstance.poll.mockImplementation((async () => {
       if (!claimed) {
         claimed = true;
         return { tasks: [fakeTask], evicted: false };
       }
       return { tasks: [], evicted: false };
-    });
+    }) as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 50));
@@ -506,11 +506,11 @@ describe("daemon with multi-workspace config", () => {
 
     // W1 returns 3 tasks, W2 should get remaining (20 - 3 = 17)
     let pollCall = 0;
-    mockClientInstance.poll.mockImplementation(async () => {
+    mockClientInstance.poll.mockImplementation((async () => {
       pollCall++;
       if (pollCall === 1) return { tasks: [fakeTask, { ...fakeTask, id: "t2" }, { ...fakeTask, id: "t3" }], evicted: false };
       return { tasks: [], evicted: false };
-    });
+    }) as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 50));
@@ -548,12 +548,12 @@ describe("daemon with multi-workspace config", () => {
     };
 
     let pollCall = 0;
-    mockClientInstance.poll.mockImplementation(async () => {
+    mockClientInstance.poll.mockImplementation((async () => {
       pollCall++;
       if (pollCall === 1) return { tasks: [fakeTaskWs1], evicted: false };
       if (pollCall === 2) return { tasks: [fakeTaskWs2], evicted: false };
       return { tasks: [], evicted: false };
-    });
+    }) as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 50));
@@ -661,13 +661,13 @@ describe("daemon shutdown", () => {
     };
 
     let claimed = false;
-    mockClientInstance.poll.mockImplementation(async () => {
+    mockClientInstance.poll.mockImplementation((async () => {
       if (!claimed) {
         claimed = true;
         return { tasks: [fakeTask], evicted: false };
       }
       return { tasks: [], evicted: false };
-    });
+    }) as any);
     mockClientInstance.startTask.mockResolvedValue({});
 
     await startDaemon();
@@ -733,10 +733,10 @@ describe("daemon agent_ids lazy sync", () => {
     });
 
     let claimed = false;
-    mockClientInstance.poll.mockImplementation(async () => {
+    mockClientInstance.poll.mockImplementation((async () => {
       if (!claimed) { claimed = true; return { tasks: [makeFakeTask()], evicted: false }; }
       return { tasks: [], evicted: false };
-    });
+    }) as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 50));
@@ -754,10 +754,10 @@ describe("daemon agent_ids lazy sync", () => {
     });
 
     let claimed = false;
-    mockClientInstance.poll.mockImplementation(async () => {
+    mockClientInstance.poll.mockImplementation((async () => {
       if (!claimed) { claimed = true; return { tasks: [makeFakeTask()], evicted: false }; }
       return { tasks: [], evicted: false };
-    });
+    }) as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 50));
@@ -772,13 +772,13 @@ describe("daemon agent_ids lazy sync", () => {
     });
 
     let claimed = false;
-    mockClientInstance.poll.mockImplementation(async () => {
+    mockClientInstance.poll.mockImplementation((async () => {
       if (!claimed) {
         claimed = true;
         return { tasks: [makeFakeTask({ id: "t1" }), makeFakeTask({ id: "t2" })], evicted: false };
       }
       return { tasks: [], evicted: false };
-    });
+    }) as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 50));
@@ -1010,11 +1010,11 @@ describe("pruneSessionRunnerLogs", () => {
   it("deletes oldest files when over limit, keeping newest 500", () => {
     const files = Array.from({ length: 505 }, (_, i) => `${i}.log`);
     mockReaddirSync.mockReturnValue(files);
-    mockStatSync.mockImplementation((p: string) => {
+    mockStatSync.mockImplementation(((p: string) => {
       const name = path.basename(p);
       const idx = parseInt(name);
       return { mtimeMs: idx * 1000 };
-    });
+    }) as any);
 
     pruneSessionRunnerLogs();
 
@@ -1137,12 +1137,12 @@ describe("daemon workspace eviction", () => {
     });
 
     const pollTokens: string[] = [];
-    mockClientInstance.poll.mockImplementation(async (token: string) => {
+    mockClientInstance.poll.mockImplementation((async (token: string) => {
       pollTokens.push(token);
       // Evict ws2 (middle workspace)
       if (token === "al_tok_ws2") return { tasks: [], evicted: true };
       return { tasks: [], evicted: false };
-    });
+    }) as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 50));
@@ -1184,10 +1184,10 @@ describe("daemon workspace eviction", () => {
       return { runtimes: [{ id: `rt${registerCall}` }] };
     });
 
-    mockClientInstance.poll.mockImplementation(async (token: string) => {
+    mockClientInstance.poll.mockImplementation((async (token: string) => {
       if (token === "al_tok_ws2") return { tasks: [], evicted: true };
       return { tasks: [], evicted: false };
-    });
+    }) as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 50));
@@ -1218,10 +1218,10 @@ describe("daemon workspace eviction", () => {
       throw new Error("disk full");
     });
 
-    mockClientInstance.poll.mockImplementation(async (token: string) => {
+    mockClientInstance.poll.mockImplementation((async (token: string) => {
       if (token === "al_tok_ws2") return { tasks: [], evicted: true };
       return { tasks: [], evicted: false };
-    });
+    }) as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 50));
@@ -1260,10 +1260,10 @@ describe("daemon 401 handling (no config removal)", () => {
       ],
     });
 
-    mockClientInstance.register.mockImplementation(async (token: string) => {
+    mockClientInstance.register.mockImplementation((async (token: string) => {
       if (token === "al_tok_ws2") throw new Error("HTTP 401 Unauthorized");
       return { runtimes: [{ id: "rt1" }] };
-    });
+    }) as any);
     mockClientInstance.poll.mockResolvedValue({ tasks: [], evicted: false });
 
     await startDaemon();
@@ -1290,10 +1290,10 @@ describe("daemon 401 handling (no config removal)", () => {
       return { runtimes: [{ id: `rt${registerCall}` }] };
     });
 
-    mockClientInstance.poll.mockImplementation(async (token: string) => {
+    mockClientInstance.poll.mockImplementation((async (token: string) => {
       if (token === "al_tok_ws2") throw new Error("HTTP 401 Unauthorized");
       return { tasks: [], evicted: false };
-    });
+    }) as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 50));
@@ -1320,7 +1320,7 @@ describe("daemon restart via update", () => {
       tasks: [],
       evicted: false,
       pending_update: { version: "2.0.0" },
-    });
+    } as any);
 
     await startDaemon();
 
@@ -1342,7 +1342,7 @@ describe("daemon restart via update", () => {
       tasks: [],
       evicted: false,
       pending_update: { version: "0.1.0" },
-    });
+    } as any);
 
     await startDaemon();
 
@@ -1364,7 +1364,7 @@ describe("daemon restart via update", () => {
       tasks: [],
       evicted: false,
       pending_update: { version: "2.0.0" },
-    });
+    } as any);
 
     await startDaemon();
 
@@ -1445,7 +1445,7 @@ describe("daemon rescan via poll", () => {
       tasks: [],
       evicted: false,
       pending_rescan: true,
-    });
+    } as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 200));
@@ -1514,15 +1514,15 @@ describe("daemon restart spawn", () => {
     });
 
     // Make handleCliUpdate immediately invoke the restart callback
-    vi.mocked(handleCliUpdate).mockImplementation((_version: string, onSuccess: () => void) => {
+    vi.mocked(handleCliUpdate).mockImplementation(((_version: string, onSuccess: () => void) => {
       onSuccess();
-    });
+    }) as any);
 
     mockClientInstance.poll.mockResolvedValue({
       tasks: [],
       evicted: false,
       pending_update: { version: "2.0.0" },
-    });
+    } as any);
 
     await startDaemon();
     await new Promise((r) => setTimeout(r, 200));
@@ -1600,13 +1600,13 @@ describe("daemon kill_task handling", () => {
 
   function setupKillTaskClaim(targetTaskId: string) {
     let claimed = false;
-    mockClientInstance.poll.mockImplementation(async () => {
+    mockClientInstance.poll.mockImplementation((async () => {
       if (!claimed) {
         claimed = true;
         return { tasks: [makeKillTask(targetTaskId)], evicted: false };
       }
       return { tasks: [], evicted: false };
-    });
+    }) as any);
   }
 
   it("sends SIGTERM when target PID is found in timeline", async () => {

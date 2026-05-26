@@ -86,7 +86,7 @@ describe("alook update", () => {
     mockGetCurrentVersion.mockReturnValue("0.5.0");
     mockFetchLatestVersion.mockResolvedValue("1.0.0");
     mockRunNpmUpdate.mockResolvedValue({ success: true, output: "" });
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
 
     const cmd = updateCommand();
     await cmd.parseAsync(["node", "update"]);

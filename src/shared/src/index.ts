@@ -163,6 +163,7 @@ export {
   SkillEntrySchema,
   SkillSyncRequestSchema,
   CreateStudioRequestSchema,
+  RecruitAgentRequestSchema,
   DaemonPushMessageSchema,
 } from "./schemas";
 
@@ -210,6 +211,7 @@ export type {
   SkillEntry,
   SkillSyncRequest,
   CreateStudioRequest,
+  RecruitAgentRequest,
   DaemonPushMessageType,
 } from "./schemas";
 

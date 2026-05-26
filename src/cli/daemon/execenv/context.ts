@@ -217,6 +217,23 @@ Use your Read tool to open them. Images and PDFs are read visually.
 ---
 `;
 
+  content += `\n### Agent Management
+Recruit new colleague agents directly from the CLI. The server auto-generates a name and email handle.
+- Run '${cmdPrefix()} agent recruit --instructions "<SYSTEM_PROMPT>" --relationship "<DELEGATION_CRITERIA>"'
+  - '--instructions' — the new agent's system prompt (what it does, how it behaves)
+  - '--relationship' — delegation criteria shown in both agents' COLLEAGUES section
+  - '--name <name>' (optional) — preferred name; server generates one if omitted
+  - '--description <text>' (optional) — agent description
+  - '--model <model>' (optional) — model override
+  - '--instructions-file <path>' — alternative: read instructions from a file (mutually exclusive with --instructions)
+  - '--relationship-file <path>' — alternative: read relationship from a file (mutually exclusive with --relationship)
+  - '--json' — output full JSON response
+- Example: '${cmdPrefix()} agent recruit --instructions "You are a QA engineer..." --relationship "DELEGATE when: code is ready for review"'
+- Output: 'Recruited Felix (felix@alook.ai) — ag_xK9mPq2z'
+- The new agent shares your runtime, is automatically linked as your colleague, and receives a welcome task.
+---
+`;
+
   content += `\n### Calendar
 You have your own calendar to setup daily routines and reminders.
 Schedule future tasks for yourself. At the scheduled time, a new task is dispatched to you with the event as the prompt (task type 'calendar_event').

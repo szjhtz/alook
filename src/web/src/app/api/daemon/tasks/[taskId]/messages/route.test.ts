@@ -163,7 +163,7 @@ describe("POST /api/daemon/tasks/[taskId]/messages", () => {
     expect(mockCreateTaskMessage).not.toHaveBeenCalled();
   });
 
-  it("excludes tool-result messages from WebSocket broadcast", async () => {
+  it("only broadcasts text and error messages via WebSocket", async () => {
     mockGetTask.mockResolvedValue({ id: "t1", workspaceId: "w1" });
     mockCreateTaskMessage.mockResolvedValue({ id: "m1" });
 
@@ -188,10 +188,36 @@ describe("POST /api/daemon/tasks/[taskId]/messages", () => {
     expect(mockCreateTaskMessage).toHaveBeenCalledTimes(3);
     expect(mockBroadcastToUser).toHaveBeenCalledTimes(1);
     const broadcastPayload = mockBroadcastToUser.mock.calls[0][1];
-    expect(broadcastPayload.messages).toHaveLength(2);
-    expect(broadcastPayload.messages.every((m: any) => m.type !== "tool-result")).toBe(true);
+    expect(broadcastPayload.messages).toHaveLength(1);
     expect(broadcastPayload.messages[0].type).toBe("text");
-    expect(broadcastPayload.messages[1].type).toBe("tool-use");
+  });
+
+  it("stores thinking messages but does not broadcast them", async () => {
+    mockGetTask.mockResolvedValue({ id: "t1", workspaceId: "w1" });
+    mockCreateTaskMessage.mockResolvedValue({ id: "m1" });
+
+    const res = await POST(
+      new NextRequest("http://localhost/api/daemon/tasks/t1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            { seq: 1, type: "text", content: "hello" },
+            { seq: 2, type: "thinking", content: "hmm" },
+          ],
+        }),
+      }),
+      withParams("t1")
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe("ok");
+    expect(mockCreateTaskMessage).toHaveBeenCalledTimes(2);
+    expect(mockBroadcastToUser).toHaveBeenCalledTimes(1);
+    const broadcastPayload = mockBroadcastToUser.mock.calls[0][1];
+    expect(broadcastPayload.messages).toHaveLength(1);
+    expect(broadcastPayload.messages[0].type).toBe("text");
   });
 
   it("does not broadcast when all messages are tool-result", async () => {

@@ -593,10 +593,9 @@ describe("daemon route body validation", () => {
         expect.objectContaining({
           type: "task.messages",
           taskId: "t1",
-          messages: expect.arrayContaining([
+          messages: [
             expect.objectContaining({ seq: 1, type: "text", content: "hello" }),
-            expect.objectContaining({ seq: 2, type: "tool-use", tool: "Read" }),
-          ]),
+          ],
         })
       );
     });

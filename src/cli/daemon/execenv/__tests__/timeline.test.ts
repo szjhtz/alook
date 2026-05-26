@@ -359,6 +359,7 @@ describe("timeline", () => {
         agent_responses: [],
         errmsg: null,
         provider: "claude",
+        detailed_log: null,
         ...overrides,
       };
     }

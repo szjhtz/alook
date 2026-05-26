@@ -29,6 +29,8 @@ describe("fromApiTask", () => {
         name: "Agent 1",
         instructions: "be helpful",
         runtime_config: { model: "custom-model" },
+        email_addresses: [],
+        colleagues: [],
       },
     };
 
@@ -43,6 +45,8 @@ describe("fromApiTask", () => {
         name: "Agent 1",
         instructions: "be helpful",
         runtime_config: {},
+        email_addresses: [],
+        colleagues: [],
       },
     };
 
@@ -100,6 +104,8 @@ describe("fromApiTask", () => {
         name: "Agent 1",
         instructions: "be helpful",
         runtime_config: {},
+        email_addresses: [],
+        colleagues: [],
       },
     };
     const result = fromApiTask(task);

@@ -19,6 +19,7 @@ import {
   isMonsterFaintShakeEvent,
   isViolentMonsterDrag,
   shouldFaintFromMonsterShake,
+  writeStoredPosition,
 } from "./cloud-code-monster-pet-activity";
 import {
   CLOUD_CODE_MONSTER_FAINT_EVENT_WINDOW_MS,
@@ -293,6 +294,10 @@ export function usePetDrag({
       lastPointerRef.current = null;
       lastDragDeltaRef.current = null;
 
+      if (position) {
+        writeStoredPosition(position);
+      }
+
       setPetTimer("walkSettle", () => {
         setWalkIntensity(1);
       }, 180);
@@ -303,6 +308,7 @@ export function usePetDrag({
     },
     [
       isDragging,
+      position,
       setIsDragging,
       setPetTimer,
       setWalkIntensity,

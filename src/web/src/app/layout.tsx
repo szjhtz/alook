@@ -10,6 +10,7 @@ import { GoogleTagManager } from "@next/third-parties/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ToasterProvider } from "@/components/toaster-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { MockNetworkBanner } from "@/components/mock-network-banner";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -124,7 +125,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <GoogleTagManager gtmId="GTM-56VHCCQZ" />
-      <body className="min-h-full flex flex-col">
+      <body
+        className="min-h-full flex flex-col"
+      >
+        <MockNetworkBanner />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

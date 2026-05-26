@@ -26,7 +26,7 @@ describe("printTable", () => {
 
     printTable(headers, rows);
 
-    const calls = logSpy.mock.calls.map((c) => c[0]);
+    const calls = logSpy.mock.calls.map((c: any) => c[0]);
 
     expect(calls[0]).toBe("ID  NAME       STATUS  ");
     expect(calls[1]).toBe("--  ---------  --------");

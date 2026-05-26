@@ -6,31 +6,14 @@ import { cn } from "@/lib/utils";
 import type { TaskMessage } from "@alook/shared";
 import type { TaskApi as Task } from "@alook/shared";
 import {
-  Check,
   ChevronRight,
-  Brain,
   AlertCircle,
   RotateCw,
   Loader2,
 } from "lucide-react";
 import { Streamdown } from "streamdown";
 
-/* ── Helpers ── */
-
-function formatToolName(tool: string): string {
-  return tool
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 /* ── Grouped stream items ── */
-
-interface ToolCallGroup {
-  kind: "tool-call";
-  id: string;
-  tool: string;
-  input?: Record<string, unknown>;
-}
 
 interface TextItem {
   kind: "text";
@@ -38,23 +21,13 @@ interface TextItem {
   content: string;
 }
 
-interface ThinkingItem {
-  kind: "thinking";
+interface ErrorItem {
+  kind: "error";
   id: string;
   content: string;
 }
 
-interface StatusItem {
-  kind: "status";
-  id: string;
-  content: string;
-  type: string;
-}
-
-type StreamItem = ToolCallGroup | TextItem | ThinkingItem | StatusItem;
-
-/** Types that are agent-internal lifecycle events, never user-facing. */
-const HIDDEN_TYPES = new Set(["status", "log"]);
+type StreamItem = TextItem | ErrorItem;
 
 function itemKey(msg: TaskMessage): string {
   return msg.id || `seq-${msg.seq}`;
@@ -62,150 +35,17 @@ function itemKey(msg: TaskMessage): string {
 
 function groupMessages(messages: TaskMessage[]): StreamItem[] {
   const items: StreamItem[] = [];
-  const toolCalls = new Map<string, ToolCallGroup>();
 
   for (const msg of messages) {
-    if (HIDDEN_TYPES.has(msg.type)) continue;
     const key = itemKey(msg);
-    switch (msg.type) {
-      case "tool-use": {
-        const callId = msg.call_id;
-        const group: ToolCallGroup = {
-          kind: "tool-call",
-          id: key,
-          tool: msg.tool,
-          input: msg.input,
-        };
-        if (callId) toolCalls.set(callId, group);
-        items.push(group);
-        break;
-      }
-      case "tool-result":
-        break;
-      case "text":
-        items.push({ kind: "text", id: key, content: msg.content });
-        break;
-      case "thinking":
-        items.push({ kind: "thinking", id: key, content: msg.content });
-        break;
-      case "error":
-        items.push({
-          kind: "status",
-          id: key,
-          content: msg.content || msg.output,
-          type: "error",
-        });
-        break;
-      default:
-        break;
+    if (msg.type === "text") {
+      items.push({ kind: "text", id: key, content: msg.content });
+    } else if (msg.type === "error") {
+      items.push({ kind: "error", id: key, content: msg.content || msg.output });
     }
   }
 
   return items;
-}
-
-/* ── ToolCallBlock ── */
-
-function ToolCallBlock({ item, isRunning, isLast }: { item: ToolCallGroup; isRunning: boolean; isLast: boolean }) {
-  const inputStr = useMemo(() => {
-    if (!item.input) return null;
-    try {
-      return JSON.stringify(item.input, null, 2);
-    } catch {
-      return String(item.input);
-    }
-  }, [item.input]);
-
-  if (!inputStr) {
-    return (
-      <div
-        className={cn(
-          "flex items-center gap-2 py-1 px-2 -mx-2 rounded-md",
-          "text-sm text-muted-foreground"
-        )}
-      >
-        <span className="font-medium text-foreground/80">
-          {formatToolName(item.tool)}
-        </span>
-        {isRunning && isLast && (
-          <span className="ml-auto size-1.5 rounded-full bg-primary/60 animate-pulse" />
-        )}
-        {isRunning && !isLast && (
-          <Check className="ml-auto size-3 text-emerald-500" />
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <details className="group/tool">
-      <summary
-        className={cn(
-          "flex items-center gap-2 py-1 px-2 -mx-2 rounded-md cursor-pointer select-none",
-          "text-sm text-muted-foreground transition-colors duration-150",
-          "hover:bg-muted/60 hover:text-foreground",
-          "[&::-webkit-details-marker]:hidden [&::marker]:hidden"
-        )}
-      >
-        <ChevronRight className="size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150 group-open/tool:rotate-90" />
-        <span className="font-medium text-foreground/80">
-          {formatToolName(item.tool)}
-        </span>
-        {isRunning && isLast && (
-          <span className="ml-auto size-1.5 rounded-full bg-primary/60 animate-pulse" />
-        )}
-        {isRunning && !isLast && (
-          <Check className="ml-auto size-3 text-emerald-500" />
-        )}
-      </summary>
-
-      <div className="mt-1 mb-2 ml-5">
-        <pre className="task-stream-pre overflow-x-auto rounded-md bg-muted/40 p-2.5 font-mono text-xs leading-relaxed text-muted-foreground max-h-48 max-w-full min-w-0 overflow-y-auto">
-          {inputStr}
-        </pre>
-      </div>
-    </details>
-  );
-}
-
-/* ── ThinkingBlock ── */
-
-function ThinkingBlock({ item }: { item: ThinkingItem }) {
-  if (!item.content) {
-    return (
-      <div
-        className={cn(
-          "flex items-center gap-2 py-1 px-2 -mx-2 rounded-md",
-          "text-sm text-muted-foreground/60 italic"
-        )}
-      >
-        <Brain className="size-3 shrink-0" />
-        <span>Thinking...</span>
-      </div>
-    );
-  }
-
-  return (
-    <details className="group/think">
-      <summary
-        className={cn(
-          "flex items-center gap-2 py-1 px-2 -mx-2 rounded-md cursor-pointer select-none",
-          "text-sm text-muted-foreground/60 italic transition-colors duration-150",
-          "hover:bg-muted/60 hover:text-muted-foreground",
-          "[&::-webkit-details-marker]:hidden [&::marker]:hidden"
-        )}
-      >
-        <ChevronRight className="size-3 shrink-0 text-muted-foreground/40 transition-transform duration-150 group-open/think:rotate-90" />
-        <Brain className="size-3 shrink-0" />
-        <span>Thinking...</span>
-      </summary>
-      <div className="mt-1 mb-2 ml-5">
-        <p className="text-sm italic text-muted-foreground/60 whitespace-pre-wrap">
-          {item.content}
-        </p>
-      </div>
-    </details>
-  );
 }
 
 /* ── AnimatedNumber (slot-style slide) ── */
@@ -284,39 +124,29 @@ export function TaskStream({
   messages,
   connectionLost,
   onRetry,
-  stepCountHint,
-  onExpandSteps,
-  stepsLoading,
+  thinkingCountHint,
+  onExpandThinking,
+  thinkingLoading,
 }: {
   task: Task;
   messages: TaskMessage[];
   connectionLost?: boolean;
   onRetry?: () => void;
-  stepCountHint?: number;
-  onExpandSteps?: () => void;
-  stepsLoading?: boolean;
+  thinkingCountHint?: number;
+  onExpandThinking?: () => void;
+  thinkingLoading?: boolean;
 }) {
   const [retrying, setRetrying] = useState(false);
   const allItems = useMemo(() => groupMessages(messages), [messages]);
   const isRunning = task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled" && task.status !== "superseded";
 
-  const toolItems = allItems.filter((i) => i.kind !== "text");
   const textItems = allItems.filter((i): i is TextItem => i.kind === "text");
-
+  const errorItems = allItems.filter((i): i is ErrorItem => i.kind === "error");
   const finalTextItem = textItems.length > 0 ? textItems[textItems.length - 1] : null;
 
-  const toolScrollRef = useRef<HTMLDivElement>(null);
   const textScrollRef = useRef<HTMLDivElement>(null);
   const expandedRef = useRef(false);
 
-  // Auto-scroll tool area to bottom while running
-  useEffect(() => {
-    if (isRunning && toolScrollRef.current) {
-      toolScrollRef.current.scrollTop = toolScrollRef.current.scrollHeight;
-    }
-  }, [toolItems.length, isRunning]);
-
-  // Auto-scroll text area to bottom while running
   useEffect(() => {
     if (isRunning && textScrollRef.current) {
       textScrollRef.current.scrollTop = textScrollRef.current.scrollHeight;
@@ -325,99 +155,51 @@ export function TaskStream({
 
   const intermediateTextItems = isRunning ? textItems : textItems.slice(0, -1);
   const hasFinalText = !isRunning && finalTextItem !== null;
-  const displayStepCount = toolItems.length > 0 ? toolItems.length : stepCountHint ?? 0;
-  const showStepsSection = toolItems.length > 0 || (stepCountHint && stepCountHint > 0);
+  const showThinkingSection = intermediateTextItems.length > 0 || (thinkingCountHint && thinkingCountHint > 0);
+  const displayThinkingCount = intermediateTextItems.length > 0 ? intermediateTextItems.length : thinkingCountHint ?? 0;
 
-  const handleStepsToggle = (e: React.SyntheticEvent<HTMLDetailsElement>) => {
-    if ((e.currentTarget as HTMLDetailsElement).open && !expandedRef.current && onExpandSteps) {
+  const handleThinkingToggle = (e: React.SyntheticEvent<HTMLDetailsElement>) => {
+    if ((e.currentTarget as HTMLDetailsElement).open && !expandedRef.current && onExpandThinking) {
       expandedRef.current = true;
-      onExpandSteps();
+      onExpandThinking();
     }
   };
 
   return (
     <div className="space-y-3 min-w-0 max-w-full">
-      {/* Status badge */}
-      <div className="flex items-center gap-2">
-        {task.status === "running" ? (
-          <Badge variant="secondary" className="gap-1.5 relative overflow-hidden">
-            <span className="size-1.5 rounded-full bg-primary animate-pulse" />
-            Working
-            <div
-              className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2s_ease-in-out_infinite]"
-              style={{
-                background: "linear-gradient(90deg, transparent 0%, var(--shimmer) 40%, var(--shimmer-peak) 50%, var(--shimmer) 60%, transparent 100%)",
-              }}
-            />
-          </Badge>
-        ) : isRunning ? (
-          <Badge variant="secondary" className="relative overflow-hidden">
-            {task.status}
-            <div
-              className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2s_ease-in-out_infinite]"
-              style={{
-                background: "linear-gradient(90deg, transparent 0%, var(--shimmer) 40%, var(--shimmer-peak) 50%, var(--shimmer) 60%, transparent 100%)",
-              }}
-            />
-          </Badge>
-        ) : (
-          <Badge variant="secondary">{task.status}</Badge>
-        )}
-      </div>
-
-      {/* Tool stream zone — foldable, height-limited, scrollable */}
-      {showStepsSection && (
-        <details className="group/stream pl-1" onToggle={handleStepsToggle}>
-          <summary
-            className={cn(
-              "flex items-center gap-1.5 py-1 cursor-pointer select-none",
-              "text-xs text-muted-foreground transition-colors duration-150",
-              "hover:text-foreground",
-              "[&::-webkit-details-marker]:hidden [&::marker]:hidden"
-            )}
-          >
-            <ChevronRight className={cn("size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150 group-open/stream:rotate-90", isRunning && "animate-pulse text-primary")} />
-            <span><AnimatedNumber value={displayStepCount} /> {displayStepCount === 1 ? "step" : "steps"}</span>
-          </summary>
-          <div
-            ref={toolScrollRef}
-            className="mt-1 max-h-80 overflow-y-auto overflow-x-hidden thin-scrollbar space-y-0.5 pl-1"
-          >
-            {stepsLoading && toolItems.length === 0 && (
-              <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-                <Loader2 className="size-3 animate-spin" />
-                <span>Loading steps...</span>
-              </div>
-            )}
-            {toolItems.map((item, idx) => {
-              switch (item.kind) {
-                case "tool-call":
-                  return <ToolCallBlock key={item.id} item={item} isRunning={isRunning} isLast={idx === toolItems.length - 1} />;
-                case "thinking":
-                  return <ThinkingBlock key={item.id} item={item as ThinkingItem} />;
-                case "status":
-                  return (
-                    <p
-                      key={item.id}
-                      className="text-xs text-muted-foreground px-1 wrap-anywhere"
-                    >
-                      {item.type === "error" && (
-                        <AlertCircle className="inline size-3 mr-1 -mt-0.5 text-destructive" />
-                      )}
-                      {(item as StatusItem).content}
-                    </p>
-                  );
-                default:
-                  return null;
-              }
-            })}
-          </div>
-        </details>
+      {/* Status badge — only for live tasks, not historical */}
+      {!onExpandThinking && (
+        <div className="flex items-center gap-2">
+          {task.status === "running" ? (
+            <Badge variant="secondary" className="gap-1.5 relative overflow-hidden">
+              <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+              Working
+              <div
+                className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2s_ease-in-out_infinite]"
+                style={{
+                  background: "linear-gradient(90deg, transparent 0%, var(--shimmer) 40%, var(--shimmer-peak) 50%, var(--shimmer) 60%, transparent 100%)",
+                }}
+              />
+            </Badge>
+          ) : isRunning ? (
+            <Badge variant="secondary" className="relative overflow-hidden">
+              {task.status}
+              <div
+                className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2s_ease-in-out_infinite]"
+                style={{
+                  background: "linear-gradient(90deg, transparent 0%, var(--shimmer) 40%, var(--shimmer-peak) 50%, var(--shimmer) 60%, transparent 100%)",
+                }}
+              />
+            </Badge>
+          ) : (
+            <Badge variant="secondary">{task.status}</Badge>
+          )}
+        </div>
       )}
 
       {/* Thinking section — intermediate text, open while running or when no final text */}
-      {intermediateTextItems.length > 0 && (
-        <details className="group/midtext pl-1" open={!hasFinalText || undefined}>
+      {showThinkingSection && (
+        <details className="group/midtext pl-1" open={!hasFinalText && !onExpandThinking || undefined} onToggle={handleThinkingToggle}>
           <summary
             className={cn(
               "flex items-center gap-1.5 py-1 cursor-pointer select-none",
@@ -427,11 +209,17 @@ export function TaskStream({
             )}
           >
             <ChevronRight className="size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150 group-open/midtext:rotate-90" />
-            <span><AnimatedNumber value={intermediateTextItems.length} /> thinking</span>
+            <span><AnimatedNumber value={displayThinkingCount} /> thinking</span>
           </summary>
-          <div ref={textScrollRef} className="mt-1 space-y-2 pl-1">
+          <div ref={textScrollRef} className="mt-1 pl-1">
+            {thinkingLoading && intermediateTextItems.length === 0 && (
+              <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" />
+                <span>Loading...</span>
+              </div>
+            )}
             {intermediateTextItems.map((item) => (
-              <div key={item.id} className="markdown max-w-full min-w-0 px-1 py-0.5 text-sm text-muted-foreground">
+              <div key={item.id} className="markdown max-w-full min-w-0 px-1 text-sm text-muted-foreground">
                 <Streamdown controls={{ code: { copy: true, download: false }, table: { copy: true, download: false, fullscreen: true } }} linkSafety={{ enabled: false }}>{item.content}</Streamdown>
               </div>
             ))}
@@ -439,13 +227,25 @@ export function TaskStream({
         </details>
       )}
       {/* Final text — shown after completion (not for historical tasks which render it as a message) */}
-      {hasFinalText && !onExpandSteps && (
+      {hasFinalText && !onExpandThinking && (
         <div className="markdown max-w-full min-w-0 px-1 py-1 text-base text-foreground">
           <Streamdown controls={{ code: { copy: true, download: false }, table: { copy: true, download: false, fullscreen: true } }} linkSafety={{ enabled: false }}>{finalTextItem.content}</Streamdown>
         </div>
       )}
 
-      {/* Error display */}
+      {/* Stream error messages */}
+      {errorItems.length > 0 && (
+        <div className="space-y-1 mt-1">
+          {errorItems.map((item) => (
+            <p key={item.id} className="text-sm text-destructive flex items-start gap-1.5 min-w-0">
+              <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+              <span className="wrap-anywhere">{item.content}</span>
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* Task-level error display */}
       {task.status === "failed" && task.error && (
         <div className="flex items-start gap-2 mt-2 max-w-full overflow-hidden">
           <p className="text-sm text-destructive flex items-start gap-1.5 min-w-0">

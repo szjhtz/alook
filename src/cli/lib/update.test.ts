@@ -26,7 +26,7 @@ describe("fetchLatestVersion", () => {
   });
 
   it("parses npm registry response correctly", async () => {
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: async () => ({ version: "1.2.3" }),
     });
@@ -35,7 +35,7 @@ describe("fetchLatestVersion", () => {
   });
 
   it("returns null on network error", async () => {
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error("network error"),
     );
     const v = await fetchLatestVersion();
@@ -43,7 +43,7 @@ describe("fetchLatestVersion", () => {
   });
 
   it("returns null on non-ok response", async () => {
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
     });
     const v = await fetchLatestVersion();

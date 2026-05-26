@@ -774,3 +774,16 @@ export const CreateStudioRequestSchema = z.object({
   { message: "at least one member must have the leader role" },
 );
 export type CreateStudioRequest = z.infer<typeof CreateStudioRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// Agent recruit schema
+// ---------------------------------------------------------------------------
+
+export const RecruitAgentRequestSchema = z.object({
+  instructions: z.string().min(1, "instructions is required"),
+  relationship: z.string().min(1, "relationship is required"),
+  name: z.string().optional(),
+  description: z.string().optional().default(""),
+  model: z.string().max(100).optional(),
+});
+export type RecruitAgentRequest = z.infer<typeof RecruitAgentRequestSchema>;

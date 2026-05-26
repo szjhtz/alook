@@ -12,6 +12,7 @@ import {
   CLOUD_CODE_MONSTER_FAINT_MIN_EVENTS,
   CLOUD_CODE_MONSTER_FAINT_MIN_SPAN_MS,
   CLOUD_CODE_MONSTER_FAINT_REVERSAL_MIN_SPEED,
+  CLOUD_CODE_MONSTER_POSITION_STORAGE_KEY,
   CLOUD_CODE_MONSTER_SIZE,
   CLOUD_CODE_MONSTER_STORAGE_KEY,
   CLOUD_CODE_MONSTER_VIOLENT_DRAG_MAX_ELAPSED_MS,
@@ -424,6 +425,34 @@ export function writeStoredActivity(activityState: StoredCloudCodeMonsterActivit
     localStorage.setItem(
       CLOUD_CODE_MONSTER_STORAGE_KEY,
       JSON.stringify(activityState)
+    );
+  } catch {}
+}
+
+export function readStoredPosition(): PetPoint | null {
+  try {
+    const raw = localStorage.getItem(CLOUD_CODE_MONSTER_POSITION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { x?: unknown; y?: unknown };
+    if (
+      typeof parsed.x === "number" &&
+      typeof parsed.y === "number" &&
+      Number.isFinite(parsed.x) &&
+      Number.isFinite(parsed.y)
+    ) {
+      return { x: parsed.x, y: parsed.y };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeStoredPosition(position: PetPoint) {
+  try {
+    localStorage.setItem(
+      CLOUD_CODE_MONSTER_POSITION_STORAGE_KEY,
+      JSON.stringify({ x: position.x, y: position.y })
     );
   } catch {}
 }

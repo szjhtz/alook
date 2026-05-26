@@ -61,11 +61,11 @@ describe("alook register", () => {
             ok: resp.status >= 200 && resp.status < 300,
             status: resp.status,
             json: async () => resp.body,
-            text: async () => JSON.stringify(resp.body),
+            text: async (): Promise<string> => JSON.stringify(resp.body),
           };
         }
       }
-      return { ok: false, status: 404, text: async () => "not found" };
+      return { ok: false, status: 404, text: async (): Promise<string> => "not found" };
     }));
   }
 

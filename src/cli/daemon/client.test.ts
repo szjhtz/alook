@@ -148,7 +148,7 @@ describe("DaemonClient.poll() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ tasks: [] }),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     await client.poll("tok", "d1", 3);
@@ -167,7 +167,7 @@ describe("DaemonClient.poll() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ tasks: [] }),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     await client.poll("my_token_123", "d1", 1);
@@ -187,7 +187,7 @@ describe("DaemonClient.poll() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve(validPollResponse()),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     const result = await client.poll("tok", "d1", 1);
@@ -201,7 +201,7 @@ describe("DaemonClient.poll() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ tasks: [] }),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     const result = await client.poll("tok", "d1", 1);
@@ -214,7 +214,7 @@ describe("DaemonClient.poll() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ tasks: [], pending_rescan: true }),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     const result = await client.poll("tok", "d1", 1);
@@ -227,7 +227,7 @@ describe("DaemonClient.poll() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ tasks: [] }),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     const result = await client.poll("tok", "d1", 1);
@@ -239,7 +239,7 @@ describe("DaemonClient.poll() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ tasks: [], evicted: true }),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     const result = await client.poll("tok", "d1", 1);
@@ -252,7 +252,7 @@ describe("DaemonClient.poll() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ unexpected: "data" }),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     await expect(client.poll("tok", "d1", 1)).rejects.toThrow();
@@ -275,7 +275,7 @@ describe("DaemonClient.register() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ runtimes: [{ id: "rt1" }] }),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     const resp = await client.register("tok", {
@@ -294,7 +294,7 @@ describe("DaemonClient.register() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ runtimes: [{ id: "rt1" }] }),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     await client.register("my_ws_token", {
@@ -332,7 +332,7 @@ describe("DaemonClient.deregister() with mocked fetch", () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 204,
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     await client.deregister("tok", "d1");
@@ -367,7 +367,7 @@ describe("DaemonClient retries on TypeError (network failure)", () => {
         status: 200,
         json: () => Promise.resolve({ tasks: [] }),
       });
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     const result = await client.poll("tok", "d1", 1);
@@ -378,7 +378,7 @@ describe("DaemonClient retries on TypeError (network failure)", () => {
 
   it("throws TypeError after exhausting all retries", async () => {
     const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     await expect(client.poll("tok", "d1", 1)).rejects.toThrow(TypeError);
@@ -392,7 +392,7 @@ describe("DaemonClient retries on TypeError (network failure)", () => {
       status: 500,
       text: () => Promise.resolve("Internal Server Error"),
     });
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     await expect(client.completeTask("tok", "t1", { output: "done" })).rejects.toThrow("HTTP 500");
@@ -407,7 +407,7 @@ describe("DaemonClient retries on TypeError (network failure)", () => {
         ok: true,
         arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)),
       });
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     const buf = await client.downloadArtifact("tok", "art1", "ws1");
@@ -433,7 +433,7 @@ describe("DaemonClient.heartbeat() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ ok: true }),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     await client.heartbeat("tok", "d1");
@@ -464,7 +464,7 @@ describe("DaemonClient.sweep() with mocked fetch", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ ok: true }),
-    });
+    }) as unknown as typeof fetch;
 
     const client = new DaemonClient("http://localhost:8080");
     await client.sweep("tok", "d1");
@@ -511,7 +511,7 @@ function validApiTask(): TaskApi {
     error: null,
     created_at: "2024-01-01T00:00:00Z",
     type: "user_dm_message",
-    agent: { instructions: "help", name: "bot", runtime_config: {} },
+    agent: { instructions: "help", name: "bot", runtime_config: {}, email_addresses: [], colleagues: [] },
   };
 }
 
@@ -546,14 +546,14 @@ describe("fromApiTask", () => {
 
   it("maps email_handle to emailHandle", () => {
     const api = validApiTask();
-    api.agent = { instructions: "help", name: "bot", runtime_config: {}, email_handle: "myagent" };
+    api.agent = { instructions: "help", name: "bot", runtime_config: {}, email_handle: "myagent", email_addresses: [], colleagues: [] };
     const task = fromApiTask(api);
     expect(task.agent?.emailHandle).toBe("myagent");
   });
 
   it("maps null email_handle to undefined", () => {
     const api = validApiTask();
-    api.agent = { instructions: "help", name: "bot", runtime_config: {}, email_handle: null };
+    api.agent = { instructions: "help", name: "bot", runtime_config: {}, email_handle: null, email_addresses: [], colleagues: [] };
     const task = fromApiTask(api);
     expect(task.agent?.emailHandle).toBeUndefined();
   });

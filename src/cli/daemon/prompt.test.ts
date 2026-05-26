@@ -14,6 +14,9 @@ function makeTask(prompt: string, type = "user_dm_message"): Task {
     status: "pending",
     priority: 1,
     createdAt: new Date().toISOString(),
+    traceId: null,
+    parentTaskId: null,
+    channel: null,
   };
 }
 

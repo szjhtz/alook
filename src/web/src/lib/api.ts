@@ -33,6 +33,10 @@ import { ApiError } from "@/lib/errors";
 
 const API_BASE = "";
 
+const MOCK_NETWORK_ENABLED = process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_MOCK_NETWORK === "true";
+const MOCK_NETWORK_DELAY_MS = parseInt(process.env.NEXT_PUBLIC_MOCK_NETWORK_DELAY_MS || "300", 10) || 300;
+let mockNetworkLogged = false;
+
 function humanizeValidationDetail(detail: string): string {
   const [rawField, ...rest] = detail.split(":");
   const rawMessage = rest.join(":").trim();
@@ -62,6 +66,14 @@ function getReadableErrorMessage(error: string | undefined, details: string[] | 
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  if (MOCK_NETWORK_ENABLED) {
+    if (!mockNetworkLogged) {
+      console.info(`[Mock Network] Enabled — ${MOCK_NETWORK_DELAY_MS}ms delay on all API requests`);
+      mockNetworkLogged = true;
+    }
+    await new Promise((r) => setTimeout(r, MOCK_NETWORK_DELAY_MS));
+  }
+
   let res: Response;
   try {
     res = await fetch(API_BASE + path, {
@@ -284,7 +296,7 @@ export interface ConversationInitResponse {
   artifacts: Artifact[];
   buffered_messages: Message[];
   flagged_message_ids: string[];
-  step_counts: Record<string, number>;
+  thinking_counts: Record<string, number>;
   active_task: TaskApi | null;
   task_messages: TaskMessage[];
   cache_valid: boolean;
@@ -570,15 +582,6 @@ export const retryTask = (id: string, workspaceId: string) =>
   apiFetch<TaskApi>(`/api/tasks/${id}/retry${wsQuery(workspaceId)}`, {
     method: "POST",
   });
-
-export const getTaskStepCounts = (taskIds: string[], workspaceId: string) =>
-  apiFetch<Record<string, number>>(
-    `/api/tasks/step-counts${wsQuery(workspaceId)}`,
-    {
-      method: "POST",
-      body: JSON.stringify({ task_ids: taskIds }),
-    }
-  );
 
 // Emails
 export const listEmails = (agentId: string, workspaceId: string, folder?: string, address?: string) =>

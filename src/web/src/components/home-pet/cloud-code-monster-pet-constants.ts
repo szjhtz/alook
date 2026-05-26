@@ -1,5 +1,7 @@
 export const CLOUD_CODE_MONSTER_ACTIVITY_REFRESH_MS = 3 * 60 * 1000;
 export const CLOUD_CODE_MONSTER_STORAGE_KEY = "alook-cloud-code-monster-pet-activity-v1";
+export const CLOUD_CODE_MONSTER_POSITION_STORAGE_KEY =
+  "alook-cloud-code-monster-pet-position-v1";
 export const CLOUD_CODE_MONSTER_PRESET_STORAGE_KEY =
   "alook-cloud-code-monster-pet-preset-v1";
 export const CLOUD_CODE_MONSTER_PRESET_CHANGED_EVENT =

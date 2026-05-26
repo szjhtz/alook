@@ -23,13 +23,13 @@ const COMPLETED_STUB: TaskApi = {
   type: "",
 };
 
-export function HistoricalTaskSteps({
+export function HistoricalTaskThinking({
   taskId,
-  stepCount,
+  thinkingCount,
   workspaceId,
 }: {
   taskId: string;
-  stepCount: number;
+  thinkingCount: number;
   workspaceId: string;
 }) {
   const [messages, setMessages] = useState<TaskMessage[]>([]);
@@ -54,9 +54,9 @@ export function HistoricalTaskSteps({
     <TaskStream
       task={COMPLETED_STUB}
       messages={messages}
-      stepCountHint={stepCount}
-      onExpandSteps={fetchMessages}
-      stepsLoading={loading}
+      thinkingCountHint={thinkingCount}
+      onExpandThinking={fetchMessages}
+      thinkingLoading={loading}
     />
   );
 }

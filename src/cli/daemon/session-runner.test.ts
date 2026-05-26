@@ -28,7 +28,7 @@ const mockPrepare = vi.fn(() => ({
   },
 }));
 vi.mock("./execenv/index.js", () => ({
-  prepare: (...args: any[]) => mockPrepare(...args),
+  prepare: (...args: any[]) => (mockPrepare as any)(...args),
 }));
 
 const mockInitEntryAsync = vi.fn(async () => {});
@@ -58,19 +58,19 @@ const mockCreateTimelineEntry = vi.fn(
     detailed_log: detailedLog ?? null,
   }),
 );
-const mockFindResumableSessionByContextKey = vi.fn(() => null);
+const mockFindResumableSessionByContextKey = vi.fn((): string | null => null);
 vi.mock("./execenv/timeline.js", () => ({
-  initEntryAsync: (...args: any[]) => mockInitEntryAsync(...args),
-  updateEntry: (...args: any[]) => mockUpdateEntry(...args),
-  createTimelineEntry: (...args: any[]) => mockCreateTimelineEntry(...args),
-  findResumableSessionByContextKey: (...args: any[]) => mockFindResumableSessionByContextKey(...args),
+  initEntryAsync: (...args: any[]) => (mockInitEntryAsync as any)(...args),
+  updateEntry: (...args: any[]) => (mockUpdateEntry as any)(...args),
+  createTimelineEntry: (...args: any[]) => (mockCreateTimelineEntry as any)(...args),
+  findResumableSessionByContextKey: (...args: any[]) => (mockFindResumableSessionByContextKey as any)(...args),
 }));
 
-const mockReadKillIntent = vi.fn(() => null);
+const mockReadKillIntent = vi.fn((): any => null);
 const mockClearKillIntent = vi.fn();
 vi.mock("./execenv/steering.js", () => ({
-  readKillIntent: (...args: any[]) => mockReadKillIntent(...args),
-  clearKillIntent: (...args: any[]) => mockClearKillIntent(...args),
+  readKillIntent: (...args: any[]) => (mockReadKillIntent as any)(...args),
+  clearKillIntent: (...args: any[]) => (mockClearKillIntent as any)(...args),
 }));
 
 vi.mock("./prompt.js", () => ({
@@ -95,10 +95,10 @@ const mockWriteFile = vi.fn(async () => undefined);
 const mockRename = vi.fn(async () => undefined);
 const mockRm = vi.fn(async () => undefined);
 vi.mock("fs/promises", () => ({
-  mkdir: (...args: any[]) => mockMkdir(...args),
-  writeFile: (...args: any[]) => mockWriteFile(...args),
-  rename: (...args: any[]) => mockRename(...args),
-  rm: (...args: any[]) => mockRm(...args),
+  mkdir: (...args: any[]) => (mockMkdir as any)(...args),
+  writeFile: (...args: any[]) => (mockWriteFile as any)(...args),
+  rename: (...args: any[]) => (mockRename as any)(...args),
+  rm: (...args: any[]) => (mockRm as any)(...args),
   readdir: vi.fn(async () => []),
   readFile: vi.fn(async () => ""),
   unlink: vi.fn(async () => undefined),
@@ -125,6 +125,9 @@ function makeInput(overrides?: Partial<SessionRunnerInput>): SessionRunnerInput 
       type: "user_dm_message",
       contextKey: "c1",
       createdAt: "2026-01-01T00:00:00Z",
+      traceId: null,
+      parentTaskId: null,
+      channel: null,
     },
     provider: "claude",
     cliPath: "claude",
@@ -462,6 +465,9 @@ describe("session-runner runSession", () => {
           priority: 0,
           type: "calendar_event",
           createdAt: "2026-04-17T09:00:00Z",
+          traceId: null,
+          parentTaskId: null,
+          channel: null,
         },
       }),
     );
@@ -495,6 +501,9 @@ describe("session-runner runSession", () => {
           priority: 0,
           type: "calendar_event",
           createdAt: "2026-04-17T09:00:00Z",
+          traceId: null,
+          parentTaskId: null,
+          channel: null,
         },
       }),
     );
@@ -517,7 +526,7 @@ describe("session-runner runSession", () => {
     await runSession(makeInput());
 
     // completeTask should be called — branchName is not in the body since it's undefined
-    const callBody = mockClientInstance.completeTask.mock.calls[0][2];
+    const callBody = (mockClientInstance.completeTask.mock.calls as any)[0][2];
     expect(callBody.output).toBe("Done");
     expect(callBody.session_id).toBe("sess-1");
     // branch_name key should not be present (undefined values aren't serialized)
@@ -555,6 +564,9 @@ describe("session-runner runSession", () => {
         type: "user_dm_message",
         contextKey: "c1",
         createdAt: "2026-01-01T00:00:00Z",
+        traceId: null,
+        parentTaskId: null,
+        channel: null,
         context: { attachment_ids: ["art-1"] },
       },
     }));
@@ -605,6 +617,9 @@ describe("session-runner runSession", () => {
         type: "user_dm_message",
         contextKey: "c1",
         createdAt: "2026-01-01T00:00:00Z",
+        traceId: null,
+        parentTaskId: null,
+        channel: null,
         context: { attachment_ids: ["art-1"] },
       },
     }));
@@ -616,7 +631,7 @@ describe("session-runner runSession", () => {
     process.emit("SIGTERM", "SIGTERM");
 
     // Unblock the download so the promise can settle
-    if (resolveDownload) resolveDownload();
+    if (resolveDownload) (resolveDownload as () => void)();
 
     await new Promise((r) => setTimeout(r, 50));
 
@@ -667,7 +682,7 @@ describe("session-runner runSession", () => {
     process.emit("SIGTERM", "SIGTERM");
 
     // Unblock the message iterator so runSession can finish
-    if (resolveMessage) resolveMessage();
+    if (resolveMessage) (resolveMessage as () => void)();
 
     // Wait for cleanup to finish
     await new Promise((r) => setTimeout(r, 50));
@@ -965,7 +980,7 @@ describe("session-runner runSession", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       process.emit("SIGTERM", "SIGTERM");
-      if (resolveMessage) resolveMessage();
+      if (resolveMessage) (resolveMessage as () => void)();
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mockLog.info).toHaveBeenCalledWith(
@@ -1070,7 +1085,7 @@ describe("session-runner runSession", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       process.emit("SIGTERM", "SIGTERM");
-      if (resolveMessage) resolveMessage();
+      if (resolveMessage) (resolveMessage as () => void)();
       await new Promise((r) => setTimeout(r, 50));
 
       // Timeline should be updated to "superseded"
@@ -1118,7 +1133,7 @@ describe("session-runner runSession", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       process.emit("SIGTERM", "SIGTERM");
-      if (resolveMessage) resolveMessage();
+      if (resolveMessage) (resolveMessage as () => void)();
       await new Promise((r) => setTimeout(r, 50));
 
       // Timeline should be updated to "cancelled" (not "killed")
@@ -1159,7 +1174,7 @@ describe("session-runner runSession", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       process.emit("SIGTERM", "SIGTERM");
-      if (resolveMessage) resolveMessage();
+      if (resolveMessage) (resolveMessage as () => void)();
       await new Promise((r) => setTimeout(r, 50));
 
       // Timeline should be updated to "killed" (original behavior)
@@ -1224,8 +1239,8 @@ describe("writeMarkerFile", () => {
 
   it("atomic write: uses .tmp then renames to .json", async () => {
     await writeMarkerFile("/tmp/ws", marker);
-    const writeCall = mockWriteFile.mock.calls[0][0];
-    const renameArgs = mockRename.mock.calls[0];
+    const writeCall = (mockWriteFile.mock.calls as any)[0][0];
+    const renameArgs = (mockRename.mock.calls as any)[0];
     expect(writeCall).toContain(".tmp");
     expect(renameArgs[0]).toContain(".tmp");
     expect(renameArgs[1]).toContain(".json");
@@ -1266,7 +1281,7 @@ describe("reportToServer", () => {
     await vi.runAllTimersAsync();
     await promise;
     expect(mockWriteFile).toHaveBeenCalled();
-    const written = JSON.parse(mockWriteFile.mock.calls[0][1] as string);
+    const written = JSON.parse((mockWriteFile.mock.calls as any)[0][1] as string);
     expect(written.taskId).toBe("t1");
     expect(written.type).toBe("complete");
   });
@@ -1328,7 +1343,7 @@ describe("session-runner marker integration", () => {
     await promise;
 
     expect(mockWriteFile).toHaveBeenCalled();
-    const written = JSON.parse(mockWriteFile.mock.calls[0][1] as string);
+    const written = JSON.parse((mockWriteFile.mock.calls as any)[0][1] as string);
     expect(written.type).toBe("complete");
     expect(written.taskId).toBe("t1");
     expect(written.payload.output).toBe("Done!");
@@ -1350,7 +1365,7 @@ describe("session-runner marker integration", () => {
     await promise;
 
     expect(mockWriteFile).toHaveBeenCalled();
-    const written = JSON.parse(mockWriteFile.mock.calls[0][1] as string);
+    const written = JSON.parse((mockWriteFile.mock.calls as any)[0][1] as string);
     expect(written.type).toBe("fail");
     expect(written.taskId).toBe("t1");
     expect(written.payload.error).toBe("something broke");
@@ -1377,11 +1392,11 @@ describe("session-runner marker integration", () => {
     const sessionPromise = runSession(makeInput());
     await vi.advanceTimersByTimeAsync(50);
     process.emit("SIGTERM", "SIGTERM");
-    if (resolveMessage) resolveMessage();
+    if (resolveMessage) (resolveMessage as () => void)();
     await vi.runAllTimersAsync();
 
     expect(mockWriteFile).toHaveBeenCalled();
-    const written = JSON.parse(mockWriteFile.mock.calls[0][1] as string);
+    const written = JSON.parse((mockWriteFile.mock.calls as any)[0][1] as string);
     expect(written.type).toBe("fail");
     expect(written.payload.error).toBe("cancelled by user");
 
@@ -1410,11 +1425,11 @@ describe("session-runner marker integration", () => {
     const sessionPromise = runSession(makeInput());
     await vi.advanceTimersByTimeAsync(50);
     process.emit("SIGTERM", "SIGTERM");
-    if (resolveMessage) resolveMessage();
+    if (resolveMessage) (resolveMessage as () => void)();
     await vi.runAllTimersAsync();
 
     expect(mockWriteFile).toHaveBeenCalled();
-    const written = JSON.parse(mockWriteFile.mock.calls[0][1] as string);
+    const written = JSON.parse((mockWriteFile.mock.calls as any)[0][1] as string);
     expect(written.type).toBe("fail");
     expect(written.payload.error).toBe("killed by signal");
 

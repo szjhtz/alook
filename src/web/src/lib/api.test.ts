@@ -219,41 +219,88 @@ describe("apiFetch", () => {
   });
 });
 
-describe("getTaskStepCounts", () => {
-  it("sends POST with task_ids and workspace_id", async () => {
-    const counts = { "t1": 5, "t2": 12 };
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => counts,
-    });
-
-    const { getTaskStepCounts } = await getApiFetch();
-    const result = await getTaskStepCounts(["t1", "t2"], "ws-1");
-    expect(result).toEqual(counts);
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/tasks/step-counts"),
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ task_ids: ["t1", "t2"] }),
-      })
-    );
-
-    const calledUrl = mockFetch.mock.calls[0][0] as string;
-    expect(calledUrl).toContain("workspace_id=ws-1");
+describe("apiFetch — mock network delay", () => {
+  afterEach(() => {
+    process.env.NODE_ENV = "test";
+    delete process.env.NEXT_PUBLIC_MOCK_NETWORK;
+    delete process.env.NEXT_PUBLIC_MOCK_NETWORK_DELAY_MS;
+    vi.useRealTimers();
+    vi.stubGlobal("fetch", mockFetch);
   });
 
-  it("returns empty object for empty task_ids", async () => {
-    mockFetch.mockResolvedValueOnce({
+  it("delays fetch by default 300ms when NEXT_PUBLIC_MOCK_NETWORK is true", async () => {
+    vi.useFakeTimers();
+    process.env.NODE_ENV = "development";
+    process.env.NEXT_PUBLIC_MOCK_NETWORK = "true";
+    vi.resetModules();
+
+    const localMockFetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({}),
+      json: async () => [{ id: "a1" }],
     });
+    vi.stubGlobal("fetch", localMockFetch);
 
-    const { getTaskStepCounts } = await getApiFetch();
-    const result = await getTaskStepCounts([], "ws-1");
-    expect(result).toEqual({});
+    const { listAgents } = await import("./api");
+    const promise = listAgents("w1");
+
+    expect(localMockFetch).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(300);
+
+    const result = await promise;
+    expect(localMockFetch).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([{ id: "a1" }]);
+  });
+
+  it("calls fetch immediately when mock network is disabled", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+
+    const localMockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ id: "a1" }],
+    });
+    vi.stubGlobal("fetch", localMockFetch);
+
+    const { listAgents } = await import("./api");
+    const promise = listAgents("w1");
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    const result = await promise;
+    expect(localMockFetch).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([{ id: "a1" }]);
+  });
+
+  it("uses custom delay from NEXT_PUBLIC_MOCK_NETWORK_DELAY_MS", async () => {
+    vi.useFakeTimers();
+    process.env.NODE_ENV = "development";
+    process.env.NEXT_PUBLIC_MOCK_NETWORK = "true";
+    process.env.NEXT_PUBLIC_MOCK_NETWORK_DELAY_MS = "500";
+    vi.resetModules();
+
+    const localMockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ id: "a1" }],
+    });
+    vi.stubGlobal("fetch", localMockFetch);
+
+    const { listAgents } = await import("./api");
+    const promise = listAgents("w1");
+
+    expect(localMockFetch).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(499);
+    expect(localMockFetch).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+
+    const result = await promise;
+    expect(localMockFetch).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([{ id: "a1" }]);
   });
 });
+

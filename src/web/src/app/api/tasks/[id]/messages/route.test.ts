@@ -142,11 +142,10 @@ describe("GET /api/tasks/[id]/messages", () => {
     expect(body.error).toBe("task not found");
   });
 
-  it("does not return tool-result messages (filtered at query level)", async () => {
+  it("only returns text and error messages (tool-result, tool-use, thinking filtered at query level)", async () => {
     const task = { id: "t1", workspaceId: "w1" };
     const messages = [
       { id: "m1", taskId: "t1", seq: 1, type: "text", content: "hello" },
-      { id: "m2", taskId: "t1", seq: 3, type: "tool-use", content: "search" },
     ];
     mockGetTask.mockResolvedValue(task);
     mockListTaskMessages.mockResolvedValue(messages);
@@ -158,14 +157,14 @@ describe("GET /api/tasks/[id]/messages", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body).toHaveLength(2);
-    expect(body.every((m: any) => m.type !== "tool-result")).toBe(true);
+    expect(body).toHaveLength(1);
+    expect(body[0].type).toBe("text");
   });
 
-  it("does not return tool-result messages with since parameter (filtered at query level)", async () => {
+  it("only returns text and error messages with since parameter (filtered at query level)", async () => {
     const task = { id: "t1", workspaceId: "w1" };
     const messages = [
-      { id: "m4", taskId: "t1", seq: 7, type: "thinking", content: "hmm" },
+      { id: "m4", taskId: "t1", seq: 7, type: "text", content: "new update" },
     ];
     mockGetTask.mockResolvedValue(task);
     mockListTaskMessagesSince.mockResolvedValue(messages);
@@ -178,6 +177,6 @@ describe("GET /api/tasks/[id]/messages", () => {
 
     expect(res.status).toBe(200);
     expect(body).toHaveLength(1);
-    expect(body.every((m: any) => m.type !== "tool-result")).toBe(true);
+    expect(body[0].type).toBe("text");
   });
 });

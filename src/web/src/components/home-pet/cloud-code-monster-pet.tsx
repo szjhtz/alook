@@ -23,6 +23,7 @@ import {
   getBounds,
   getMonsterFootstepIntervalMs,
   readStoredActivity,
+  readStoredPosition,
   reflectCloudCodeMonsterWalk,
   resolveCloudCodeMonsterPeekPosition,
   resolveCloudCodeMonsterPreviewComebackState,
@@ -289,7 +290,7 @@ export function CloudCodeMonsterPet({
         currentPosition
           ? clampPetPosition(currentPosition, bounds, CLOUD_CODE_MONSTER_SIZE)
           : clampPetPosition(
-              initialPosition ?? {
+              initialPosition ?? readStoredPosition() ?? {
                 x: bounds.width - CLOUD_CODE_MONSTER_SIZE.width - 112,
                 y: Math.min(
                   bounds.height * 0.48,

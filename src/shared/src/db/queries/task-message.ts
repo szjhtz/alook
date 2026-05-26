@@ -48,13 +48,13 @@ export async function listTaskMessages(db: Database, taskId: string, workspaceId
       })
       .from(taskMessage)
       .innerJoin(agentTaskQueue, eq(taskMessage.taskId, agentTaskQueue.id))
-      .where(and(eq(taskMessage.taskId, taskId), eq(agentTaskQueue.workspaceId, workspaceId), notInArray(taskMessage.type, ["tool-result"])))
+      .where(and(eq(taskMessage.taskId, taskId), eq(agentTaskQueue.workspaceId, workspaceId), notInArray(taskMessage.type, ["tool-result", "tool-use", "thinking"])))
       .orderBy(asc(taskMessage.seq));
   }
   return db
     .select()
     .from(taskMessage)
-    .where(and(eq(taskMessage.taskId, taskId), notInArray(taskMessage.type, ["tool-result"])))
+    .where(and(eq(taskMessage.taskId, taskId), notInArray(taskMessage.type, ["tool-result", "tool-use", "thinking"])))
     .orderBy(asc(taskMessage.seq));
 }
 
@@ -66,7 +66,7 @@ export async function listTaskMessagesSince(
   return db
     .select()
     .from(taskMessage)
-    .where(and(eq(taskMessage.taskId, taskId), gt(taskMessage.seq, afterSeq), notInArray(taskMessage.type, ["tool-result"])))
+    .where(and(eq(taskMessage.taskId, taskId), gt(taskMessage.seq, afterSeq), notInArray(taskMessage.type, ["tool-result", "tool-use", "thinking"])))
     .orderBy(asc(taskMessage.seq));
 }
 
@@ -74,11 +74,10 @@ export async function deleteTaskMessages(db: Database, taskId: string) {
   await db.delete(taskMessage).where(eq(taskMessage.taskId, taskId));
 }
 
-const HIDDEN_STEP_TYPES = ["status", "log", "tool-result", "text"];
 const SQLITE_MAX_PARAMS = 999;
-const FIXED_PARAMS = 1 + HIDDEN_STEP_TYPES.length; // workspaceId + notInArray values
+const FIXED_PARAMS = 2; // workspaceId + type filter value ("text")
 
-export async function countTaskMessagesByTaskIds(
+export async function countTextMessagesByTaskIds(
   db: Database,
   taskIds: string[],
   workspaceId: string
@@ -99,7 +98,7 @@ export async function countTaskMessagesByTaskIds(
         and(
           inArray(taskMessage.taskId, taskIds),
           eq(agentTaskQueue.workspaceId, workspaceId),
-          notInArray(taskMessage.type, HIDDEN_STEP_TYPES)
+          eq(taskMessage.type, "text")
         )
       )
       .groupBy(taskMessage.taskId);
@@ -120,7 +119,7 @@ export async function countTaskMessagesByTaskIds(
         and(
           inArray(taskMessage.taskId, chunk),
           eq(agentTaskQueue.workspaceId, workspaceId),
-          notInArray(taskMessage.type, HIDDEN_STEP_TYPES)
+          eq(taskMessage.type, "text")
         )
       )
       .groupBy(taskMessage.taskId);
@@ -129,3 +128,4 @@ export async function countTaskMessagesByTaskIds(
 
   return results;
 }
+

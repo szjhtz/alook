@@ -90,7 +90,7 @@ export const GET = withAuth(async (req, ctx) => {
     }
   }
 
-  const stepCounts: Record<string, number> = {};
+  const thinkingCounts: Record<string, number> = {};
   if (messages.length > 0) {
     const taskIds = [
       ...new Set(
@@ -101,13 +101,13 @@ export const GET = withAuth(async (req, ctx) => {
     ];
     if (taskIds.length > 0) {
       try {
-        const rows = await queries.taskMessage.countTaskMessagesByTaskIds(
+        const rows = await queries.taskMessage.countTextMessagesByTaskIds(
           db,
           taskIds,
           ws.workspaceId
         );
         for (const row of rows) {
-          stepCounts[row.taskId] = row.count;
+          thinkingCounts[row.taskId] = row.count;
         }
       } catch {
         // non-critical
@@ -124,7 +124,7 @@ export const GET = withAuth(async (req, ctx) => {
     artifacts: artifacts.map(queries.artifact.artifactToResponse),
     buffered_messages: resolvedBuffered.map(messageToResponse),
     flagged_message_ids: flaggedMessageIds,
-    step_counts: stepCounts,
+    thinking_counts: thinkingCounts,
     active_task: resolvedActiveTask ? taskToResponse(resolvedActiveTask) : null,
     task_messages: taskMessages,
     cache_valid: cacheValid,

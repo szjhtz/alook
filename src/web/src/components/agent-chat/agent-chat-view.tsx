@@ -366,7 +366,7 @@ export function AgentChatView({
   const [previousConversations, setPreviousConversations] = useState<PreviousConversation[]>([]);
   const [hasMoreConversations, setHasMoreConversations] = useState(false);
   const [napMarkers, setNapMarkers] = useState<NapMarker[]>([]);
-  const [stepCounts, setStepCounts] = useState<Record<string, number>>({});
+  const [thinkingCounts, setThinkingCounts] = useState<Record<string, number>>({});
   const [renderNow] = useState(() => Date.now());
 
   const [pendingFilesByMessage, setPendingFilesByMessage] = useState<Map<string, File[]>>(() => new Map());
@@ -550,7 +550,7 @@ export function AgentChatView({
     setBufferedMessages([]);
     setPendingFilesByMessage(new Map());
     setNapMarkers([]);
-    setStepCounts({});
+    setThinkingCounts({});
     setPreviousConversations([]);
     setHasMoreConversations(false);
     oldestConversationCursorRef.current = null;
@@ -629,7 +629,7 @@ export function AgentChatView({
           } else if (cacheMeta) {
             setHasMore(cacheMeta.hasMore);
           }
-          setStepCounts(data.step_counts);
+          setThinkingCounts(data.thinking_counts);
           setArtifacts(data.artifacts);
           setBufferedMessages(data.buffered_messages);
           setFlaggedIds(new Set(data.flagged_message_ids));
@@ -1872,7 +1872,7 @@ export function AgentChatView({
                   taskMessages={taskMessages}
                   connectionLost={connectionLost}
                   isLastMessage={messages.length > 0 && messages[messages.length - 1].id === msg.id}
-                  stepCount={msg.task_id ? (stepCounts[msg.task_id] ?? 0) : 0}
+                  thinkingCount={msg.task_id ? (thinkingCounts[msg.task_id] ?? 0) : 0}
                   targetConvId={targetConvId}
                   workspaceId={workspaceId}
                   conversationType={conversation?.type}
