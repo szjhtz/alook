@@ -514,7 +514,7 @@ export default function CalendarPage() {
               setCreateOpen(true);
             }}
             disabled={agents.length === 0}
-            className="min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
+            className="min-w-11 min-h-11 sm:min-w-0 sm:min-h-0"
           >
             <Plus className="size-3.5" />
             <span className="hidden sm:inline">New event</span>

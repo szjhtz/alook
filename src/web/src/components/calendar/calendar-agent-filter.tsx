@@ -47,7 +47,7 @@ export function CalendarAgentFilter({
               <span
                 className={cn("size-2 rounded-full", agentColor(a.id).split(" ")[0])}
               />
-              <span className="max-w-[120px] truncate sm:max-w-none">{a.name}</span>
+              <span className="max-w-30 truncate sm:max-w-none">{a.name}</span>
             </button>
           );
         })

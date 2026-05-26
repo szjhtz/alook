@@ -144,6 +144,7 @@ export function useWalkToTarget({
     return () => {
       clearStepTimer();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, targetId, !!position, boundaryRef, cancel, clearStepTimer, onArrive, onStep, setPosition]);
 
   return { isWalking, isIdlingAtTarget, walkDirection };

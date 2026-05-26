@@ -257,7 +257,7 @@ function FlipCard({ feature }: { feature: Feature }) {
 
   return (
     <div
-      className="flip-card panel-crt relative z-[1] cursor-pointer"
+      className="flip-card panel-crt relative z-1 cursor-pointer"
       style={{ perspective: "1200px" }}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest("a")) return;
@@ -265,7 +265,7 @@ function FlipCard({ feature }: { feature: Feature }) {
       }}
     >
       <div
-        className="flip-card-inner relative w-full transition-transform duration-500 ease-out [transform-style:preserve-3d]"
+        className="flip-card-inner relative w-full transition-transform duration-500 ease-out transform-3d"
         style={flipped ? { transform: "rotateY(180deg)" } : undefined}
       >
         {/* Front — ASCII art */}
@@ -335,7 +335,7 @@ function FlipCard({ feature }: { feature: Feature }) {
           </p>
           <a
             href={feature.cta.href}
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-[0.1em] transition-opacity hover:opacity-80"
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-widest transition-opacity hover:opacity-80"
             style={{
               fontFamily: "var(--font-mono)",
               color: "var(--landing-crt-bg)",

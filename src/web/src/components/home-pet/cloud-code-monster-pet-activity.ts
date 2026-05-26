@@ -444,6 +444,7 @@ export function createWalkToTargetVelocity(
   return { x: (dx / distance) * speed, y: (dy / distance) * speed };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function getBounds(_boundary: HTMLElement | null): PetBounds {
   return {
     width: window.innerWidth,

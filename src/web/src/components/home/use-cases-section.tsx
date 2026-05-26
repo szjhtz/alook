@@ -4,7 +4,7 @@ import { useId, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Mail, Calendar, FileText, MessageSquare, Check, ChevronRight, DollarSign, BarChart3, Bug, Brain } from "lucide-react";
+import { Mail, Calendar, FileText, MessageSquare, Check, DollarSign, BarChart3, Bug, Brain } from "lucide-react";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -809,7 +809,7 @@ export function UseCasesSection() {
 
             {/* Demo content area — scoped with app design tokens */}
             <div
-              className="usecase-demo-panel h-[480px] overflow-y-auto thin-scrollbar"
+              className="usecase-demo-panel h-120 overflow-y-auto thin-scrollbar"
             >
               <ActiveDemo key={activeIndex} />
             </div>
