@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/context-menu";
 import { parseAvatarUrl } from "@/components/avatar";
 import { AnimatedAvatar } from "@/components/avatar/animated-avatar";
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay, type DragEndEvent, type DragStartEvent, type DragOverEvent } from "@dnd-kit/core";
+import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay, type DragEndEvent, type DragStartEvent, type DragOverEvent } from "@dnd-kit/core";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -120,7 +120,8 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const folderAnchorRefs = useRef<Map<string, HTMLElement | null>>(new Map());
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
   );
 
   // Build sortable IDs for unpinned: mix of agent IDs and folder IDs
