@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
     const context: Record<string, unknown> = { conversationType };
     if (dmUser) context.dmUser = dmUser;
     if (body.isInternal) context.isInternal = true;
+    context.emailId = email.id;
     const traceId = body.traceId || ("tr_" + nanoid());
     const parentTaskId = body.traceId ? (body.sourceTaskId || null) : null;
     const task = await taskService.enqueueTask(agent.id, conversationId, agent.workspaceId, prompt, TASK_TYPES.EMAIL_NOTIFICATION, { contextKey: conversationId, context, traceId, parentTaskId })

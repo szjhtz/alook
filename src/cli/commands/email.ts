@@ -55,6 +55,7 @@ export function emailCommand(): Command {
     .command("pull")
     .description("Download and parse emails to /tmp/alook-emails/{workspaceId}/{agentId}/")
     .option("--agent_id <id>", "Agent ID")
+    .option("--email_id <id>", "Fetch a single email by ID (mutually exclusive with --status/--folder/--limit/--offset)")
     .option("--status <status>", "Filter by status (unread, read, archived)")
     .option("--folder <folder>", "Email folder (inbox, sent, untrust)")
     .option("--limit <n>", "Maximum number of emails to download")
@@ -65,6 +66,11 @@ export function emailCommand(): Command {
       const agentId = resolveAgentId(opts);
       const { serverUrl, token, workspaceId } = resolveClientOpts(command, { workspace: opts.workspace, agentId });
       const client = new APIClient(serverUrl, token, workspaceId);
+
+      if (opts.email_id && (opts.status || opts.folder || opts.limit || opts.offset)) {
+        console.error("Error: --email_id cannot be combined with --status, --folder, --limit, or --offset");
+        process.exit(1);
+      }
 
       if (opts.status && !VALID_STATUSES.includes(opts.status)) {
         console.error(
@@ -99,13 +105,18 @@ export function emailCommand(): Command {
       const emailDir_base = join(EMAIL_BASE, workspaceId, agentId);
 
       try {
-        let query = `/api/email?agentId=${agentId}`;
-        if (opts.status) query += `&status=${opts.status}`;
-        if (opts.folder) query += `&folder=${opts.folder}`;
-        if (opts.limit) query += `&limit=${opts.limit}`;
-        if (opts.offset) query += `&offset=${opts.offset}`;
-
-        const emails = await client.getJSON<EmailResponse[]>(query);
+        let emails: EmailResponse[];
+        if (opts.email_id) {
+          const single = await client.getJSON<EmailResponse>(`/api/email/${opts.email_id}`);
+          emails = [single];
+        } else {
+          let query = `/api/email?agentId=${agentId}`;
+          if (opts.status) query += `&status=${opts.status}`;
+          if (opts.folder) query += `&folder=${opts.folder}`;
+          if (opts.limit) query += `&limit=${opts.limit}`;
+          if (opts.offset) query += `&offset=${opts.offset}`;
+          emails = await client.getJSON<EmailResponse[]>(query);
+        }
 
         if (!emails.length) {
           console.log("No emails found.");

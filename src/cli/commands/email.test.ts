@@ -805,6 +805,92 @@ describe("email forward behavior", () => {
   });
 });
 
+describe("email pull with --email_id", () => {
+  beforeEach(() => {
+    getJSONMock.mockReset();
+    getTextMock.mockReset();
+  });
+
+  it("registers --email_id option on pull command", () => {
+    const cmd = emailCommand();
+    const pullCmd = cmd.commands.find((c) => c.name() === "pull")!;
+    const optNames = pullCmd.options.map((o) => o.long);
+    expect(optNames).toContain("--email_id");
+  });
+
+  it("calls single-email endpoint when --email_id is provided", async () => {
+    getJSONMock.mockResolvedValueOnce({
+      id: "em_123",
+      agent_id: "ag_1",
+      from_email: "sender@example.com",
+      to_email: "agent@alook.ai",
+      subject: "Test",
+      r2_key: "emails/em_123",
+      is_whitelisted: true,
+      forwarded: false,
+      message_id: "",
+      in_reply_to: "",
+      references: "",
+      html_body: "",
+      attachments: [],
+      status: "unread",
+      created_at: "2026-05-26T00:00:00Z",
+    });
+    getTextMock.mockResolvedValueOnce("From: sender@example.com\r\nTo: agent@alook.ai\r\nSubject: Test\r\nContent-Type: text/plain\r\n\r\nHello");
+
+    const { exitCode } = await runPull(["--agent_id", "ag_1", "--email_id", "em_123"]);
+
+    expect(exitCode).toBeNull();
+    expect(getJSONMock).toHaveBeenCalledWith("/api/email/em_123");
+  });
+
+  it("errors when --email_id combined with --status", async () => {
+    const { err, exitCode } = await runPull(["--agent_id", "ag_1", "--email_id", "em_1", "--status", "unread"]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("--email_id cannot be combined");
+  });
+
+  it("errors when --email_id combined with --folder", async () => {
+    const { err, exitCode } = await runPull(["--agent_id", "ag_1", "--email_id", "em_1", "--folder", "sent"]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("--email_id cannot be combined");
+  });
+
+  it("errors when --email_id combined with --limit", async () => {
+    const { err, exitCode } = await runPull(["--agent_id", "ag_1", "--email_id", "em_1", "--limit", "5"]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("--email_id cannot be combined");
+  });
+
+  it("errors when --email_id combined with --offset", async () => {
+    const { err, exitCode } = await runPull(["--agent_id", "ag_1", "--email_id", "em_1", "--offset", "10"]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("--email_id cannot be combined");
+  });
+
+  it("handles not-found error gracefully", async () => {
+    getJSONMock.mockRejectedValueOnce(new Error("HTTP 404: email not found"));
+
+    const { err, exitCode } = await runPull(["--agent_id", "ag_1", "--email_id", "em_nonexistent"]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("404");
+  });
+
+  it("does not use --email_id endpoint when flag is absent (backward compatible)", async () => {
+    getJSONMock.mockResolvedValueOnce([]);
+
+    const { exitCode } = await runPull(["--agent_id", "ag_1", "--status", "unread"]);
+
+    expect(exitCode).toBeNull();
+    expect(getJSONMock).toHaveBeenCalledWith("/api/email?agentId=ag_1&status=unread");
+  });
+});
+
 describe("email pull with --folder", () => {
   beforeEach(() => {
     getJSONMock.mockReset();

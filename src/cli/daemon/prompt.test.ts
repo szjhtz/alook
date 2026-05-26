@@ -211,6 +211,39 @@ describe("buildPrompt", () => {
     expect(parsed.repeat_interval).toBe("1week");
   });
 
+  it("includes email_id in prompt JSON when context has emailId", () => {
+    const task: Task = {
+      ...makeTask("New email from a@b.com: Hi", "email_notification"),
+      context: { conversationType: "email_notification", emailId: "em_abc123" },
+    };
+    const parsed = JSON.parse(buildPrompt(task));
+    expect(parsed.email_id).toBe("em_abc123");
+  });
+
+  it("omits email_id when context has no emailId", () => {
+    const task: Task = {
+      ...makeTask("New email from a@b.com: Hi", "email_notification"),
+      context: { conversationType: "email_notification" },
+    };
+    const parsed = JSON.parse(buildPrompt(task));
+    expect(parsed.email_id).toBeUndefined();
+  });
+
+  it("omits email_id when context is undefined", () => {
+    const task = makeTask("New email from a@b.com: Hi", "email_notification");
+    const parsed = JSON.parse(buildPrompt(task));
+    expect(parsed.email_id).toBeUndefined();
+  });
+
+  it("omits email_id when emailId is null in context", () => {
+    const task: Task = {
+      ...makeTask("New email from a@b.com: Hi", "email_notification"),
+      context: { conversationType: "email_notification", emailId: null },
+    };
+    const parsed = JSON.parse(buildPrompt(task));
+    expect(parsed.email_id).toBeUndefined();
+  });
+
   it("does not add notice for unknown task types", () => {
     const task = makeTask("Check inbox", "some_other_type");
     const parsed = JSON.parse(buildPrompt(task));

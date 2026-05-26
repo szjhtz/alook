@@ -35,6 +35,17 @@ describe("buildInstructionContent email tool injection", () => {
     expect(content).toContain("'myagent@alook.ai' (default, Alook platform address)");
   });
 
+  it("includes --email_id pull instruction for ID-based fetching", () => {
+    const task = makeTask({
+      agent: { name: "test", instructions: "", emailHandle: "myagent" },
+    });
+    const content = buildInstructionContent(task);
+
+    expect(content).toContain("email pull --email_id <EMAIL_ID>");
+    expect(content).toContain("fetch ONLY that specific email");
+    expect(content).toContain("no `email_id` is present");
+  });
+
   it("includes send-email docs when agent has email handle", () => {
     const task = makeTask({
       agent: { name: "test", instructions: "do stuff", emailHandle: "myagent" },
@@ -155,6 +166,23 @@ describe("buildInstructionContent email tool injection", () => {
     expect(content).toContain("**DELEGATE when:** Share findings with YOU");
     expect(content).toContain("### Writer (writer@alook.ai)");
     expect(content).toContain("**DELEGATE when:** Draft blog posts");
+  });
+
+  it("includes isolated workspaces warning when agent has colleagues", () => {
+    const task = makeTask({
+      agent: {
+        name: "test",
+        instructions: "",
+        colleagues: [
+          { name: "Scout", email: "scout@alook.ai", description: "", instruction: "Research" },
+        ],
+      },
+    });
+    const content = buildInstructionContent(task);
+
+    expect(content).toContain("**Isolated workspaces:**");
+    expect(content).toContain("Colleagues CANNOT read your local files");
+    expect(content).toContain("MUST attach the file to the email");
   });
 
   it("omits colleagues section when no colleagues", () => {

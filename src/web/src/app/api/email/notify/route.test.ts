@@ -134,7 +134,7 @@ describe("POST /api/email/notify", () => {
       "a1", "conv_new", "ws1",
       expect.any(String),
       "email_notification",
-      expect.objectContaining({ contextKey: "conv_new", context: { conversationType: "email_notification" }, traceId: expect.stringMatching(/^tr_/), parentTaskId: null }),
+      expect.objectContaining({ contextKey: "conv_new", context: { conversationType: "email_notification", emailId: "e1" }, traceId: expect.stringMatching(/^tr_/), parentTaskId: null }),
     );
   });
 
@@ -153,7 +153,7 @@ describe("POST /api/email/notify", () => {
       "a1", "conv_existing", "ws1",
       expect.any(String),
       "email_notification",
-      expect.objectContaining({ contextKey: "conv_existing", context: { conversationType: "email_notification" }, traceId: expect.stringMatching(/^tr_/), parentTaskId: null }),
+      expect.objectContaining({ contextKey: "conv_existing", context: { conversationType: "email_notification", emailId: "e1" }, traceId: expect.stringMatching(/^tr_/), parentTaskId: null }),
     );
   });
 
@@ -173,7 +173,7 @@ describe("POST /api/email/notify", () => {
       "a1", "conv_dm", "ws1",
       expect.any(String),
       "email_notification",
-      expect.objectContaining({ contextKey: "conv_dm", context: { conversationType: "user_dm_message", dmUser: { name: "Alice", email: "alice@example.com" } }, traceId: expect.stringMatching(/^tr_/), parentTaskId: null }),
+      expect.objectContaining({ contextKey: "conv_dm", context: { conversationType: "user_dm_message", dmUser: { name: "Alice", email: "alice@example.com" }, emailId: "e1" }, traceId: expect.stringMatching(/^tr_/), parentTaskId: null }),
     );
   });
 
@@ -191,7 +191,7 @@ describe("POST /api/email/notify", () => {
       "a1", "conv_dm", "ws1",
       expect.any(String),
       "email_notification",
-      expect.objectContaining({ contextKey: "conv_dm", context: { conversationType: "user_dm_message" }, traceId: expect.stringMatching(/^tr_/), parentTaskId: null }),
+      expect.objectContaining({ contextKey: "conv_dm", context: { conversationType: "user_dm_message", emailId: "e1" }, traceId: expect.stringMatching(/^tr_/), parentTaskId: null }),
     );
   });
 

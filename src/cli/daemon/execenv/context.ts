@@ -123,6 +123,10 @@ ${task.agent.instructions}
       if (i < task.agent.colleagues.length - 1) content += "\n";
     }
     content += `
+**Isolated workspaces:**
+- Each agent runs in its own isolated workspace directory. Colleagues CANNOT read your local files — even in the same workspace.
+- When sending plans, code, or any file to a colleague, you MUST attach the file to the email (use --attachment). Never reference local file paths expecting them to read it.
+
 **Email threading rules:**
 - When communicating with a colleague on the **same topic** as an existing email thread, reply to that thread (use --in-reply-to) to keep context together.
 - **When starting a NEW topic or task that is unrelated to any previous email thread, you MUST compose a brand new email (do NOT use --in-reply-to). Never hijack an unrelated thread just because you recently emailed that colleague.** Judge by topic/task relevance, not by recency of communication.
@@ -143,7 +147,10 @@ The CLI auto-detects your identity from the environment. No need to pass \`--age
 
 ### Emails
 ---
-Run '${cmdPrefix()} email pull --status unread' to download unread emails from inbox to '${tempDir("alook-emails")}/${task.workspaceId}/${task.agentId}/'.
+When your task prompt includes an \`email_id\` field, fetch ONLY that specific email:
+- Run '${cmdPrefix()} email pull --email_id <EMAIL_ID>' (uses the email_id from the prompt)
+When no \`email_id\` is present, fall back to listing unread:
+- Run '${cmdPrefix()} email pull --status unread' to download unread emails from inbox to '${tempDir("alook-emails")}/${task.workspaceId}/${task.agentId}/'.
 ---
 To download sent emails, add '--folder sent': '${cmdPrefix()} email pull --folder sent'
 Valid folders: inbox (default), sent, untrust.

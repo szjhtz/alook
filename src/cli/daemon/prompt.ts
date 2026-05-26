@@ -50,6 +50,9 @@ export function buildPrompt(task: Task, attachments?: Attachment[]): string {
     } else {
       obj.notice = EMAIL_NOTICE;
     }
+    if (ctx?.emailId != null) {
+      obj.email_id = ctx.emailId;
+    }
   }
   if (task.type === "calendar_event") {
     obj.notice = CALENDAR_NOTICE;
