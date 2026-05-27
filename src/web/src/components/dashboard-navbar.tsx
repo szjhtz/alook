@@ -26,6 +26,7 @@ import { signOut } from "@/lib/auth-client";
 import { clearAllCache } from "@/lib/chat-cache";
 import { cliCmd, daemonStartCmd } from "@/lib/utils";
 import { ProviderLogo } from "@/components/provider-logo";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 
 function OnboardingSteps({
   generatedToken,
@@ -37,17 +38,13 @@ function OnboardingSteps({
   onGenerateToken: () => void;
 }) {
   const hasTriggered = useRef(false);
+  const { copy } = useCopyToClipboard();
   useEffect(() => {
     if (!generatedToken && !generatingToken && !hasTriggered.current) {
       hasTriggered.current = true;
       onGenerateToken();
     }
   }, [generatedToken, generatingToken, onGenerateToken]);
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard");
-  };
 
   return (
     <div className="space-y-6">
@@ -85,11 +82,11 @@ function OnboardingSteps({
                 render={
                   <div
                     className="rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
-                    onClick={() =>
-                      copyToClipboard(
-                        `${cliCmd()} register --token ${generatedToken}`
-                      )
-                    }
+                    onClick={() => {
+                      copy(`${cliCmd()} register --token ${generatedToken}`).then(
+                        (ok) => { if (ok) toast.success("Copied to clipboard"); }
+                      );
+                    }}
                   />
                 }
               >
@@ -103,9 +100,7 @@ function OnboardingSteps({
             <Button
               size="sm"
               onClick={() => {
-                navigator.clipboard.writeText(
-                  `${cliCmd()} register --token ${generatedToken}`
-                );
+                copy(`${cliCmd()} register --token ${generatedToken}`);
                 toast.success("Copied to clipboard");
               }}
               className="w-full"
@@ -134,9 +129,11 @@ function OnboardingSteps({
             render={
               <div
                 className="ml-7 rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
-                onClick={() =>
-                  copyToClipboard(daemonStartCmd())
-                }
+                onClick={() => {
+                  copy(daemonStartCmd()).then(
+                    (ok) => { if (ok) toast.success("Copied to clipboard"); }
+                  );
+                }}
               />
             }
           >
@@ -154,7 +151,7 @@ export function DashboardNavbar() {
   const [runtimeSheetOpen, setRuntimeSheetOpen] = useState(false);
   const [generatedToken, setGeneratedToken] = useState("");
   const [generatingToken, setGeneratingToken] = useState(false);
-  const [tokenCopied, setTokenCopied] = useState(false);
+  const { copy: copyToken, copied: tokenCopied } = useCopyToClipboard();
 
   // Confirm dialog state
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -205,7 +202,6 @@ export function DashboardNavbar() {
 
   const handleGenerateToken = async () => {
     setGeneratingToken(true);
-    setTokenCopied(false);
     try {
       const res = await createMachineToken("cli", workspaceId);
       setGeneratedToken(res.token);
@@ -219,8 +215,7 @@ export function DashboardNavbar() {
   };
 
   const handleCopyToken = async () => {
-    await navigator.clipboard.writeText(generatedToken);
-    setTokenCopied(true);
+    await copyToken(generatedToken);
     toast.success("Copied to clipboard");
   };
 
@@ -238,7 +233,6 @@ export function DashboardNavbar() {
                 if (open) loadRuntimes();
                 if (!open) {
                   setGeneratedToken("");
-                  setTokenCopied(false);
                 }
               }}
             >
