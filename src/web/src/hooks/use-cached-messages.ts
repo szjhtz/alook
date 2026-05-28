@@ -7,7 +7,7 @@ import { getCachedMessages, mergeCachedMessages, openCacheDB } from "@/lib/chat-
 interface UseCachedMessagesResult {
   cachedMessages: Message[] | null;
   isFromCache: boolean;
-  writeToCache: (messages: Message[], hasMore: boolean) => Promise<void>;
+  writeToCache: (messages: Message[], hasMore: boolean, serverMessageCount?: number) => Promise<void>;
 }
 
 export function useCachedMessages(
@@ -44,9 +44,9 @@ export function useCachedMessages(
   }, [conversationId, workspaceId]);
 
   const writeToCache = useCallback(
-    async (messages: Message[], hasMore: boolean) => {
+    async (messages: Message[], hasMore: boolean, serverMessageCount?: number) => {
       if (!conversationIdRef.current || !workspaceId) return;
-      await mergeCachedMessages(conversationIdRef.current, messages, hasMore, workspaceId);
+      await mergeCachedMessages(conversationIdRef.current, messages, hasMore, workspaceId, serverMessageCount);
     },
     [workspaceId]
   );

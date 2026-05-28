@@ -8,6 +8,7 @@ export interface CacheMeta {
   messageCount: number;
   newestMessageId: string | null;
   hasMore: boolean;
+  serverMessageCount: number;
 }
 
 interface ChatCacheDB {
@@ -25,7 +26,7 @@ interface ChatCacheDB {
   };
 }
 
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const MAX_CONVERSATIONS = 50;
 
 let dbPromise: Promise<IDBPDatabase<ChatCacheDB>> | null = null;
@@ -38,14 +39,18 @@ export function openCacheDB(workspaceId: string): Promise<IDBPDatabase<ChatCache
 
   currentWorkspaceId = workspaceId;
   dbPromise = openDB<ChatCacheDB>(`alook-chat-cache-${workspaceId}`, DB_VERSION, {
-    upgrade(db) {
-      const msgStore = db.createObjectStore("messages", {
-        keyPath: ["conversation_id", "id"],
-      });
-      msgStore.createIndex("by-conversation", "conversation_id", { unique: false });
-      msgStore.createIndex("by-created", ["conversation_id", "created_at"], { unique: false });
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        const msgStore = db.createObjectStore("messages", {
+          keyPath: ["conversation_id", "id"],
+        });
+        msgStore.createIndex("by-conversation", "conversation_id", { unique: false });
+        msgStore.createIndex("by-created", ["conversation_id", "created_at"], { unique: false });
 
-      db.createObjectStore("cache_meta", { keyPath: "conversation_id" });
+        db.createObjectStore("cache_meta", { keyPath: "conversation_id" });
+      }
+      // v1 → v2: serverMessageCount field added to cache_meta entries.
+      // No schema migration needed — the field is added at write time with default 0.
     },
   });
 
@@ -144,7 +149,8 @@ export async function mergeCachedMessages(
   conversationId: string,
   messages: Message[],
   hasMore: boolean | null,
-  workspaceId?: string
+  workspaceId?: string,
+  serverMessageCount?: number
 ): Promise<void> {
   const p = getDB(workspaceId);
   if (!p) return;
@@ -191,6 +197,7 @@ export async function mergeCachedMessages(
       messageCount: allKeys.length,
       newestMessageId,
       hasMore: resolvedHasMore,
+      serverMessageCount: serverMessageCount ?? existingMeta?.serverMessageCount ?? 0,
     };
     await metaStore.put(meta);
 

@@ -27,17 +27,25 @@ export const GET = withAuth(async (req, ctx) => {
     return writeError("conversation id is required", 400);
   }
 
-  const newestMessageId = new URL(req.url).searchParams.get("newest_message_id");
+  const url = new URL(req.url);
+  const newestMessageId = url.searchParams.get("newest_message_id");
+  const messageCountParam = url.searchParams.get("message_count");
 
   const conversation = await queries.conversation.getConversation(db, id, ws.workspaceId);
   if (!conversation) {
     return writeError("conversation not found", 404);
   }
 
+  const [serverNewest, serverMessageCount] = await Promise.all([
+    newestMessageId ? queries.message.getNewestMessageId(db, id) : Promise.resolve(null),
+    queries.message.getActiveMessageCount(db, id),
+  ]);
+
   let cacheValid = false;
   if (newestMessageId) {
-    const serverNewest = await queries.message.getNewestMessageId(db, id);
-    cacheValid = serverNewest === newestMessageId;
+    const idMatches = serverNewest === newestMessageId;
+    const countMatches = messageCountParam ? serverMessageCount === parseInt(messageCountParam, 10) : true;
+    cacheValid = idMatches && countMatches;
   }
 
   const [messagesResult, artifacts, buffered, activeTask, flaggedMessageIds, hasMoreConversations] =
@@ -128,5 +136,6 @@ export const GET = withAuth(async (req, ctx) => {
     active_task: resolvedActiveTask ? taskToResponse(resolvedActiveTask) : null,
     task_messages: taskMessages,
     cache_valid: cacheValid,
+    message_count: serverMessageCount,
   });
 });

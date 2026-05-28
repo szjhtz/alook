@@ -153,6 +153,12 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     attachmentIds: artifactIds.length > 0 ? JSON.stringify(artifactIds) : null,
   });
 
+  broadcastToUser(ctx.userId, {
+    type: "conversation.message",
+    conversationId: id,
+    message: messageToResponse(message),
+  }).catch(() => {});
+
   // Auto-title: conditional WHERE title = '' ensures only the first message sets it
   queries.conversation.updateConversationTitle(db, id, truncateTitle(content)).catch(() => {});
 

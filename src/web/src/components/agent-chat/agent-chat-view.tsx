@@ -318,7 +318,7 @@ export function AgentChatView({
   const params = useParams();
   const searchParams = useSearchParams();
   const { workspaceId, slug } = useWorkspace();
-  const { agents, agentLinks, activeTaskCounts, subscribeWs } = useAgentContext();
+  const { agents, agentLinks, activeTaskCounts, subscribeWs, subscribeReconnect } = useAgentContext();
   const { refresh: refreshInboxCount } = useInboxCount();
   const { activeChannel, loading: channelLoading, setAgentId: setChannelAgentId } = useChannel();
   const agentId = propAgentId ?? (params.id as string);
@@ -597,7 +597,9 @@ export function AgentChatView({
             if (ignore) return;
             convId = fresh.conversation_id;
             cacheMeta = await getCacheMeta(convId, workspaceId);
-            const cacheValid = !!(cacheMeta?.newestMessageId && cacheMeta.newestMessageId === fresh.newest_message_id);
+            const idMatches = !!(cacheMeta?.newestMessageId && cacheMeta.newestMessageId === fresh.newest_message_id);
+            const countMatches = cacheMeta?.serverMessageCount ? cacheMeta.serverMessageCount === fresh.message_count : true;
+            const cacheValid = idMatches && countMatches;
             if (cacheValid) {
               const cached = await getCachedMessages(convId, workspaceId);
               if (ignore) return;
@@ -617,13 +619,14 @@ export function AgentChatView({
         if (convId) {
           const data = await conversationInit(convId, workspaceId, {
             newestMessageId: cacheMeta?.newestMessageId ?? undefined,
+            messageCount: cacheMeta?.serverMessageCount ?? undefined,
           });
           if (ignore) return;
           setConversation(data.conversation);
           setHasMoreConversations(data.has_more_conversations);
           if (!data.cache_valid && data.messages) {
             setMessages((prev) => mergeMessages(prev, data.messages!));
-            writeToCacheRef.current(data.messages, data.has_more_messages).catch(() => {});
+            writeToCacheRef.current(data.messages, data.has_more_messages, data.message_count).catch(() => {});
             setHasMore(data.has_more_messages);
           } else if (cacheMeta) {
             setHasMore(cacheMeta.hasMore);
@@ -1221,9 +1224,11 @@ export function AgentChatView({
         lastSeqRef.current = 0;
         startPollingRef.current?.(task.id, msg.conversationId);
       }
-      if (msg.type === "conversation.message" && msg.conversationId === conversation?.id) {
-        setMessages((prev) => mergeMessages(prev, [msg.message]));
+      if (msg.type === "conversation.message") {
         appendCachedMessage(msg.conversationId, msg.message, workspaceId).catch(() => {});
+        if (msg.conversationId === conversation?.id) {
+          setMessages((prev) => mergeMessages(prev, [msg.message]));
+        }
       }
       if (msg.type === "task.updated" && msg.taskId === activeTaskIdRef.current) {
         setActiveTask((prev) => prev ? { ...prev, status: msg.status } : prev);
@@ -1263,6 +1268,23 @@ export function AgentChatView({
       }
     });
   }, [subscribeWs, conversation?.id, workspaceId]);
+
+  useEffect(() => {
+    return subscribeReconnect(() => {
+      if (!conversation?.id) return;
+      getCacheMeta(conversation.id, workspaceId).then((meta) => {
+        conversationInit(conversation.id, workspaceId, {
+          newestMessageId: meta?.newestMessageId ?? undefined,
+          messageCount: meta?.serverMessageCount ?? undefined,
+        }).then((data) => {
+          if (!data.cache_valid && data.messages) {
+            setMessages((prev) => mergeMessages(prev, data.messages!));
+            writeToCacheRef.current(data.messages, data.has_more_messages, data.message_count).catch(() => {});
+          }
+        }).catch(() => {});
+      });
+    });
+  }, [subscribeReconnect, conversation?.id, workspaceId]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -1530,9 +1552,11 @@ export function AgentChatView({
         next.delete(optimisticId);
         return next;
       });
-      setMessages((prev) =>
-        prev.map((m) => (m.id === optimistic.id ? message : m))
-      );
+      setMessages((prev) => {
+        const without = prev.filter((m) => m.id !== optimistic.id && m.id !== message.id);
+        return sortMessages([...without, message]);
+      });
+      appendCachedMessage(conversation.id, message, workspaceId).catch(() => {});
       if (message.attachment_ids && message.attachment_ids.length > 0) {
         listArtifacts(conversation.id, workspaceId)
           .then((arts) => setArtifacts(arts))

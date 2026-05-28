@@ -159,6 +159,7 @@ describe("chat-cache", () => {
         messageCount: 2,
         newestMessageId: "m2",
         hasMore: false,
+        serverMessageCount: 0,
       });
 
       const cached = await getCachedMessages("conv_1", WORKSPACE_ID);
@@ -246,6 +247,7 @@ describe("chat-cache", () => {
           messageCount: 1,
           newestMessageId: `m_${i}`,
           hasMore: false,
+          serverMessageCount: 0,
         });
       }
 
@@ -379,6 +381,7 @@ describe("chat-cache", () => {
         messageCount: 5,
         newestMessageId: "m4",
         hasMore: false,
+        serverMessageCount: 0,
       });
 
       const result = await getCachedMessagesBefore("conv_1", "2024-01-01T00:04:00Z", "m4", 10, WORKSPACE_ID);

@@ -300,15 +300,17 @@ export interface ConversationInitResponse {
   active_task: TaskApi | null;
   task_messages: TaskMessage[];
   cache_valid: boolean;
+  message_count: number;
 }
 
 export const conversationInit = (
   conversationId: string,
   workspaceId: string,
-  opts?: { newestMessageId?: string },
+  opts?: { newestMessageId?: string; messageCount?: number },
 ) => {
   const extra: Record<string, string> = {};
   if (opts?.newestMessageId) extra.newest_message_id = opts.newestMessageId;
+  if (opts?.messageCount != null) extra.message_count = String(opts.messageCount);
   return apiFetch<ConversationInitResponse>(
     `/api/conversations/${conversationId}/init${wsQuery(workspaceId, extra)}`,
   );
@@ -317,6 +319,7 @@ export const conversationInit = (
 export interface FreshnessCheckResponse {
   conversation_id: string;
   newest_message_id: string | null;
+  message_count: number;
 }
 
 export const checkFreshness = (

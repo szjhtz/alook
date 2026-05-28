@@ -42,6 +42,17 @@ export async function getNewestMessageId(
   return rows[0]?.id ?? null;
 }
 
+export async function getActiveMessageCount(
+  db: Database,
+  conversationId: string
+): Promise<number> {
+  const rows = await db
+    .select({ cnt: count() })
+    .from(message)
+    .where(and(eq(message.conversationId, conversationId), eq(message.status, "active")));
+  return rows[0]?.cnt ?? 0;
+}
+
 export async function listMessages(
   db: Database,
   conversationId: string,

@@ -52,6 +52,7 @@ interface AgentContextValue {
   pins: Map<string, { created_at: string; position: number }>;
   reload: () => Promise<void>;
   subscribeWs: (fn: WsSubscriber) => () => void;
+  subscribeReconnect: (fn: () => void) => () => void;
   handleCreateAgent: (req: CreateAgentRequest) => Promise<Agent | null>;
   handleUpdateAgent: (id: string, req: UpdateAgentRequest) => Promise<boolean>;
   handleDeleteAgent: (id: string) => Promise<boolean>;
@@ -95,12 +96,18 @@ export function AgentProvider({
   const [unpinnedOrder, setUnpinnedOrder] = useState<Map<string, number>>(new Map());
   const loadedRef = useRef(false);
   const subscribersRef = useRef(new Set<WsSubscriber>());
+  const reconnectSubscribersRef = useRef(new Set<() => void>());
   const taskCountsMountedRef = useRef(true);
   const isReloadingRuntimesRef = useRef(false);
 
   const subscribeWs = useCallback((fn: WsSubscriber) => {
     subscribersRef.current.add(fn);
     return () => { subscribersRef.current.delete(fn); };
+  }, []);
+
+  const subscribeReconnect = useCallback((fn: () => void) => {
+    reconnectSubscribersRef.current.add(fn);
+    return () => { reconnectSubscribersRef.current.delete(fn); };
   }, []);
 
   const isFetchingRef = useRef(false);
@@ -241,7 +248,11 @@ export function AgentProvider({
     },
     [reload, reloadRuntimes, fetchTaskCounts, workspaceId]
   );
-  useUserWs(handleWsMessage, { onReconnect: reloadRuntimes });
+  const handleReconnect = useCallback(() => {
+    reloadRuntimes();
+    for (const fn of reconnectSubscribersRef.current) fn();
+  }, [reloadRuntimes]);
+  useUserWs(handleWsMessage, { onReconnect: handleReconnect });
 
   const handleCreateAgent = useCallback(
     async (req: CreateAgentRequest): Promise<Agent | null> => {
@@ -390,6 +401,7 @@ export function AgentProvider({
         pins,
         reload,
         subscribeWs,
+        subscribeReconnect,
         handleCreateAgent,
         handleUpdateAgent,
         handleDeleteAgent,

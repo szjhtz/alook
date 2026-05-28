@@ -38,10 +38,14 @@ export const GET = withAuth(async (req, ctx) => {
     return writeError("conversation_id or agent_id is required", 400);
   }
 
-  const newestMessageId = await queries.message.getNewestMessageId(db, convId);
+  const [newestMessageId, messageCount] = await Promise.all([
+    queries.message.getNewestMessageId(db, convId),
+    queries.message.getActiveMessageCount(db, convId),
+  ]);
 
   return writeJSON({
     conversation_id: convId,
     newest_message_id: newestMessageId,
+    message_count: messageCount,
   });
 });
