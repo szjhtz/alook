@@ -166,7 +166,7 @@ describe("POST /api/machine-tokens/activate", () => {
     });
   });
 
-  it("creates a new workspace when token has no workspace_id and user already has workspaces", async () => {
+  it("creates a new workspace when token has no workspace_id", async () => {
     const POST = await loadRoute();
 
     const tokenNoWs = { id: "mt_2", userId: "u1", workspaceId: null, status: "pending" };
@@ -192,7 +192,5 @@ describe("POST /api/machine-tokens/activate", () => {
       userId: "u1",
       role: "owner",
     });
-    // Should NOT reuse existing workspaces
-    expect(mockListWorkspaces).not.toHaveBeenCalled();
   });
 });

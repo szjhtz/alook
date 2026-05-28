@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth"
-import { emailOTP } from "better-auth/plugins"
+import { emailOTP, deviceAuthorization, bearer } from "better-auth/plugins"
 import { createLogger, DEV_EMAIL_WORKER_URL, resolveMode } from "@alook/shared"
 import { getOtpSubject, renderOtpEmail } from "./email-templates"
 
@@ -25,6 +25,11 @@ export function createAuth(env: Env) {
     DEFAULT_OTP_RATE_LIMIT_WINDOW_SEC,
   )
   const kvTtl = Math.max(KV_MIN_TTL_SEC, otpWindow)
+
+  const validateClient = (clientId: string) => {
+    const allowed = (env.DEVICE_CLIENT_IDS || "").split(",").map((s) => s.trim()).filter(Boolean)
+    return allowed.includes(clientId)
+  }
 
   return betterAuth({
     baseURL: env.BETTER_AUTH_URL,
@@ -73,6 +78,8 @@ export function createAuth(env: Env) {
     },
     plugins: isProd
       ? [
+          deviceAuthorization({ verificationUri: "/device", validateClient, expiresIn: "5m", schema: {} }),
+          bearer(),
           emailOTP({
             async sendVerificationOTP({ email, otp, type }) {
               log.info("sending OTP email", { to: email, type })
@@ -105,6 +112,9 @@ export function createAuth(env: Env) {
             },
           }),
         ]
-      : [],
+      : [
+          deviceAuthorization({ verificationUri: "/device", validateClient, expiresIn: "5m", schema: {} }),
+          bearer(),
+        ],
   })
 }

@@ -36,8 +36,6 @@ export async function POST(req: NextRequest) {
   }
 
   // Resolve workspace: use token's workspace or create new
-  // Never reuse an existing workspace — if the token has no workspace_id,
-  // the user explicitly triggered "New workspace" or is a first-time user.
   let workspaceId = mt.workspaceId;
   if (!workspaceId) {
     const ws = await queries.workspace.createWorkspace(db, {
