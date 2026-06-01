@@ -3,6 +3,7 @@ import { fork, spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { APIClient } from "../lib/client.js";
 import { activateAndSave } from "../lib/activate.js";
+import { loadCLIConfigForProfile } from "../lib/config.js";
 
 const DEVICE_CLIENT_ID = process.env.ALOOK_DEVICE_CLIENT_ID || "alook-cli";
 
@@ -161,11 +162,51 @@ if (process.argv.includes("--__login-poll")) {
   pollAndActivate(data).catch(() => process.exit(1));
 }
 
+async function checkExistingAuth(serverUrl: string, profile?: string): Promise<{ valid: boolean; email?: string; workspaceName?: string }> {
+  const config = loadCLIConfigForProfile(profile);
+  const workspaces = config.watched_workspaces || [];
+  if (workspaces.length === 0) {
+    return { valid: false };
+  }
+
+  const ws = workspaces[0];
+  if (!ws.token) {
+    return { valid: false };
+  }
+
+  try {
+    const res = await fetch(`${serverUrl}/api/workspaces`, {
+      headers: { Authorization: `Bearer ${ws.token}` },
+    });
+    if (!res.ok) {
+      return { valid: false };
+    }
+
+    let email: string | undefined;
+    try {
+      const meRes = await fetch(`${serverUrl}/api/me`, {
+        headers: { Authorization: `Bearer ${ws.token}` },
+      });
+      if (meRes.ok) {
+        const me = await meRes.json() as { email?: string };
+        email = me.email;
+      }
+    } catch {
+      // Non-fatal — proceed without email
+    }
+
+    return { valid: true, email, workspaceName: ws.name };
+  } catch {
+    return { valid: false };
+  }
+}
+
 export function loginCommand(): Command {
   const cmd = new Command("login")
     .description("Log in to Alook via browser (device code flow)")
     .option("--server <url>", "Server URL")
     .option("--profile <name>", "Profile name")
+    .option("--force", "Re-authenticate even if already logged in")
     .action(async (opts, command) => {
       const profile: string | undefined =
         opts.profile || command.parent?.opts().profile;
@@ -174,6 +215,19 @@ export function loginCommand(): Command {
         command.parent?.opts().server ||
         process.env.ALOOK_SERVER_URL ||
         "https://alook.ai";
+
+      // Check if already authenticated (skip with --force)
+      if (!opts.force) {
+        const existing = await checkExistingAuth(serverUrl, profile);
+        if (existing.valid) {
+          const parts = ["Already logged in"];
+          if (existing.email) parts[0] += ` as ${existing.email}`;
+          if (existing.workspaceName) parts[0] += ` (workspace: ${existing.workspaceName})`;
+          parts[0] += ".";
+          console.log(parts[0]);
+          return;
+        }
+      }
 
       // Step 1: Request device code
       console.log("Requesting device code...");
