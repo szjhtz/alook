@@ -361,6 +361,7 @@ export function CloudCodeMonsterPet({
   const [cursorPose, setCursorPose] =
     useState<CloudCodeMonsterCursorPose>(EMPTY_CURSOR_POSE);
   const [footprints, setFootprints] = useState<Footprint[]>([]);
+  const lastNotificationTokenRef = useRef(0);
   const lastFootstepAtRef = useRef(0);
   const autoWalkVelocityRef = useRef<PetPoint | null>(null);
   const nextFootprintIdRef = useRef(1);
@@ -967,7 +968,7 @@ export function CloudCodeMonsterPet({
   }, [clearPetTimer]);
 
   useEffect(() => {
-    if (isDragging || fainted) {
+    if (isDragging || fainted || notificationActive) {
       return;
     }
 
@@ -1001,6 +1002,7 @@ export function CloudCodeMonsterPet({
     fainted,
     isDragging,
     isUserTyping,
+    notificationActive,
     setPetTimer,
     setPlatformActivity,
     stopTemporaryMotion,
@@ -1076,9 +1078,13 @@ export function CloudCodeMonsterPet({
   }, [setPetTimer]);
 
   useEffect(() => {
-    if (notificationToken <= 0) {
+    if (
+      notificationToken <= 0 ||
+      notificationToken === lastNotificationTokenRef.current
+    ) {
       return;
     }
+    lastNotificationTokenRef.current = notificationToken;
 
     stopTemporaryMotion();
     const showNotification = () => {

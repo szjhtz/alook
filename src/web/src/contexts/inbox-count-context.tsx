@@ -67,9 +67,7 @@ export function InboxCountProvider({ children }: { children: ReactNode }) {
 
   const decrement = useCallback(() => {
     setCount((c) => {
-      const next = Math.max(0, c - 1);
-      prevCountRef.current = next;
-      return next;
+      return Math.max(0, c - 1);
     });
   }, []);
 

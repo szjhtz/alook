@@ -611,6 +611,7 @@ describe("production workspace PET mounting", () => {
     expect(workspacePetLayer).toContain("dynamic<CloudCodeMonsterPetProps>");
     expect(inboxCountContext).toContain("notificationToken");
     expect(inboxCountContext).toContain("setNotificationToken((token) => token + 1)");
+    expect(inboxCountContext).not.toContain("prevCountRef.current = next");
     expect(workspacePetLayer).toContain("useInboxCount");
     expect(workspacePetLayer).toContain("notificationToken={notificationToken}");
     expect(petComponent).toContain("const EMPTY_PEEK_TARGETS");
@@ -621,6 +622,9 @@ describe("production workspace PET mounting", () => {
     expect(petComponent).toContain("setPetTimer(\"peek\"");
     expect(petComponent).toContain("usePetDrag({");
     expect(petComponent).toContain("useInboxCount");
+    expect(petComponent).toContain("lastNotificationTokenRef");
+    expect(petComponent).toContain("notificationToken === lastNotificationTokenRef.current");
+    expect(petComponent).toContain("isDragging || fainted || notificationActive");
     expect(petComponent).toContain("useWalkToTarget");
     expect(petComponent).toContain("useAgentContextSafe");
     expect(petComponent).toContain("activeTaskDetails");
