@@ -147,7 +147,7 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
           style={{ opacity: 0 }}
           onClick={() => {
             navigator.clipboard.writeText(
-              "Read https://alook.ai/onboard.md and follow the instructions to install and configure Alook"
+              `Read ${window.location.origin}/onboard.md and follow the instructions to install and configure Alook`
             );
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
@@ -176,7 +176,7 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
             <span className="flex-1 overflow-hidden whitespace-nowrap text-ellipsis">
               Read{" "}
               <a
-                href="https://alook.ai/onboard.md"
+                href="/onboard.md"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline transition-opacity hover:opacity-70"
