@@ -43,7 +43,6 @@ import {
   Loader2,
   Mail,
   MessageSquareQuote,
-  MoreHorizontal,
   Paperclip,
   Square,
   X,
@@ -75,6 +74,7 @@ import {
 import { ScrollToBottomButton } from "@/components/ui/scroll-to-bottom-button";
 import { MessageItem, AgentRow } from "@/components/agent-chat/message-list";
 import { PresenceLine } from "@/components/agent-chat/presence-line";
+import { MenuToggleIcon } from "@/components/agent-chat/menu-toggle-icon";
 import { parseAvatarUrl } from "@/components/avatar";
 import {
   MENTION_COMPONENTS,
@@ -835,7 +835,7 @@ export function AgentChatView({
                     />
                   }
                 >
-                  <MoreHorizontal className="size-4" />
+                  <MenuToggleIcon open={menuOpen} />
                 </PopoverTrigger>
                 <PopoverContent
                   side="top"
