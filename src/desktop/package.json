@@ -1,6 +1,6 @@
 {
   "name": "@alook/desktop",
-  "version": "0.0.133",
+  "version": "0.0.135",
   "private": true,
   "scripts": {
     "dev": "tauri dev",
