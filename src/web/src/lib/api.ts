@@ -547,6 +547,12 @@ export const updateEmailStatus = (id: string, workspaceId: string, status: strin
     body: JSON.stringify({ status }),
   });
 
+export const trustEmail = (id: string, workspaceId: string) =>
+  apiFetch<{ ok: boolean; email: Email; conversationId: string }>(
+    `/api/email/${id}/trust${wsQuery(workspaceId)}`,
+    { method: "POST" }
+  );
+
 export const uploadEmailAttachment = async (
   file: File,
   workspaceId: string,

@@ -101,7 +101,17 @@ const baseBody = {
 describe("POST /api/email/notify", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCreateEmail.mockResolvedValue({ id: "e1" });
+    mockCreateEmail.mockImplementation((_db: unknown, data: Record<string, unknown>) => Promise.resolve({
+      id: "e1",
+      fromEmail: data.fromEmail ?? "",
+      toEmail: data.toEmail ?? "",
+      subject: data.subject ?? "",
+      messageId: data.messageId ?? "",
+      inReplyTo: data.inReplyTo ?? "",
+      references: data.references ?? "",
+      agentId: data.agentId ?? "",
+      workspaceId: data.workspaceId ?? "",
+    }));
     mockCreateMessage.mockResolvedValue({ id: "m1", conversationId: "c1", role: "event", content: "", taskId: null, createdAt: "2026-01-01T00:00:00Z" });
     mockFindByKey.mockResolvedValue(null);
     mockCreateMapping.mockResolvedValue(undefined);
@@ -247,7 +257,17 @@ describe("POST /api/email/notify", () => {
     }));
 
     vi.clearAllMocks();
-    mockCreateEmail.mockResolvedValue({ id: "e2" });
+    mockCreateEmail.mockImplementation((_db: unknown, data: Record<string, unknown>) => Promise.resolve({
+      id: "e2",
+      fromEmail: data.fromEmail ?? "",
+      toEmail: data.toEmail ?? "",
+      subject: data.subject ?? "",
+      messageId: data.messageId ?? "",
+      inReplyTo: data.inReplyTo ?? "",
+      references: data.references ?? "",
+      agentId: data.agentId ?? "",
+      workspaceId: data.workspaceId ?? "",
+    }));
 
     // Agent B - same email thread
     mockGetAgent.mockResolvedValueOnce({ id: "a2", workspaceId: "ws1", runtimeId: "r2", ownerId: "u2" });
