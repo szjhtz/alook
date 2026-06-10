@@ -42,6 +42,21 @@ struct CliConfig {
 }
 
 #[cfg(desktop)]
+fn resolve_path() -> String {
+    let default_path = std::env::var("PATH").unwrap_or_default();
+    let extra = [
+        "/usr/local/bin",
+        "/opt/homebrew/bin",
+        "/opt/homebrew/sbin",
+    ];
+    let mut parts: Vec<&str> = extra.iter().copied().collect();
+    if !default_path.is_empty() {
+        parts.push(&default_path);
+    }
+    parts.join(":")
+}
+
+#[cfg(desktop)]
 fn cli_config() -> CliConfig {
     if cfg!(debug_assertions) {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -85,6 +100,7 @@ pub async fn register_cli(app: AppHandle, token: String) -> Result<CommandResult
     let token_ref: &str = &token;
 
     let mut cmd = app.shell().command(cfg.command);
+    cmd = cmd.env("PATH", resolve_path());
     for (key, val) in &cfg.env {
         cmd = cmd.env(key, val);
     }
@@ -112,6 +128,7 @@ pub async fn daemon_start(app: AppHandle) -> Result<CommandResult, String> {
     args.extend_from_slice(&["daemon", "start"]);
 
     let mut cmd = app.shell().command(cfg.command);
+    cmd = cmd.env("PATH", resolve_path());
     for (key, val) in &cfg.env {
         cmd = cmd.env(key, val);
     }
@@ -138,6 +155,7 @@ pub async fn daemon_stop(app: AppHandle) -> Result<CommandResult, String> {
     args.extend_from_slice(&["daemon", "stop"]);
 
     let mut cmd = app.shell().command(cfg.command);
+    cmd = cmd.env("PATH", resolve_path());
     for (key, val) in &cfg.env {
         cmd = cmd.env(key, val);
     }
@@ -164,6 +182,7 @@ pub async fn daemon_status(app: AppHandle) -> Result<DaemonStatusResult, String>
     args.extend_from_slice(&["daemon", "status"]);
 
     let mut cmd = app.shell().command(cfg.command);
+    cmd = cmd.env("PATH", resolve_path());
     for (key, val) in &cfg.env {
         cmd = cmd.env(key, val);
     }
@@ -224,6 +243,7 @@ pub async fn cli_check(app: AppHandle) -> Result<CommandResult, String> {
     args.push("--version");
 
     let mut cmd = app.shell().command(cfg.command);
+    cmd = cmd.env("PATH", resolve_path());
     for (key, val) in &cfg.env {
         cmd = cmd.env(key, val);
     }
@@ -515,6 +535,7 @@ async fn exec_daemon_cmd(handle: &AppHandle, subcommand: &[&str]) {
     let mut args: Vec<&str> = cfg.base_args.to_vec();
     args.extend_from_slice(subcommand);
     let mut cmd = shell.command(cfg.command);
+    cmd = cmd.env("PATH", resolve_path());
     for (key, val) in &cfg.env {
         cmd = cmd.env(key, val);
     }
@@ -531,6 +552,7 @@ async fn check_daemon_status(handle: &AppHandle) -> bool {
     let mut args: Vec<&str> = cfg.base_args.to_vec();
     args.extend_from_slice(&["daemon", "status"]);
     let mut cmd = shell.command(cfg.command);
+    cmd = cmd.env("PATH", resolve_path());
     for (key, val) in &cfg.env {
         cmd = cmd.env(key, val);
     }
@@ -589,6 +611,7 @@ pub fn auto_start_daemon(handle: AppHandle) {
         let mut args: Vec<&str> = cfg.base_args.to_vec();
         args.extend_from_slice(&["daemon", "start"]);
         let mut cmd = shell.command(cfg.command);
+        cmd = cmd.env("PATH", resolve_path());
         for (key, val) in &cfg.env {
             cmd = cmd.env(key, val);
         }
