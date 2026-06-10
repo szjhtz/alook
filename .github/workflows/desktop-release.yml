@@ -51,6 +51,7 @@ jobs:
 
       - name: Read version
         id: version
+        shell: bash
         run: echo "version=$(tr -d '\n' < src/desktop/.deploy-version)" >> "$GITHUB_OUTPUT"
 
       - name: Build Tauri app
