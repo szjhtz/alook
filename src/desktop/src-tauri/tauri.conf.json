@@ -49,7 +49,7 @@
       "endpoints": [
         "https://alook.ai/api/desktop/update/{{target}}/{{arch}}/{{current_version}}"
       ],
-      "pubkey": "RWQPlpaQzeEs/+9cMasjAS1iJ21kfounWfvXsXXqTrNI/nF+fz4OCyjJ"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg4QUQ2RTkxNENEOTZGRDEKUldUUmI5bE1rVzZ0aUY5SGgxVmRjZkUxeTNUKzlpZC8rQXQ3R0xDTFBsUFV4Kzc0U3pXc3hRV1MK"
     },
     "deep-link": {
       "desktop": {
