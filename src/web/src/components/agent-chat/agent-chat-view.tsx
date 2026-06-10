@@ -77,7 +77,6 @@ import {
 } from "@/components/artifact-content-renderer";
 import { ScrollToBottomButton } from "@/components/ui/scroll-to-bottom-button";
 import { MessageItem, AgentRow } from "@/components/agent-chat/message-list";
-import { TimelineRail } from "@/components/agent-chat/timeline-rail";
 import { useAgentChatSheet } from "@/contexts/agent-chat-sheet-context";
 import { PresenceLine } from "@/components/agent-chat/presence-line";
 import { MenuToggleIcon } from "@/components/agent-chat/menu-toggle-icon";
@@ -652,7 +651,6 @@ export function AgentChatView({
             <div className="flex items-center gap-2">
               <Skeleton className="size-8 shrink-0 rounded-full" />
               <Skeleton className="h-10 flex-1 rounded-3xl" />
-              <Skeleton className="size-8 shrink-0 rounded-full" />
             </div>
           </div>
         </div>
@@ -687,14 +685,10 @@ export function AgentChatView({
           Quote
         </button>
       )}
-      {/* Main chat + optional thread panel side by side */}
-      <div className="flex flex-1 min-h-0">
-      {/* Chat column */}
-      <div className="flex flex-col flex-1 min-w-0">
       {/* Messages */}
       <div className="relative flex-1 min-h-0">
         <div
-          className={cn("h-full overflow-y-auto overflow-x-hidden px-3 md:px-5 thin-scrollbar", !conversation?.parent_message_id && threadSummaries.size > 0 && "pr-8")}
+          className="h-full overflow-y-auto overflow-x-hidden px-3 md:px-5 thin-scrollbar"
           ref={scrollRef}
           onScroll={handleScroll}
           onClick={(e) => {
@@ -901,21 +895,6 @@ export function AgentChatView({
           </div>
         </div>
         <ScrollToBottomButton scrollRef={scrollRef} />
-        {/* Timeline rail — absolute overlay inside the messages area, scrollbar stays outermost */}
-        {!conversation?.parent_message_id && (
-          <div className="absolute right-1 top-0 bottom-0 z-10">
-            <div className="sticky top-4">
-              <TimelineRail
-                agentId={agentId}
-                workspaceId={workspaceId}
-                activeThreadMessageId={null}
-                onThreadClick={(_parentMsgId, threadConvId) => {
-                  openAgentChat(agentId, { conversationId: threadConvId });
-                }}
-              />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Input */}
@@ -1227,17 +1206,9 @@ export function AgentChatView({
                 </Tooltip>
               </div>
             </div>
-            {/* Symmetric spacer: balances the leading overflow button so the
-                pill stays horizontally centered under the messages column.
-                Hidden on mobile where the pill fills full width. */}
-            {!targetConvId && (
-              <div className="hidden md:block shrink-0 self-end mb-2.5 size-8" aria-hidden="true" />
-            )}
           </div>
         </div>
       </div>
-      </div>{/* end chat column */}
-      </div>{/* end flex row */}
 
       <ArtifactSheet
         open={artifactSheetOpen}
