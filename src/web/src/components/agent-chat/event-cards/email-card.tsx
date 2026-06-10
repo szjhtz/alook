@@ -53,10 +53,16 @@ export function EmailCard({
     <>
     <button
       type="button"
-      onClick={onClick}
+      onClick={(e) => {
+        if (touchAction && longPressHandlers.onClick) {
+          longPressHandlers.onClick(e);
+          if (e.defaultPrevented) return;
+        }
+        onClick?.();
+      }}
       disabled={!onClick}
       onPointerEnter={handlePointerEnter}
-      {...(touchAction ? longPressHandlers : {})}
+      {...(touchAction ? { onPointerDown: longPressHandlers.onPointerDown, onPointerMove: longPressHandlers.onPointerMove, onPointerUp: longPressHandlers.onPointerUp, onPointerCancel: longPressHandlers.onPointerCancel, onPointerLeave: longPressHandlers.onPointerLeave } : {})}
       className={`card-grain w-104 max-w-full rounded-(--radius) border border-(--border) bg-(--paper) text-left flex flex-col cursor-pointer [transition:translate_.2s_cubic-bezier(.2,.8,.2,1),box-shadow_.2s_ease] hover:-translate-y-0.5 [box-shadow:var(--e1)] hover:[box-shadow:var(--e2)] ${isInternal && targetConvId ? "overflow-visible group/ecard" : "overflow-hidden"}`}
     >
       <span className="h-2.5 relative block">
