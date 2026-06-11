@@ -48,7 +48,7 @@ describe("GET /api/conversations/[id]", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns conversation scoped by workspaceId", async () => {
-    const conv = { id: "c1", title: "Test", workspaceId: "w1" };
+    const conv = { id: "c1", title: "Test", workspaceId: "w1", userId: "u1" };
     mockGetConversation.mockResolvedValue(conv);
 
     const res = await GET(
@@ -72,7 +72,7 @@ describe("GET /api/conversations/[id]", () => {
     const body = await res.json();
 
     expect(res.status).toBe(404);
-    expect(body.error).toBe("conversation not found");
+    expect(body.error).toBe("not found");
   });
 });
 
@@ -80,7 +80,7 @@ describe("DELETE /api/conversations/[id]", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns 204 and removes conversation + tasks with workspace scoping", async () => {
-    mockGetConversation.mockResolvedValue({ id: "c1", workspaceId: "w1" });
+    mockGetConversation.mockResolvedValue({ id: "c1", workspaceId: "w1", userId: "u1" });
     mockDeleteTasksByConversation.mockResolvedValue(undefined);
     mockDeleteConversation.mockResolvedValue(undefined);
 
@@ -96,7 +96,7 @@ describe("DELETE /api/conversations/[id]", () => {
 
   it("deletes tasks before conversation", async () => {
     const callOrder: string[] = [];
-    mockGetConversation.mockResolvedValue({ id: "c1", workspaceId: "w1" });
+    mockGetConversation.mockResolvedValue({ id: "c1", workspaceId: "w1", userId: "u1" });
     mockDeleteTasksByConversation.mockImplementation(async () => {
       callOrder.push("tasks");
     });
@@ -125,6 +125,6 @@ describe("DELETE /api/conversations/[id]", () => {
     const body = await res.json();
 
     expect(res.status).toBe(404);
-    expect(body.error).toBe("conversation not found");
+    expect(body.error).toBe("not found");
   });
 });

@@ -31,8 +31,8 @@ export const GET = withAuth(async (req, ctx) => {
   const messageCountParam = url.searchParams.get("message_count");
 
   const conversation = await queries.conversation.getConversation(db, id, ws.workspaceId);
-  if (!conversation) {
-    return writeError("conversation not found", 404);
+  if (!conversation || conversation.userId !== ctx.userId) {
+    return writeError("not found", 404);
   }
 
   const [serverNewest, serverMessageCount] = await Promise.all([

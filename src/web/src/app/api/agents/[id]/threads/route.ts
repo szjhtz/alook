@@ -17,6 +17,11 @@ export const GET = withAuth(async (req, ctx) => {
     return writeError("agent id is required", 400);
   }
 
+  const agent = await queries.agent.getAgent(db, agentId, ws.workspaceId, ctx.userId);
+  if (!agent) {
+    return writeError("not found", 404);
+  }
+
   const url = new URL(req.url);
   const before = url.searchParams.get("before") || undefined;
   const limitParam = url.searchParams.get("limit");

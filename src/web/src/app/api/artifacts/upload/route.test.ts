@@ -48,7 +48,7 @@ function formReq(fields: Record<string, string | File>) {
 
 describe("POST /api/artifacts/upload", () => {
   it("uploads a file to R2 and creates an artifact record", async () => {
-    mockGetConversation.mockResolvedValue({ id: "c1", agentId: "a1" });
+    mockGetConversation.mockResolvedValue({ id: "c1", agentId: "a1", userId: "u1" });
     mockCreateArtifact.mockResolvedValue({ id: "art_xyz" });
     mockGetAgent.mockResolvedValue({ ownerId: "owner1" });
 

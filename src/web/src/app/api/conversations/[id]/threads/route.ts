@@ -27,8 +27,8 @@ export const POST = withAuth(async (req, ctx) => {
   if (valErr) return valErr;
 
   const parentConv = await queries.conversation.getConversation(db, conversationId, ws.workspaceId);
-  if (!parentConv) {
-    return writeError("conversation not found", 404);
+  if (!parentConv || parentConv.userId !== ctx.userId) {
+    return writeError("not found", 404);
   }
 
   const rootMessage = await queries.message.getMessage(db, body.parent_message_id);
@@ -195,8 +195,8 @@ export const GET = withAuth(async (req, ctx) => {
   }
 
   const conv = await queries.conversation.getConversation(db, conversationId, ws.workspaceId);
-  if (!conv) {
-    return writeError("conversation not found", 404);
+  if (!conv || conv.userId !== ctx.userId) {
+    return writeError("not found", 404);
   }
 
   try {

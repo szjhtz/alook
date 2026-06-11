@@ -25,7 +25,7 @@ export const POST = withAuth(async (req, ctx) => {
   if (email.isWhitelisted) return writeError("email is already trusted", 400)
   if (email.direction !== "inbound") return writeError("only inbound emails can be trusted", 400)
 
-  const agent = await queries.agent.getAgent(db, email.agentId, ws.workspaceId)
+  const agent = await queries.agent.getAgent(db, email.agentId, ws.workspaceId, ctx.userId)
   if (!agent || !agent.runtimeId || !agent.ownerId) return writeError("agent not found or has no runtime", 404)
 
   const updatedEmail = await queries.email.updateEmailWhitelisted(db, id, ws.workspaceId, true)

@@ -44,8 +44,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   }
 
   const conv = await queries.conversation.getConversation(db, conversationId, ws.workspaceId);
-  if (!conv) {
-    return writeError("conversation not found", 404);
+  if (!conv || conv.userId !== ctx.userId) {
+    return writeError("not found", 404);
   }
 
   const agentId = conv.agentId;

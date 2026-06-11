@@ -485,21 +485,24 @@ export async function countRunningTasks(db: Database, agentId: string, workspace
 
 export async function listActiveTaskCountsByWorkspace(
   db: Database,
-  workspaceId: string
+  workspaceId: string,
+  agentIds?: string[]
 ) {
+  const conditions = [
+    eq(agentTaskQueue.workspaceId, workspaceId),
+    inArray(agentTaskQueue.status, ["queued", "dispatched", "running"]),
+    ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK),
+  ];
+  if (agentIds && agentIds.length > 0) {
+    conditions.push(inArray(agentTaskQueue.agentId, agentIds));
+  }
   return db
     .select({
       agentId: agentTaskQueue.agentId,
       count: count(),
     })
     .from(agentTaskQueue)
-    .where(
-      and(
-        eq(agentTaskQueue.workspaceId, workspaceId),
-        inArray(agentTaskQueue.status, ["queued", "dispatched", "running"]),
-        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK)
-      )
-    )
+    .where(and(...conditions))
     .groupBy(agentTaskQueue.agentId)
     .limit(200);
 }
