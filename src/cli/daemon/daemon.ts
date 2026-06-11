@@ -255,19 +255,19 @@ export async function startDaemon(
   const workspaces = allEntries.filter((ws): ws is typeof ws & { id: string; name: string } => ws.status !== "deleted" && !!ws.id);
 
   if (workspaces.length === 0) {
-    log.error("No workspaces configured. Register a workspace first.");
-    process.exit(1);
-    return;
+    log.info("No workspaces configured — daemon starting in standby mode. Register a workspace to begin.");
   }
 
   // Validate: each active workspace must have its own token
-  const hasPerWorkspaceTokens = workspaces.every((ws) => !!ws.token);
-  if (!hasPerWorkspaceTokens) {
-    log.error(
-      `Config uses old format. Run '${cmdPrefix()} register --token <token>' for each workspace to upgrade.`,
-    );
-    process.exit(1);
-    return;
+  if (workspaces.length > 0) {
+    const hasPerWorkspaceTokens = workspaces.every((ws) => !!ws.token);
+    if (!hasPerWorkspaceTokens) {
+      log.error(
+        `Config uses old format. Run '${cmdPrefix()} register --token <token>' for each workspace to upgrade.`,
+      );
+      process.exit(1);
+      return;
+    }
   }
 
   // Use server_url from first workspace's config if available
@@ -300,7 +300,7 @@ export async function startDaemon(
 
   const workspaceStates: WorkspaceState[] = [];
   const runtimeIndex = new Map<string, RuntimeData>();
-  const hadWorkspaces = true;
+  let hadWorkspaces = workspaces.length > 0;
 
   for (const ws of workspaces) {
     const runtimes = providers.map((p) => ({
@@ -341,7 +341,7 @@ export async function startDaemon(
     }
   }
 
-  if (workspaceStates.length === 0 && workspaces.length > 0) {
+  if (workspaceStates.length === 0 && hadWorkspaces) {
     log.error("No workspaces registered successfully.");
     process.exit(1);
     return;
@@ -778,6 +778,7 @@ export async function startDaemon(
       }
 
       if (newWorkspaces.length > 0) {
+        hadWorkspaces = true;
         health.setRuntimeCount(
           workspaceStates.reduce((sum, w) => sum + w.runtimeIds.length, 0),
         );

@@ -1118,7 +1118,7 @@ describe("daemon startup failures release pidfile", () => {
     for (const t of intervalTimers) realClearInterval(t);
   });
 
-  it("exits when no workspaces are configured", async () => {
+  it("starts in standby mode when no workspaces are configured", async () => {
     vi.mocked(loadCLIConfigForProfile).mockReturnValue({
       server_url: "",
       watched_workspaces: [],
@@ -1126,7 +1126,7 @@ describe("daemon startup failures release pidfile", () => {
 
     await startDaemon();
 
-    expect(mockProcessExit).toHaveBeenCalledWith(1);
+    expect(mockProcessExit).not.toHaveBeenCalled();
   });
 
   it("registers an exit handler that releases the pidfile", async () => {
@@ -2502,7 +2502,7 @@ describe("daemon SIGHUP reload", () => {
     for (const t of intervalTimers) realClearInterval(t);
   });
 
-  it("exits when no workspaces are configured", async () => {
+  it("starts in standby mode when no workspaces are configured", async () => {
     vi.mocked(loadCLIConfigForProfile).mockReturnValue({
       server_url: "",
       watched_workspaces: [],
@@ -2510,7 +2510,7 @@ describe("daemon SIGHUP reload", () => {
 
     await startDaemon();
 
-    expect(mockProcessExit).toHaveBeenCalledWith(1);
+    expect(mockProcessExit).not.toHaveBeenCalled();
   });
 
   it("after SIGHUP, new workspace is registered", async () => {
