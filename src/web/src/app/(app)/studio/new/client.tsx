@@ -29,12 +29,10 @@ import type { TemplatePreset } from "@/lib/templates";
 export function StudioOnboardingClient({
   workspaceId,
   workspaceSlug,
-  workspaceName,
   initialTemplate,
 }: {
   workspaceId: string;
   workspaceSlug: string;
-  workspaceName: string;
   initialTemplate?: TemplatePreset;
 }) {
   const router = useRouter();
