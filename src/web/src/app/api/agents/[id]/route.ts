@@ -47,7 +47,7 @@ export const PATCH = withAuth(async (req, ctx) => {
   if (body.description !== undefined) data.description = body.description;
   if (body.instructions !== undefined) data.instructions = body.instructions;
   if (body.runtime_id !== undefined) {
-    const runtime = await queries.runtime.getAgentRuntimeForWorkspace(db, body.runtime_id, ws.workspaceId);
+    const runtime = await queries.runtime.getAgentRuntimeForWorkspace(db, body.runtime_id, ws.workspaceId, ctx.userId);
     if (!runtime) {
       return writeError("runtime not found in workspace", 400);
     }

@@ -211,7 +211,7 @@ describe("PATCH /api/agents/[id]", () => {
     );
   });
 
-  it("PATCH with valid runtime_id (same workspace) updates agent successfully", async () => {
+  it("TC-6: PATCH with valid runtime_id (own runtime) updates agent successfully", async () => {
     mockGetAgent.mockResolvedValue({ id: "a1", ownerId: "u1" });
     mockGetAgentRuntimeForWorkspace.mockResolvedValue({ id: "rt1", workspaceId: "w1" });
     mockUpdateAgent.mockResolvedValue({ id: "a1", name: "Agent" });
@@ -228,6 +228,7 @@ describe("PATCH /api/agents/[id]", () => {
       expect.anything(),
       "rt1",
       "w1",
+      "u1",
     );
     expect(mockUpdateAgent).toHaveBeenCalledWith(
       expect.anything(),
@@ -238,12 +239,12 @@ describe("PATCH /api/agents/[id]", () => {
     );
   });
 
-  it("PATCH with runtime_id from another workspace returns 400", async () => {
+  it("TC-5: PATCH with runtime_id belonging to another member returns 400", async () => {
     mockGetAgentRuntimeForWorkspace.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/agents/a1", {
       method: "PATCH",
-      body: JSON.stringify({ runtime_id: "rt_other_ws" }),
+      body: JSON.stringify({ runtime_id: "rt_other_user" }),
     });
     const ctx = { params: Promise.resolve({ id: "a1" }) };
     const res = await PATCH(req, ctx);

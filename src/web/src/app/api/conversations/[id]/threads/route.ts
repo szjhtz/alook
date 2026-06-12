@@ -42,6 +42,8 @@ export const POST = withAuth(async (req, ctx) => {
   );
   if (existing) {
     // Thread already exists — create message in the existing thread and enqueue task
+    const msgCount = await queries.message.getActiveMessageCount(db, existing.id);
+
     const threadMessage = await queries.message.createMessage(db, {
       conversationId: existing.id,
       role: "user",
@@ -54,6 +56,25 @@ export const POST = withAuth(async (req, ctx) => {
       message: messageToResponse(threadMessage),
     }).catch(() => {});
 
+    let taskContext: Record<string, unknown> = { message_id: threadMessage.id };
+    if (msgCount === 0) {
+      const historyMessages = await queries.message.listMessagesUpTo(
+        db, conversationId, body.parent_message_id
+      );
+      const rootMsg = historyMessages.find(m => m.id === body.parent_message_id);
+      const historyWithoutRoot = historyMessages
+        .filter(m => m.id !== body.parent_message_id)
+        .map(m => ({ role: m.role, content: m.content, created_at: m.createdAt }));
+      const rootMessageContext = rootMsg
+        ? { role: rootMsg.role, content: rootMsg.content }
+        : null;
+      taskContext = {
+        message_id: threadMessage.id,
+        conversation_history: historyWithoutRoot,
+        ...(rootMessageContext ? { root_message: rootMessageContext } : {}),
+      };
+    }
+
     const taskService = new TaskService(db);
     const traceId = "tr_" + nanoid();
     try {
@@ -65,7 +86,7 @@ export const POST = withAuth(async (req, ctx) => {
         TASK_TYPES.USER_DM_MESSAGE,
         {
           contextKey: existing.id,
-          context: { message_id: threadMessage.id },
+          context: taskContext,
           traceId,
           parentTaskId: null,
         },

@@ -56,10 +56,10 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   }
 
   const runtime = callingAgent.runtimeId
-    ? await queries.runtime.getAgentRuntimeForWorkspace(db, callingAgent.runtimeId, ws.workspaceId)
+    ? await queries.runtime.getAgentRuntimeForWorkspace(db, callingAgent.runtimeId, ws.workspaceId, ctx.userId)
     : null;
   if (!runtime) {
-    return writeError("calling agent has no runtime", 400);
+    return writeError("calling agent has no runtime — reassign the agent to your own runtime first", 400);
   }
 
   const agentName = body.name?.trim() || uniqueNamesGenerator({ dictionaries: [names], length: 1, style: "capital" });

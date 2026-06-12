@@ -139,7 +139,7 @@ describe("POST /api/agents", () => {
     expect(body.details).toContainEqual(expect.stringContaining("runtime_id"));
   });
 
-  it("returns 404 when runtime not in workspace", async () => {
+  it("TC-3: returns 404 when creating agent on non-owned runtime", async () => {
     mockGetAgentRuntimeForWorkspace.mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost/api/agents", {
@@ -151,6 +151,25 @@ describe("POST /api/agents", () => {
 
     expect(res.status).toBe(404);
     expect(body.error).toBe("runtime not found in workspace");
+  });
+
+  it("TC-4: creates agent on own runtime successfully", async () => {
+    mockGetAgentRuntimeForWorkspace.mockResolvedValue({ machineLastSeenAt: null, runtimeMode: "local" });
+    mockCreateAgent.mockResolvedValue({ id: "a1", name: "New Agent" });
+
+    const req = new NextRequest("http://localhost/api/agents", {
+      method: "POST",
+      body: JSON.stringify(validBody),
+    });
+    const res = await POST(req, {});
+
+    expect(res.status).toBe(201);
+    expect(mockGetAgentRuntimeForWorkspace).toHaveBeenCalledWith(
+      expect.anything(),
+      "r1",
+      "w1",
+      "u1",
+    );
   });
 
   it("creates agent with reconcile when runtime is online", async () => {

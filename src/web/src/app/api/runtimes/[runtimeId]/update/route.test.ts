@@ -100,6 +100,18 @@ describe("POST /api/runtimes/[runtimeId]/update", () => {
     expect(res.status).toBe(200);
     expect(body.pending_update_version).toBe("1.0.0");
     expect(mockSetPendingUpdateVersion).toHaveBeenCalledWith({}, "d1", "w1", "1.0.0");
+    expect(mockGetAgentRuntimeForWorkspace).toHaveBeenCalledWith({}, "rt1", "w1", "u1");
+  });
+
+  it("TC-8: returns 404 when updating another member's runtime", async () => {
+    mockGetAgentRuntimeForWorkspace.mockResolvedValue(null);
+
+    const res = await POST(makeReq("POST", "rt1", "w1"));
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("not found");
+    expect(mockSetPendingUpdateVersion).not.toHaveBeenCalled();
   });
 
   it("returns 404 for non-existent runtime", async () => {
@@ -160,6 +172,18 @@ describe("DELETE /api/runtimes/[runtimeId]/update", () => {
       workspaceId: "w1",
       status: "online",
     });
+    expect(mockGetAgentRuntimeForWorkspace).toHaveBeenCalledWith({}, "rt1", "w1", "u1");
+  });
+
+  it("TC-9: returns 404 when cancelling update on another member's runtime", async () => {
+    mockGetAgentRuntimeForWorkspace.mockResolvedValue(null);
+
+    const res = await DELETE(makeReq("DELETE", "rt1", "w1"));
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("not found");
+    expect(mockClearPendingUpdateVersion).not.toHaveBeenCalled();
   });
 
   it("returns 204 even when broadcast fails", async () => {

@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { machine } from "../schema";
 import type { Database } from "../index";
 
@@ -9,6 +9,7 @@ export async function upsertMachine(
     workspaceId: string;
     deviceInfo: string;
     lastSeenAt?: string | null;
+    ownerId?: string;
   }
 ) {
   const now = new Date().toISOString();
@@ -22,6 +23,7 @@ export async function upsertMachine(
       lastSeenAt,
       createdAt: now,
       updatedAt: now,
+      ownerId: data.ownerId,
     })
     .onConflictDoUpdate({
       target: [machine.workspaceId, machine.daemonId],
@@ -29,6 +31,7 @@ export async function upsertMachine(
         deviceInfo: data.deviceInfo,
         lastSeenAt,
         updatedAt: now,
+        ownerId: sql`COALESCE(${machine.ownerId}, ${data.ownerId ?? null})`,
       },
     })
     .returning();
@@ -79,12 +82,15 @@ export async function getMachineByDaemon(
 
 export async function listMachinesForWorkspace(
   db: Database,
-  workspaceId: string
+  workspaceId: string,
+  userId?: string
 ) {
+  const conditions = [eq(machine.workspaceId, workspaceId)];
+  if (userId) conditions.push(eq(machine.ownerId, userId));
   return db
     .select()
     .from(machine)
-    .where(eq(machine.workspaceId, workspaceId));
+    .where(and(...conditions));
 }
 
 export async function deleteMachine(

@@ -55,7 +55,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   const runtime = await queries.runtime.getAgentRuntimeForWorkspace(
     db,
     runtimeId,
-    ws.workspaceId
+    ws.workspaceId,
+    ctx.userId
   );
   if (!runtime) {
     return writeError("runtime not found in workspace", 404);

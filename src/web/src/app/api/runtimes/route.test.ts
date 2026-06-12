@@ -61,6 +61,19 @@ describe("GET /api/runtimes", () => {
       { id: "r1", status: "online" },
       { id: "r2", status: "offline" },
     ]);
-    expect(mockListAgentRuntimes).toHaveBeenCalledWith({}, "w1");
+    expect(mockListAgentRuntimes).toHaveBeenCalledWith({}, "w1", "u1");
+  });
+
+  it("TC-1/TC-2: passes userId so only owner's runtimes are returned", async () => {
+    mockListAgentRuntimes.mockResolvedValue([{ id: "r1", status: "online" }]);
+
+    const req = new NextRequest("http://localhost/api/runtimes");
+    await GET(req, {} as any);
+
+    expect(mockListAgentRuntimes).toHaveBeenCalledWith(
+      expect.anything(),
+      "w1",
+      "u1",
+    );
   });
 });

@@ -89,6 +89,7 @@ describe("POST /api/daemon/heartbeat", () => {
       daemonId: "d1",
       workspaceId: "w1",
       deviceInfo: "d1",
+      ownerId: "u1",
     });
   });
 

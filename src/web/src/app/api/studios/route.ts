@@ -55,7 +55,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   if (valErr) return valErr;
 
   const runtimeIds = [...new Set(body.members.map((m) => m.runtime_id))];
-  const runtimes = await queries.runtime.getAgentRuntimesForWorkspace(db, runtimeIds, ws.workspaceId);
+  const runtimes = await queries.runtime.getAgentRuntimesForWorkspace(db, runtimeIds, ws.workspaceId, ctx.userId);
   const runtimeCache = new Map(runtimes.map((r) => [r.id, r]));
   for (const rid of runtimeIds) {
     if (!runtimeCache.has(rid)) {

@@ -211,7 +211,7 @@ describe("POST /api/studios", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 404 if runtime not in workspace", async () => {
+  it("TC-7: returns 404 when using another member's runtime", async () => {
     mockGetAgentRuntimeForWorkspace.mockResolvedValue(null);
     mockGetAgentRuntimesForWorkspace.mockResolvedValue([]);
 

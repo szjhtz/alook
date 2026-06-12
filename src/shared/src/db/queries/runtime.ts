@@ -42,7 +42,9 @@ export async function upsertAgentRuntime(
   return rows[0]!;
 }
 
-export async function listAgentRuntimes(db: Database, workspaceId: string) {
+export async function listAgentRuntimes(db: Database, workspaceId: string, userId?: string) {
+  const conditions = [eq(agentRuntime.workspaceId, workspaceId)];
+  if (userId) conditions.push(eq(machine.ownerId, userId));
   return db
     .select({
       id: agentRuntime.id,
@@ -57,6 +59,7 @@ export async function listAgentRuntimes(db: Database, workspaceId: string) {
       machineLastSeenAt: machine.lastSeenAt,
       pendingUpdateVersion: machine.pendingUpdateVersion,
       pendingRescan: machine.pendingRescan,
+      machineOwnerId: machine.ownerId,
     })
     .from(agentRuntime)
     .leftJoin(
@@ -66,7 +69,7 @@ export async function listAgentRuntimes(db: Database, workspaceId: string) {
         eq(machine.workspaceId, agentRuntime.workspaceId)
       )
     )
-    .where(eq(agentRuntime.workspaceId, workspaceId))
+    .where(and(...conditions))
     .orderBy(asc(agentRuntime.createdAt));
 }
 
@@ -81,8 +84,11 @@ export async function getAgentRuntime(db: Database, id: string) {
 export async function getAgentRuntimeForWorkspace(
   db: Database,
   id: string,
-  workspaceId: string
+  workspaceId: string,
+  userId?: string
 ) {
+  const conditions = [eq(agentRuntime.id, id), eq(agentRuntime.workspaceId, workspaceId)];
+  if (userId) conditions.push(eq(machine.ownerId, userId));
   const rows = await db
     .select({
       id: agentRuntime.id,
@@ -106,18 +112,19 @@ export async function getAgentRuntimeForWorkspace(
         eq(machine.workspaceId, agentRuntime.workspaceId)
       )
     )
-    .where(
-      and(eq(agentRuntime.id, id), eq(agentRuntime.workspaceId, workspaceId))
-    );
+    .where(and(...conditions));
   return rows[0] ?? null;
 }
 
 export async function getAgentRuntimesForWorkspace(
   db: Database,
   ids: string[],
-  workspaceId: string
+  workspaceId: string,
+  userId?: string
 ) {
   if (ids.length === 0) return [];
+  const conditions = [inArray(agentRuntime.id, ids), eq(agentRuntime.workspaceId, workspaceId)];
+  if (userId) conditions.push(eq(machine.ownerId, userId));
   return db
     .select({
       id: agentRuntime.id,
@@ -141,9 +148,7 @@ export async function getAgentRuntimesForWorkspace(
         eq(machine.workspaceId, agentRuntime.workspaceId)
       )
     )
-    .where(
-      and(inArray(agentRuntime.id, ids), eq(agentRuntime.workspaceId, workspaceId))
-    );
+    .where(and(...conditions));
 }
 
 export async function deleteRuntimesByDaemonId(

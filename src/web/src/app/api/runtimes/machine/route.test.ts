@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const mockDeleteRuntimesByDaemonId = vi.fn();
 const mockDeleteMachine = vi.fn();
+const mockGetMachineByDaemon = vi.fn();
 const mockGetMemberByUserAndWorkspace = vi.fn();
 
 vi.mock("@opennextjs/cloudflare", () => ({
@@ -20,6 +21,8 @@ vi.mock("@alook/shared", () => ({
     machine: {
       deleteMachine: (...args: any[]) =>
         mockDeleteMachine(...args),
+      getMachineByDaemon: (...args: any[]) =>
+        mockGetMachineByDaemon(...args),
     },
     member: {
       getMemberByUserAndWorkspace: (...args: any[]) =>
@@ -99,8 +102,9 @@ describe("DELETE /api/runtimes/machine", () => {
     expect(body.error).toContain("workspace not found");
   });
 
-  it("returns 204 on successful delete", async () => {
+  it("returns 204 on successful delete (TC-12)", async () => {
     mockGetMemberByUserAndWorkspace.mockResolvedValue({ id: "m1" });
+    mockGetMachineByDaemon.mockResolvedValue({ daemonId: "d1", ownerId: "u1" });
     mockDeleteRuntimesByDaemonId.mockResolvedValue(undefined);
     mockDeleteMachine.mockResolvedValue(undefined);
 
@@ -111,8 +115,36 @@ describe("DELETE /api/runtimes/machine", () => {
     expect(res.status).toBe(204);
   });
 
+  it("TC-11: returns 404 when deleting another member's machine", async () => {
+    mockGetMemberByUserAndWorkspace.mockResolvedValue({ id: "m1" });
+    mockGetMachineByDaemon.mockResolvedValue({ daemonId: "d1", ownerId: "other-user" });
+
+    const res = await DELETE(
+      makeReq({ daemon_id: "d1", workspace_id: "w1" })
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("not found");
+    expect(mockDeleteRuntimesByDaemonId).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when machine does not exist", async () => {
+    mockGetMemberByUserAndWorkspace.mockResolvedValue({ id: "m1" });
+    mockGetMachineByDaemon.mockResolvedValue(null);
+
+    const res = await DELETE(
+      makeReq({ daemon_id: "d1", workspace_id: "w1" })
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("not found");
+  });
+
   it("passes correct daemon_id with dots and dashes", async () => {
     mockGetMemberByUserAndWorkspace.mockResolvedValue({ id: "m1" });
+    mockGetMachineByDaemon.mockResolvedValue({ daemonId: "my-daemon.v2.host-01", ownerId: "u1" });
     mockDeleteRuntimesByDaemonId.mockResolvedValue(undefined);
     mockDeleteMachine.mockResolvedValue(undefined);
 
@@ -128,6 +160,7 @@ describe("DELETE /api/runtimes/machine", () => {
 
   it("calls deleteRuntimesByDaemonId exactly once", async () => {
     mockGetMemberByUserAndWorkspace.mockResolvedValue({ id: "m1" });
+    mockGetMachineByDaemon.mockResolvedValue({ daemonId: "d1", ownerId: "u1" });
     mockDeleteRuntimesByDaemonId.mockResolvedValue(undefined);
     mockDeleteMachine.mockResolvedValue(undefined);
 
@@ -138,6 +171,7 @@ describe("DELETE /api/runtimes/machine", () => {
 
   it("returns 500 when deleteRuntimesByDaemonId throws", async () => {
     mockGetMemberByUserAndWorkspace.mockResolvedValue({ id: "m1" });
+    mockGetMachineByDaemon.mockResolvedValue({ daemonId: "d1", ownerId: "u1" });
     mockDeleteRuntimesByDaemonId.mockRejectedValue(new Error("DB exploded"));
 
     const res = await DELETE(
@@ -152,6 +186,7 @@ describe("DELETE /api/runtimes/machine", () => {
   it("broadcasts daemon.evict on successful delete", async () => {
     const { broadcastToDaemon } = await import("@/lib/broadcast");
     mockGetMemberByUserAndWorkspace.mockResolvedValue({ id: "m1" });
+    mockGetMachineByDaemon.mockResolvedValue({ daemonId: "d1", ownerId: "u1" });
     mockDeleteRuntimesByDaemonId.mockResolvedValue(undefined);
     mockDeleteMachine.mockResolvedValue(undefined);
 

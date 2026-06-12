@@ -28,6 +28,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       daemonId: body.daemon_id,
       workspaceId: ctx.workspaceId!,
       deviceInfo: body.daemon_id,
+      ownerId: ctx.userId,
     });
   } catch (e) {
     log.warn("heartbeat: machine upsert failed", { daemonId: body.daemon_id, err: String(e) });

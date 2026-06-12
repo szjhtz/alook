@@ -199,6 +199,7 @@ export const machine = sqliteTable(
     pendingUpdateVersion: text("pending_update_version"),
     pendingRescan: integer("pending_rescan", { mode: "boolean" }).default(false),
     updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+    ownerId: text("owner_id").references(() => user.id, { onDelete: "set null" }),
   },
   (t) => [primaryKey({ columns: [t.workspaceId, t.daemonId] })]
 );

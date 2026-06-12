@@ -21,6 +21,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     db,
     runtimeId,
     ws.workspaceId,
+    ctx.userId,
   );
   if (!runtime) return writeError("runtime not found", 404);
 

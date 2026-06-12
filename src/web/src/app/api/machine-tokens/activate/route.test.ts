@@ -112,6 +112,7 @@ describe("POST /api/machine-tokens/activate", () => {
       workspaceId: "ws_1",
       deviceInfo: "TestMachine.local",
       lastSeenAt: null,
+      ownerId: "u1",
     });
 
     expect(mockUpsertAgentRuntime).toHaveBeenCalledWith(expect.anything(), {

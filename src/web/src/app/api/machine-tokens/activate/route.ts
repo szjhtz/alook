@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
     workspaceId,
     deviceInfo: hostname,
     lastSeenAt: null,
+    ownerId: mt.userId,
   });
 
   const results = [];

@@ -21,6 +21,11 @@ export const DELETE = withAuth(async (req: NextRequest, ctx) => {
     return writeJSON({ error: "daemon_id is required" }, 400);
   }
 
+  const ownerMachine = await queries.machine.getMachineByDaemon(db, daemonId, ws.workspaceId);
+  if (!ownerMachine || ownerMachine.ownerId !== ctx.userId) {
+    return writeJSON({ error: "machine not found" }, 404);
+  }
+
   try {
     await queries.runtime.deleteRuntimesByDaemonId(db, daemonId, ws.workspaceId);
     await queries.machine.deleteMachine(db, daemonId, ws.workspaceId);

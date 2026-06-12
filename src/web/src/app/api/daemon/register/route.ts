@@ -49,6 +49,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       daemonId,
       workspaceId,
       deviceInfo: deviceName.trim(),
+      ownerId: ctx.userId,
     });
   } catch (e) {
     log.warn("register: machine upsert failed", { daemonId, err: String(e) });

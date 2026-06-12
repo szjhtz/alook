@@ -86,6 +86,18 @@ describe("POST /api/runtimes/[runtimeId]/rescan", () => {
     expect(res.status).toBe(200);
     expect(body.pending_rescan).toBe(true);
     expect(mockSetPendingRescan).toHaveBeenCalledWith({}, "d1", "w1");
+    expect(mockGetAgentRuntimeForWorkspace).toHaveBeenCalledWith({}, "rt1", "w1", "u1");
+  });
+
+  it("TC-10: returns 404 when rescanning another member's runtime", async () => {
+    mockGetAgentRuntimeForWorkspace.mockResolvedValue(null);
+
+    const res = await POST(makeReq("rt1", "w1"));
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("not found");
+    expect(mockSetPendingRescan).not.toHaveBeenCalled();
   });
 
   it("returns 404 for non-existent runtime", async () => {
