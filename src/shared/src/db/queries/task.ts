@@ -486,7 +486,8 @@ export async function countRunningTasks(db: Database, agentId: string, workspace
 export async function listActiveTaskCountsByWorkspace(
   db: Database,
   workspaceId: string,
-  agentIds?: string[]
+  agentIds?: string[],
+  userId?: string
 ) {
   const conditions = [
     eq(agentTaskQueue.workspaceId, workspaceId),
@@ -496,12 +497,16 @@ export async function listActiveTaskCountsByWorkspace(
   if (agentIds && agentIds.length > 0) {
     conditions.push(inArray(agentTaskQueue.agentId, agentIds));
   }
+  if (userId) {
+    conditions.push(eq(conversation.userId, userId));
+  }
   return db
     .select({
       agentId: agentTaskQueue.agentId,
       count: count(),
     })
     .from(agentTaskQueue)
+    .innerJoin(conversation, eq(agentTaskQueue.conversationId, conversation.id))
     .where(and(...conditions))
     .groupBy(agentTaskQueue.agentId)
     .limit(200);
@@ -510,7 +515,8 @@ export async function listActiveTaskCountsByWorkspace(
 export async function listActiveTasksByWorkspace(
   db: Database,
   workspaceId: string,
-  agentIds?: string[]
+  agentIds?: string[],
+  userId?: string
 ) {
   const conditions = [
     eq(agentTaskQueue.workspaceId, workspaceId),
@@ -519,6 +525,9 @@ export async function listActiveTasksByWorkspace(
   ];
   if (agentIds && agentIds.length > 0) {
     conditions.push(inArray(agentTaskQueue.agentId, agentIds));
+  }
+  if (userId) {
+    conditions.push(eq(conversation.userId, userId));
   }
   return db
     .select({
@@ -532,7 +541,7 @@ export async function listActiveTasksByWorkspace(
       channel: conversation.channel,
     })
     .from(agentTaskQueue)
-    .leftJoin(conversation, eq(agentTaskQueue.conversationId, conversation.id))
+    .innerJoin(conversation, eq(agentTaskQueue.conversationId, conversation.id))
     .where(and(...conditions))
     .orderBy(desc(agentTaskQueue.createdAt))
     .limit(50);
@@ -541,8 +550,18 @@ export async function listActiveTasksByWorkspace(
 export async function listActiveTasksByAgent(
   db: Database,
   agentId: string,
-  workspaceId: string
+  workspaceId: string,
+  userId?: string
 ) {
+  const conditions = [
+    eq(agentTaskQueue.agentId, agentId),
+    eq(agentTaskQueue.workspaceId, workspaceId),
+    inArray(agentTaskQueue.status, ["queued", "dispatched", "running"]),
+    ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK),
+  ];
+  if (userId) {
+    conditions.push(eq(conversation.userId, userId));
+  }
   return db
     .select({
       id: agentTaskQueue.id,
@@ -551,14 +570,8 @@ export async function listActiveTasksByAgent(
       createdAt: agentTaskQueue.createdAt,
     })
     .from(agentTaskQueue)
-    .where(
-      and(
-        eq(agentTaskQueue.agentId, agentId),
-        eq(agentTaskQueue.workspaceId, workspaceId),
-        inArray(agentTaskQueue.status, ["queued", "dispatched", "running"]),
-        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK)
-      )
-    )
+    .innerJoin(conversation, eq(agentTaskQueue.conversationId, conversation.id))
+    .where(and(...conditions))
     .orderBy(desc(agentTaskQueue.priority), asc(agentTaskQueue.createdAt))
     .limit(100);
 }

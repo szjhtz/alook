@@ -23,7 +23,7 @@ export const GET = withAuth(async (req, ctx) => {
   const agentMap = new Map(agents.map((a) => [a.id, { name: a.name, avatarUrl: a.avatarUrl }]));
 
   if (visibleAgentIds.length === 0) return writeJSON({ tasks: [] });
-  const tasks = await queries.task.listActiveTasksByWorkspace(db, ws.workspaceId, visibleAgentIds);
+  const tasks = await queries.task.listActiveTasksByWorkspace(db, ws.workspaceId, visibleAgentIds, ctx.userId);
 
   return writeJSON({
     tasks: tasks.map((t) => ({

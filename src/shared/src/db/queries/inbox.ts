@@ -119,12 +119,22 @@ export async function findLatestAssistantMessageId(
   return rows[0]?.id ?? null;
 }
 
+export async function cleanupOrphanedUnread(db: Database, userId: string, workspaceId: string) {
+  await db.run(sql`
+    DELETE FROM inbox_unread
+    WHERE user_id = ${userId}
+      AND workspace_id = ${workspaceId}
+      AND conversation_id NOT IN (SELECT id FROM conversation)
+  `);
+}
+
 export async function listUnreadConversations(
   db: Database,
   userId: string,
   workspaceId: string,
   opts?: { limit?: number; before?: string; types?: string[] }
 ) {
+  await cleanupOrphanedUnread(db, userId, workspaceId);
   const limit = opts?.limit ?? 30;
   const beforeClause = opts?.before
     ? sql`AND u.completed_at < ${opts.before}`
@@ -186,10 +196,11 @@ export async function getUnreadCount(
 
   const rows = await db.all<{ count: number }>(sql`
     SELECT COUNT(*) AS count
-    FROM inbox_unread
-    WHERE user_id = ${userId}
-      AND workspace_id = ${workspaceId}
-      AND task_type IN (${typePlaceholders})
+    FROM inbox_unread u
+    INNER JOIN conversation c ON c.id = u.conversation_id
+    WHERE u.user_id = ${userId}
+      AND u.workspace_id = ${workspaceId}
+      AND u.task_type IN (${typePlaceholders})
   `);
 
   return rows[0]?.count ?? 0;

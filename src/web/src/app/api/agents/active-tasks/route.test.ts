@@ -52,7 +52,7 @@ describe("GET /api/agents/active-tasks", () => {
     expect(body.tasks[0]).toMatchObject({
       id: "t1", agent_id: "a1", agent: { name: "Agent 1", avatarUrl: "u" }, channel: "default",
     });
-    expect(mockListActive).toHaveBeenCalledWith({}, "w1", ["a1"]);
+    expect(mockListActive).toHaveBeenCalledWith({}, "w1", ["a1"], "u1");
   });
 
   it("passes visible agent IDs to the query for filtering", async () => {
@@ -68,7 +68,7 @@ describe("GET /api/agents/active-tasks", () => {
     ]);
     const res = await GET(new NextRequest("http://localhost/x"), {});
     const body = await res.json();
-    expect(mockListActive).toHaveBeenCalledWith({}, "w1", ["a1"]);
+    expect(mockListActive).toHaveBeenCalledWith({}, "w1", ["a1"], "u1");
     expect(body.tasks).toHaveLength(1);
     expect(body.tasks[0].agent_id).toBe("a1");
   });

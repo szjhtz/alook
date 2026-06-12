@@ -15,6 +15,7 @@ vi.mock("@/lib/db", () => ({
   getDb: vi.fn(() => ({})),
   withD1Retry: vi.fn((fn: () => Promise<any>) => fn()),
 }));
+const mockGetConversation = vi.fn();
 vi.mock("@alook/shared", async () => {
   const real = await vi.importActual<typeof import("@alook/shared")>("@alook/shared");
   return {
@@ -27,6 +28,9 @@ vi.mock("@alook/shared", async () => {
       },
       task: {
         getTask: (...args: any[]) => mockGetTask(...args),
+      },
+      conversation: {
+        getConversation: (...args: any[]) => mockGetConversation(...args),
       },
     },
   };
@@ -103,7 +107,8 @@ describe("POST /api/daemon/tasks/[taskId]/messages", () => {
   });
 
   it("creates messages for workspace-scoped task", async () => {
-    mockGetTask.mockResolvedValue({ id: "t1", workspaceId: "w1" });
+    mockGetTask.mockResolvedValue({ id: "t1", workspaceId: "w1", conversationId: "c1" });
+    mockGetConversation.mockResolvedValue({ id: "c1", userId: "owner-u2" });
     mockCreateTaskMessage.mockResolvedValue({ id: "m1" });
 
     const res = await POST(
@@ -163,8 +168,9 @@ describe("POST /api/daemon/tasks/[taskId]/messages", () => {
     expect(mockCreateTaskMessage).not.toHaveBeenCalled();
   });
 
-  it("only broadcasts text and error messages via WebSocket", async () => {
-    mockGetTask.mockResolvedValue({ id: "t1", workspaceId: "w1" });
+  it("only broadcasts text and error messages via WebSocket to conversation owner", async () => {
+    mockGetTask.mockResolvedValue({ id: "t1", workspaceId: "w1", conversationId: "c1" });
+    mockGetConversation.mockResolvedValue({ id: "c1", userId: "owner-u2" });
     mockCreateTaskMessage.mockResolvedValue({ id: "m1" });
 
     const res = await POST(
@@ -187,13 +193,15 @@ describe("POST /api/daemon/tasks/[taskId]/messages", () => {
     expect(body.status).toBe("ok");
     expect(mockCreateTaskMessage).toHaveBeenCalledTimes(3);
     expect(mockBroadcastToUser).toHaveBeenCalledTimes(1);
+    expect(mockBroadcastToUser.mock.calls[0][0]).toBe("owner-u2");
     const broadcastPayload = mockBroadcastToUser.mock.calls[0][1];
     expect(broadcastPayload.messages).toHaveLength(1);
     expect(broadcastPayload.messages[0].type).toBe("text");
   });
 
   it("stores thinking messages but does not broadcast them", async () => {
-    mockGetTask.mockResolvedValue({ id: "t1", workspaceId: "w1" });
+    mockGetTask.mockResolvedValue({ id: "t1", workspaceId: "w1", conversationId: "c1" });
+    mockGetConversation.mockResolvedValue({ id: "c1", userId: "owner-u2" });
     mockCreateTaskMessage.mockResolvedValue({ id: "m1" });
 
     const res = await POST(
@@ -221,7 +229,8 @@ describe("POST /api/daemon/tasks/[taskId]/messages", () => {
   });
 
   it("does not broadcast when all messages are tool-result", async () => {
-    mockGetTask.mockResolvedValue({ id: "t1", workspaceId: "w1" });
+    mockGetTask.mockResolvedValue({ id: "t1", workspaceId: "w1", conversationId: "c1" });
+    mockGetConversation.mockResolvedValue({ id: "c1", userId: "owner-u2" });
     mockCreateTaskMessage.mockResolvedValue({ id: "m1" });
 
     await POST(

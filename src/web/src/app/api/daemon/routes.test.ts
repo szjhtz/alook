@@ -517,10 +517,13 @@ describe("daemon route body validation", () => {
           createDb: vi.fn(() => ({})),
           queries: {
             task: {
-              getTask: vi.fn().mockResolvedValue({ id: "t1", workspaceId: "w1" }),
+              getTask: vi.fn().mockResolvedValue({ id: "t1", workspaceId: "w1", conversationId: "c1" }),
             },
             taskMessage: {
               createTaskMessage: vi.fn().mockResolvedValue(undefined),
+            },
+            conversation: {
+              getConversation: vi.fn().mockResolvedValue({ id: "c1", userId: "u1" }),
             },
           },
         };
@@ -563,9 +566,12 @@ describe("daemon route body validation", () => {
           createDb: vi.fn(() => ({})),
           queries: {
             task: {
-              getTask: vi.fn().mockResolvedValue({ id: "t1", workspaceId: "w1" }),
+              getTask: vi.fn().mockResolvedValue({ id: "t1", workspaceId: "w1", conversationId: "c1" }),
             },
             taskMessage: { createTaskMessage: createMock },
+            conversation: {
+              getConversation: vi.fn().mockResolvedValue({ id: "c1", userId: "owner-u2" }),
+            },
           },
         };
       });
@@ -589,7 +595,7 @@ describe("daemon route body validation", () => {
 
       expect(res.status).toBe(200);
       expect(broadcastMock).toHaveBeenCalledWith(
-        daemonAuth.userId,
+        "owner-u2",
         expect.objectContaining({
           type: "task.messages",
           taskId: "t1",
@@ -615,9 +621,12 @@ describe("daemon route body validation", () => {
           createDb: vi.fn(() => ({})),
           queries: {
             task: {
-              getTask: vi.fn().mockResolvedValue({ id: "t1", workspaceId: "w1" }),
+              getTask: vi.fn().mockResolvedValue({ id: "t1", workspaceId: "w1", conversationId: "c1" }),
             },
             taskMessage: { createTaskMessage: vi.fn().mockResolvedValue(undefined) },
+            conversation: {
+              getConversation: vi.fn().mockResolvedValue({ id: "c1", userId: "owner-u2" }),
+            },
           },
         };
       });

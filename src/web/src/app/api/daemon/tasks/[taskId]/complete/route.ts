@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { queries } from "@alook/shared"
 import { getDb } from "@/lib/db"
 import { withAuth } from "@/lib/middleware/auth";
 import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
@@ -38,8 +39,11 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     );
     const dateStr = new Date().toISOString().slice(0, 10);
     invalidate(cacheKeys.overviewTaskStats(ctx.workspaceId, dateStr)).catch(() => {});
-    invalidateInboxCounts(ctx.userId, ctx.workspaceId).catch(() => {});
-    broadcastToUser(ctx.userId, { type: "task.updated", taskId, agentId: task.agentId, status: "completed" }).catch(() => {});
+    const conv = await queries.conversation.getConversation(db, task.conversationId, ctx.workspaceId);
+    if (conv) {
+      invalidateInboxCounts(conv.userId, ctx.workspaceId).catch(() => {});
+      broadcastToUser(conv.userId, { type: "task.updated", taskId, agentId: task.agentId, status: "completed" }).catch(() => {});
+    }
     return writeJSON(taskToResponse(task));
   } catch (e: unknown) {
     return writeError(e instanceof Error ? e.message : "Unknown error", 400);

@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const mockStartTask = vi.fn();
 const mockTaskToResponse = vi.fn();
+const mockGetConversation = vi.fn();
 
 let mockAuthCtx: Record<string, unknown> = { userId: "u1", email: "u@t.com", workspaceId: "w1" };
 
@@ -13,6 +14,9 @@ vi.mock("@/lib/db", () => ({ getDb: vi.fn(() => ({})) }));
 
 vi.mock("@alook/shared", () => ({
   createDb: vi.fn(() => ({})),
+  queries: {
+    conversation: { getConversation: (...args: any[]) => mockGetConversation(...args) },
+  },
 }));
 vi.mock("@/lib/middleware/auth", () => ({
   withAuth: vi.fn((handler: any) => async (req: any, ctx?: any) => {
@@ -51,13 +55,15 @@ describe("POST /api/daemon/tasks/[taskId]/start", () => {
     mockAuthCtx = { userId: "u1", email: "u@t.com", workspaceId: "w1" };
   });
 
-  it("returns started task", async () => {
+  it("returns started task and broadcasts to conversation owner", async () => {
     const fakeTask = {
       id: "t1",
       agentId: "a1",
+      conversationId: "c1",
       status: "running",
     };
     mockStartTask.mockResolvedValue(fakeTask);
+    mockGetConversation.mockResolvedValue({ id: "c1", userId: "owner-u2" });
     mockTaskToResponse.mockReturnValue({ id: "t1", status: "running" });
 
     const res = await POST(
@@ -71,6 +77,23 @@ describe("POST /api/daemon/tasks/[taskId]/start", () => {
     expect(res.status).toBe(200);
     expect(body).toEqual({ id: "t1", status: "running" });
     expect(mockStartTask).toHaveBeenCalledWith("t1", "w1");
+    const { broadcastToUser } = await import("@/lib/broadcast");
+    expect(broadcastToUser).toHaveBeenCalledWith("owner-u2", expect.objectContaining({ type: "task.updated", status: "running" }));
+  });
+
+  it("skips broadcast gracefully when conversation not found", async () => {
+    const fakeTask = { id: "t1", agentId: "a1", conversationId: "c-deleted", status: "running" };
+    mockStartTask.mockResolvedValue(fakeTask);
+    mockGetConversation.mockResolvedValue(null);
+    mockTaskToResponse.mockReturnValue({ id: "t1", status: "running" });
+
+    const res = await POST(
+      new NextRequest("http://localhost/api/daemon/tasks/t1/start", { method: "POST" }),
+      withParams("t1")
+    );
+    expect(res.status).toBe(200);
+    const { broadcastToUser } = await import("@/lib/broadcast");
+    expect(broadcastToUser).not.toHaveBeenCalled();
   });
 
   it("returns 400 when task not in dispatched status", async () => {

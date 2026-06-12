@@ -42,12 +42,12 @@ describe("task query module exports", () => {
 });
 
 describe("task query function signatures", () => {
-  it("listActiveTaskCountsByWorkspace accepts (db, workspaceId, agentIds?)", () => {
-    expect(taskQueries.listActiveTaskCountsByWorkspace.length).toBe(3);
+  it("listActiveTaskCountsByWorkspace accepts (db, workspaceId, agentIds?, userId?)", () => {
+    expect(taskQueries.listActiveTaskCountsByWorkspace.length).toBe(4);
   });
 
-  it("listActiveTasksByAgent accepts (db, agentId, workspaceId)", () => {
-    expect(taskQueries.listActiveTasksByAgent.length).toBe(3);
+  it("listActiveTasksByAgent accepts (db, agentId, workspaceId, userId?)", () => {
+    expect(taskQueries.listActiveTasksByAgent.length).toBe(4);
   });
 });
 

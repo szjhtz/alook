@@ -23,7 +23,7 @@ export const GET = withAuth(async (req, ctx) => {
 
   if (visibleAgentIds.length === 0) return writeJSON({ counts: {} });
 
-  const rows = await queries.task.listActiveTaskCountsByWorkspace(db, ws.workspaceId, visibleAgentIds);
+  const rows = await queries.task.listActiveTaskCountsByWorkspace(db, ws.workspaceId, visibleAgentIds, ctx.userId);
   const counts: Record<string, number> = {};
   for (const row of rows) {
     counts[row.agentId] = Number(row.count);

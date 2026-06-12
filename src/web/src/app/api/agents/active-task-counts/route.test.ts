@@ -78,7 +78,7 @@ describe("GET /api/agents/active-task-counts", () => {
 
     expect(res.status).toBe(200);
     expect(body).toEqual({ counts: { ag1: 3 } });
-    expect(mockListActiveTaskCountsByWorkspace).toHaveBeenCalledWith({}, "w1", ["ag1"]);
+    expect(mockListActiveTaskCountsByWorkspace).toHaveBeenCalledWith({}, "w1", ["ag1"], "u1");
   });
 
   it("returns empty counts when no active tasks", async () => {

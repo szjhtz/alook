@@ -1,10 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
+const mockGetConversation = vi.fn();
+
 vi.mock("@opennextjs/cloudflare", () => ({
   getCloudflareContext: vi.fn(() => ({ env: { DB: {} } })),
 }));
 vi.mock("@/lib/db", () => ({ getDb: vi.fn(() => ({})) }));
+vi.mock("@alook/shared", () => ({
+  queries: {
+    conversation: { getConversation: (...args: any[]) => mockGetConversation(...args) },
+  },
+}));
 
 const mockSupersede = vi.fn();
 vi.mock("@/lib/services/task", () => ({
@@ -48,12 +55,17 @@ describe("POST /api/daemon/tasks/[taskId]/supersede", () => {
     expect(res.status).toBe(400);
   });
 
-  it("supersedes a task scoped to the token workspace", async () => {
-    mockSupersede.mockResolvedValue({ id: "t1", agentId: "a1", status: "superseded" });
+  it("supersedes a task and broadcasts to conversation owner", async () => {
+    mockSupersede.mockResolvedValue({ id: "t1", agentId: "a1", conversationId: "c1", status: "superseded" });
+    mockGetConversation.mockResolvedValue({ id: "c1", userId: "owner-u2" });
     const res = await post({ taskId: "t1" });
     expect(res.status).toBe(200);
     expect(mockSupersede).toHaveBeenCalledWith("t1", "w1");
     expect((await res.json()).id).toBe("t1");
+    const { broadcastToUser } = await import("@/lib/broadcast");
+    expect(broadcastToUser).toHaveBeenCalledWith("owner-u2", expect.objectContaining({ type: "task.updated", status: "superseded" }));
+    const { invalidateInboxCounts } = await import("@/lib/cache");
+    expect(invalidateInboxCounts).toHaveBeenCalledWith("owner-u2", "w1");
   });
 
   it("400 when supersede throws (e.g. task not in workspace)", async () => {

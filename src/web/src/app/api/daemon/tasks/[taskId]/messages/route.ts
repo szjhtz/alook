@@ -101,7 +101,10 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       content: m.content || "",
       output: m.output || "",
     }));
-    broadcastToUser(ctx.userId, { type: "task.messages", taskId, messages: wsMessages }).catch(() => {});
+    const conv = await queries.conversation.getConversation(db, task.conversationId, ctx.workspaceId);
+    if (conv) {
+      broadcastToUser(conv.userId, { type: "task.messages", taskId, messages: wsMessages }).catch(() => {});
+    }
   }
 
   return writeJSON({ status: "ok" });

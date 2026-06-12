@@ -105,4 +105,16 @@ describe("GET /api/agents/[id]/active-tasks", () => {
     expect(res.status).toBe(200);
     expect(body.tasks).toEqual([]);
   });
+
+  it("passes userId to query for data isolation", async () => {
+    mockGetAgent.mockResolvedValue({ id: "a1" });
+    mockListActiveTasksByAgent.mockResolvedValue([]);
+
+    await GET(
+      new NextRequest("http://localhost/api/agents/a1/active-tasks"),
+      withParams("a1")
+    );
+
+    expect(mockListActiveTasksByAgent).toHaveBeenCalledWith({}, "a1", "w1", "u1");
+  });
 });

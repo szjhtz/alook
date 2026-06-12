@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const mockCompleteTask = vi.fn();
 const mockTaskToResponse = vi.fn();
+const mockGetConversation = vi.fn();
 
 let mockAuthCtx: Record<string, unknown> = { userId: "u1", email: "u@t.com", workspaceId: "w1" };
 
@@ -15,6 +16,9 @@ vi.mock("@alook/shared", async () => {
   return {
     ...real,
     createDb: vi.fn(() => ({})),
+    queries: {
+      conversation: { getConversation: (...args: any[]) => mockGetConversation(...args) },
+    },
   };
 });
 vi.mock("@/lib/middleware/auth", () => ({
@@ -41,6 +45,11 @@ vi.mock("@/lib/api/responses", () => ({
 vi.mock("@/lib/broadcast", () => ({
   broadcastToUser: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock("@/lib/cache", () => ({
+  invalidate: vi.fn().mockResolvedValue(undefined),
+  invalidateInboxCounts: vi.fn().mockResolvedValue(undefined),
+  cacheKeys: { overviewTaskStats: (w: string, d: string) => `ts:${w}:${d}` },
+}));
 
 import { POST } from "./route";
 
@@ -61,9 +70,10 @@ describe("POST /api/daemon/tasks/[taskId]/complete", () => {
     mockAuthCtx = { userId: "u1", email: "u@t.com", workspaceId: "w1" };
   });
 
-  it("returns completed task", async () => {
-    const fakeTask = { id: "t1", status: "completed" };
+  it("returns completed task and broadcasts to conversation owner", async () => {
+    const fakeTask = { id: "t1", agentId: "a1", conversationId: "c1", status: "completed" };
     mockCompleteTask.mockResolvedValue(fakeTask);
+    mockGetConversation.mockResolvedValue({ id: "c1", userId: "owner-u2" });
     mockTaskToResponse.mockReturnValue({ id: "t1", status: "completed" });
 
     const res = await POST(makeReq("t1", { output: "done" }), withParams("t1"));
@@ -72,6 +82,10 @@ describe("POST /api/daemon/tasks/[taskId]/complete", () => {
     expect(res.status).toBe(200);
     expect(body).toEqual({ id: "t1", status: "completed" });
     expect(mockCompleteTask).toHaveBeenCalledWith("t1", "w1", expect.any(String), "");
+    const { broadcastToUser } = await import("@/lib/broadcast");
+    expect(broadcastToUser).toHaveBeenCalledWith("owner-u2", expect.objectContaining({ type: "task.updated", status: "completed" }));
+    const { invalidateInboxCounts } = await import("@/lib/cache");
+    expect(invalidateInboxCounts).toHaveBeenCalledWith("owner-u2", "w1");
   });
 
   it("returns 403 when workspaceId is missing (session auth)", async () => {
