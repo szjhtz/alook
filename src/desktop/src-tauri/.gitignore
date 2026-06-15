@@ -7,6 +7,7 @@
 /gen/apple/*.xcworkspace/
 /gen/apple/alook-desktop.xcodeproj/
 /gen/apple/exported_binaries/
+/gen/apple/alook-desktop_iOS/Info.plist
 !/gen/android/
 /gen/android/.gradle/
 /gen/android/.tauri/
