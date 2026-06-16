@@ -23,7 +23,7 @@ function deduplicateDevSection(content: string): string {
       seen.set(match[1], i);
     }
   }
-  const cleaned = lines.filter((l) => l !== "").join("\n");
+  const cleaned = lines.filter((l, i) => l !== "" || i === lines.length - 1).join("\n");
   return before + cleaned + after;
 }
 

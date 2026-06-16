@@ -94,7 +94,7 @@ export function startServices(ports: ServicePorts, opts: StartOptions = {}): voi
     const webDir = join(root, "src", "web");
     const emailDir = join(root, "src", "email-worker");
     const wsDir = join(root, "src", "ws-do");
-    const persistTo = ["--persist-to", join(webDir, ".wrangler", "state")];
+    const persistTo = ["--persist-to", join(SELF_HOSTED_DIR, "web", ".wrangler", "state")];
 
     webChild = spawnService("web", "npx", ["next", "dev", "--port", String(ports.web)], webDir, foreground);
     emailChild = spawnService("email-worker", "npx", ["wrangler", "dev", "--local", "--port", String(ports.emailWorker), ...persistTo], emailDir, foreground);
