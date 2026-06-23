@@ -1,24 +1,170 @@
 import { spawn, type ChildProcess } from "child_process";
 import { createInterface } from "readline";
 import type { AgentBackend, AgentSession } from "./index.js";
-import type { ExecOptions, AgentMessage, AgentResult } from "../types.js";
+import type {
+  ExecOptions,
+  AgentMessage,
+  AgentResult,
+  ParsedEvent,
+  StdinMode,
+  DriverLifecycle,
+  BusyDeliveryMode,
+  EncodeOpts,
+} from "../types.js";
 import { killProcessTree } from "../kill-tree.js";
 
 export class ClaudeBackend implements AgentBackend {
   name = "claude";
+  lifecycle: DriverLifecycle = { kind: "persistent", stdin: "gated", inFlightWake: "queue" };
+  busyDeliveryMode: BusyDeliveryMode = "gated";
+  supportsStdinNotification = true;
 
   constructor(private cliPath: string) {}
 
+  parseLine(line: string): ParsedEvent[] {
+    if (!line.trim()) return [];
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      return [{ kind: "log", content: line, level: "debug" }];
+    }
+
+    const events: ParsedEvent[] = [];
+    const eventType = event.type as string | undefined;
+
+    switch (eventType) {
+      case "assistant": {
+        const message = event.message as Record<string, unknown> | undefined;
+        if (!message) break;
+        const content = message.content as
+          | { type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown> }[]
+          | undefined;
+        if (!Array.isArray(content)) break;
+
+        for (const block of content) {
+          if (block.type === "text") {
+            events.push({ kind: "text", text: block.text || "" });
+          } else if (block.type === "thinking") {
+            events.push({ kind: "thinking", text: block.text || "" });
+          } else if (block.type === "tool_use") {
+            events.push({ kind: "tool_call", name: block.name || "", input: block.input, callId: block.id });
+          }
+        }
+        break;
+      }
+
+      case "result": {
+        const result = event.result as string | undefined;
+        const isError = event.is_error as boolean | undefined;
+        if (isError) {
+          events.push({ kind: "error", message: result || "unknown error" });
+        }
+        const resultSessionId = event.session_id as string | undefined;
+        events.push({ kind: "turn_end", sessionId: resultSessionId || undefined });
+        const usage = event.usage as Record<string, unknown> | undefined;
+        if (usage || event.total_cost_usd != null) {
+          events.push({
+            kind: "telemetry",
+            name: "token_usage",
+            source: "claude_result_usage",
+            usageKind: "per_turn",
+            attrs: {
+              inputTokens: usage?.input_tokens,
+              outputTokens: usage?.output_tokens,
+              cachedInputTokens: usage?.cache_read_input_tokens,
+              cacheCreationInputTokens: usage?.cache_creation_input_tokens,
+              totalCostUsd: event.total_cost_usd,
+              durationMs: event.duration_ms,
+              durationApiMs: event.duration_api_ms,
+              numTurns: event.num_turns,
+              resultSubtype: event.subtype,
+              resultIsError: event.is_error,
+              serviceTier: usage?.service_tier,
+            },
+          });
+        }
+        break;
+      }
+
+      case "tool_result": {
+        const toolUseId = event.tool_use_id as string | undefined;
+        const content = event.content as string | undefined;
+        events.push({ kind: "tool_output", callId: toolUseId, output: content });
+        break;
+      }
+
+      case "system": {
+        const subtype = event.subtype as string | undefined;
+        if (subtype === "init") {
+          const sid = event.session_id as string | undefined;
+          events.push({ kind: "session_init", sessionId: sid || "" });
+        } else if (subtype === "context_pruning" || subtype === "compaction") {
+          events.push({ kind: "compaction_started" });
+        } else if (subtype === "compaction_finished" || subtype === "context_pruning_finished") {
+          events.push({ kind: "compaction_finished" });
+        } else if (subtype === "status" || subtype === "stream_event") {
+          events.push({
+            kind: "internal_progress",
+            source: "claude_system",
+            itemType: subtype,
+            payloadBytes: line.length,
+          });
+        }
+        break;
+      }
+
+      case "control_request": {
+        const requestId = event.request_id as string | undefined;
+        if (requestId) {
+          events.push({ kind: "permission_request", requestId, payload: event.payload });
+        }
+        break;
+      }
+
+      default: {
+        events.push({ kind: "log", content: line, level: "debug" });
+      }
+    }
+
+    return events;
+  }
+
+  encodeStdinMessage(text: string, mode: StdinMode, opts?: EncodeOpts): string | null {
+    const msg: Record<string, unknown> = {
+      type: "user",
+      message: {
+        role: "user",
+        content: [{ type: "text", text }],
+      },
+    };
+    if (opts?.sessionId) {
+      msg.session_id = opts.sessionId;
+    }
+    return JSON.stringify(msg);
+  }
+
   execute(prompt: string, options: ExecOptions): AgentSession {
-    const args = [
-      "-p",
-      prompt,
+    // When steering is enabled, use --input-format stream-json and deliver
+    // the initial prompt via stdin JSON write instead of -p. This allows
+    // mid-turn message injection on the same stdin pipe. Without steering,
+    // use the normal -p flag (--input-format stream-json + -p causes a hang).
+    const useStdinPrompt = options.steeringEnabled === true;
+
+    const args: string[] = [];
+    if (!useStdinPrompt) {
+      args.push("-p", prompt);
+    }
+    args.push(
       "--output-format",
       "stream-json",
       "--verbose",
       "--permission-mode",
       "bypassPermissions",
-    ];
+    );
+    if (useStdinPrompt) {
+      args.push("--input-format", "stream-json");
+    }
 
     if (options.model) {
       args.push("--model", options.model);
@@ -82,6 +228,44 @@ export class ClaudeBackend implements AgentBackend {
       }
     };
 
+    // ParsedEvent queue — parallel stream for steering layer observation
+    const parsedEventQueue: ParsedEvent[] = [];
+    let parsedEventResolve: (() => void) | null = null;
+    let parsedEventDone = false;
+
+    const pushParsedEvent = (evt: ParsedEvent) => {
+      parsedEventQueue.push(evt);
+      if (parsedEventResolve) {
+        const r = parsedEventResolve;
+        parsedEventResolve = null;
+        r();
+      }
+    };
+
+    // Serialized stdin write queue — prevents interleaved writes
+    // from concurrent control_response and steering messages.
+    const stdinWriteQueue: string[] = [];
+    let stdinDraining = false;
+
+    const enqueueStdinWrite = (data: string) => {
+      stdinWriteQueue.push(data);
+      drainStdinQueue();
+    };
+
+    const drainStdinQueue = () => {
+      if (stdinDraining) return;
+      stdinDraining = true;
+      while (stdinWriteQueue.length > 0) {
+        const line = stdinWriteQueue.shift()!;
+        try {
+          proc.stdin?.write(line + "\n");
+        } catch {
+          // stdin closed
+        }
+      }
+      stdinDraining = false;
+    };
+
     const resultPromise = new Promise<AgentResult>((resolve) => {
       const stderrChunks: string[] = [];
 
@@ -91,8 +275,24 @@ export class ClaudeBackend implements AgentBackend {
 
       const rl = createInterface({ input: proc.stdout! });
 
+      // When steering mode, deliver the initial prompt via stdin JSON
+      if (useStdinPrompt) {
+        const initialMsg = JSON.stringify({
+          type: "user",
+          message: {
+            role: "user",
+            content: [{ type: "text", text: prompt }],
+          },
+        });
+        enqueueStdinWrite(initialMsg);
+      }
+
       rl.on("line", (line: string) => {
         if (!line.trim()) return;
+
+        // Emit ParsedEvents for steering layer
+        const parsed = this.parseLine(line);
+        for (const pe of parsed) pushParsedEvent(pe);
 
         let event: Record<string, unknown>;
         try {
@@ -169,7 +369,7 @@ export class ClaudeBackend implements AgentBackend {
           }
 
           case "control_request": {
-            handleControlRequest(proc, event);
+            handleControlRequest(proc, event, enqueueStdinWrite);
             break;
           }
 
@@ -188,9 +388,15 @@ export class ClaudeBackend implements AgentBackend {
         lastError = `spawn error: ${err.message}`;
         resolveSessionId(lastSessionId);
         messageDone = true;
+        parsedEventDone = true;
         if (messageResolve) {
           const r = messageResolve;
           messageResolve = null;
+          r();
+        }
+        if (parsedEventResolve) {
+          const r = parsedEventResolve;
+          parsedEventResolve = null;
           r();
         }
         resolve({
@@ -220,9 +426,15 @@ export class ClaudeBackend implements AgentBackend {
         resolveSessionId(lastSessionId);
 
         messageDone = true;
+        parsedEventDone = true;
         if (messageResolve) {
           const r = messageResolve;
           messageResolve = null;
+          r();
+        }
+        if (parsedEventResolve) {
+          const r = parsedEventResolve;
+          parsedEventResolve = null;
           r();
         }
 
@@ -254,18 +466,50 @@ export class ClaudeBackend implements AgentBackend {
       },
     };
 
-    return { pid: proc.pid, messages, sessionId: sessionIdPromise, result: resultPromise };
+    const parsedEvents: AsyncIterable<ParsedEvent> = {
+      [Symbol.asyncIterator]() {
+        return {
+          async next(): Promise<IteratorResult<ParsedEvent>> {
+            while (parsedEventQueue.length === 0 && !parsedEventDone) {
+              await new Promise<void>((resolve) => {
+                parsedEventResolve = resolve;
+              });
+            }
+            if (parsedEventQueue.length > 0) {
+              return { value: parsedEventQueue.shift()!, done: false };
+            }
+            return { value: undefined as unknown as ParsedEvent, done: true };
+          },
+        };
+      },
+    };
+
+    const send = (text: string, mode: StdinMode): { ok: boolean; reason?: string } => {
+      const encoded = this.encodeStdinMessage(text, mode, { sessionId: lastSessionId || undefined });
+      if (!encoded) return { ok: false, reason: "encoding failed" };
+      if (!proc.stdin || proc.stdin.destroyed) return { ok: false, reason: "stdin closed" };
+      enqueueStdinWrite(encoded);
+      return { ok: true };
+    };
+
+    const descriptor = {
+      lifecycle: this.lifecycle,
+      busyDeliveryMode: this.busyDeliveryMode,
+      supportsStdinNotification: this.supportsStdinNotification,
+    };
+
+    return { pid: proc.pid, messages, parsedEvents, sessionId: sessionIdPromise, result: resultPromise, send, descriptor };
   }
 }
 
 function handleControlRequest(
   proc: ChildProcess,
   event: Record<string, unknown>,
+  enqueueStdinWrite?: (data: string) => void,
 ): void {
   const requestId = event.request_id as string | undefined;
   if (!requestId) return;
 
-  // Parse input from the control request payload
   let updatedInput: unknown = undefined;
   const payload = event.payload as Record<string, unknown> | undefined;
   if (payload) {
@@ -293,9 +537,13 @@ function handleControlRequest(
     },
   });
 
-  try {
-    proc.stdin?.write(approval + "\n");
-  } catch {
-    // stdin may be closed
+  if (enqueueStdinWrite) {
+    enqueueStdinWrite(approval);
+  } else {
+    try {
+      proc.stdin?.write(approval + "\n");
+    } catch {
+      // stdin may be closed
+    }
   }
 }

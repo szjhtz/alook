@@ -88,6 +88,7 @@ export interface ExecOptions {
   maxTurns?: number;
   timeout?: number;
   resumeSessionId?: string;
+  steeringEnabled?: boolean;
 }
 
 /** Serialized input passed from daemon to the detached session-runner process. */
@@ -103,6 +104,49 @@ export interface SessionRunnerInput {
   messageInactivityTimeout: number;
   logFilePath?: string;
   promptOverride?: string;
+  steeringEnabled?: boolean;
+  steeringMailboxDir?: string;
+}
+
+// --- Steering & ParsedEvent types ---
+
+export type DriverLifecycleKind = "persistent" | "per_turn";
+
+export type BusyDeliveryMode = "gated" | "direct" | "none";
+
+export type StdinMode = "idle" | "busy";
+
+export interface DriverLifecycle {
+  kind: DriverLifecycleKind;
+  stdin?: "gated" | "direct" | "ignore";
+  inFlightWake?: "queue" | "steer" | "coalesce_into_pending";
+}
+
+export interface EncodeOpts {
+  sessionId?: string;
+  threadId?: string;
+  requestId?: number;
+}
+
+export type ParsedEvent =
+  | { kind: "session_init"; sessionId: string }
+  | { kind: "text"; text: string }
+  | { kind: "thinking"; text: string }
+  | { kind: "tool_call"; name: string; input?: unknown; callId?: string }
+  | { kind: "tool_output"; name?: string; callId?: string; output?: string }
+  | { kind: "turn_end"; sessionId?: string }
+  | { kind: "telemetry"; name: string; source?: string; usageKind?: string; attrs: Record<string, unknown> }
+  | { kind: "compaction_started" }
+  | { kind: "compaction_finished" }
+  | { kind: "permission_request"; requestId: string; payload: unknown }
+  | { kind: "error"; message: string }
+  | { kind: "internal_progress"; detail?: string; source?: string; itemType?: string; payloadBytes?: number }
+  | { kind: "log"; content: string; level?: string };
+
+export interface RuntimeSessionDescriptor {
+  lifecycle: DriverLifecycle;
+  busyDeliveryMode: BusyDeliveryMode;
+  supportsStdinNotification: boolean;
 }
 
 /** Convert a validated TaskApi (snake_case wire format) to the internal Task type. */

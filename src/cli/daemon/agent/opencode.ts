@@ -1,13 +1,128 @@
 import { spawn } from "child_process";
 import { createInterface } from "readline";
 import type { AgentBackend, AgentSession } from "./index.js";
-import type { ExecOptions, AgentMessage, AgentResult } from "../types.js";
+import type {
+  ExecOptions,
+  AgentMessage,
+  AgentResult,
+  ParsedEvent,
+  DriverLifecycle,
+  BusyDeliveryMode,
+} from "../types.js";
 import { killProcessTree } from "../kill-tree.js";
 
 export class OpenCodeBackend implements AgentBackend {
   name = "opencode";
+  lifecycle: DriverLifecycle = { kind: "per_turn", inFlightWake: "coalesce_into_pending" };
+  busyDeliveryMode: BusyDeliveryMode = "none";
+  supportsStdinNotification = false;
 
   constructor(private cliPath: string) {}
+
+  parseLine(line: string): ParsedEvent[] {
+    if (!line.trim()) return [];
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      return [{ kind: "log", content: line, level: "debug" }];
+    }
+
+    const events: ParsedEvent[] = [];
+    const eventType = event.type as string | undefined;
+    const part = event.part as Record<string, unknown> | undefined;
+
+    const eventSessionId = (event.sessionID as string) || (event.session_id as string);
+
+    switch (eventType) {
+      case "session": {
+        const sessionId = event.session_id as string | undefined;
+        if (sessionId) events.push({ kind: "session_init", sessionId });
+        break;
+      }
+
+      case "message": {
+        const role = event.role as string | undefined;
+        const content = event.content as string | undefined;
+        if (role === "assistant" && content) {
+          events.push({ kind: "text", text: content });
+        }
+        break;
+      }
+
+      case "text": {
+        const text = (part?.text as string) || (event.content as string) || "";
+        if (text) events.push({ kind: "text", text });
+        break;
+      }
+
+      case "thinking": {
+        const content = (part?.thinking as string) || (event.content as string) || "";
+        events.push({ kind: "thinking", text: content });
+        break;
+      }
+
+      case "tool_call":
+        events.push({
+          kind: "tool_call",
+          name: (event.name as string) || (part?.name as string) || "",
+          callId: (event.call_id as string) || (part?.id as string) || "",
+          input: (event.input as Record<string, unknown>) || (part?.input as Record<string, unknown>),
+        });
+        break;
+
+      case "tool_result":
+        events.push({
+          kind: "tool_output",
+          callId: (event.call_id as string) || (part?.id as string) || "",
+          output: (event.output as string) || (part?.output as string) || "",
+        });
+        break;
+
+      case "error": {
+        const content = (event.message as string) || (event.content as string) || (part?.error as string) || "";
+        events.push({ kind: "error", message: content });
+        events.push({ kind: "turn_end" });
+        break;
+      }
+
+      case "step_start":
+        break;
+
+      case "step_finish": {
+        const reason = part?.reason as string | undefined;
+        if (reason === "stop" || reason === "end_turn") {
+          events.push({ kind: "turn_end" });
+        }
+        break;
+      }
+
+      case "done":
+      case "complete": {
+        const status = event.status as string | undefined;
+        if (status === "error" || status === "failed") {
+          const output = event.output as string | undefined;
+          events.push({ kind: "error", message: output || "task failed" });
+        }
+        events.push({ kind: "turn_end" });
+        break;
+      }
+
+      default:
+        events.push({ kind: "log", content: line, level: "debug" });
+    }
+
+    // Attach session info if available as first event
+    if (eventSessionId && events.length > 0 && events[0].kind !== "session_init") {
+      events.unshift({ kind: "session_init", sessionId: eventSessionId });
+    }
+
+    return events;
+  }
+
+  encodeStdinMessage(): string | null {
+    return null;
+  }
 
   execute(prompt: string, options: ExecOptions): AgentSession {
     const args = ["run", "--format", "json", "--dir", options.cwd];
@@ -72,11 +187,24 @@ export class OpenCodeBackend implements AgentBackend {
     let messageResolve: (() => void) | null = null;
     let messageDone = false;
 
+    const parsedEventQueue: ParsedEvent[] = [];
+    let parsedEventResolve: (() => void) | null = null;
+    let parsedEventDone = false;
+
     const pushMessage = (msg: AgentMessage) => {
       messageQueue.push(msg);
       if (messageResolve) {
         const r = messageResolve;
         messageResolve = null;
+        r();
+      }
+    };
+
+    const pushParsedEvent = (evt: ParsedEvent) => {
+      parsedEventQueue.push(evt);
+      if (parsedEventResolve) {
+        const r = parsedEventResolve;
+        parsedEventResolve = null;
         r();
       }
     };
@@ -92,6 +220,10 @@ export class OpenCodeBackend implements AgentBackend {
 
       rl.on("line", (line: string) => {
         if (!line.trim()) return;
+
+        // Emit ParsedEvents for steering layer
+        const parsed = this.parseLine(line);
+        for (const pe of parsed) pushParsedEvent(pe);
 
         let event: Record<string, unknown>;
         try {
@@ -224,9 +356,15 @@ export class OpenCodeBackend implements AgentBackend {
         lastError = `spawn error: ${err.message}`;
         resolveSessionId(lastSessionId);
         messageDone = true;
+        parsedEventDone = true;
         if (messageResolve) {
           const r = messageResolve;
           messageResolve = null;
+          r();
+        }
+        if (parsedEventResolve) {
+          const r = parsedEventResolve;
+          parsedEventResolve = null;
           r();
         }
         resolve({
@@ -258,9 +396,15 @@ export class OpenCodeBackend implements AgentBackend {
         resolveSessionId(lastSessionId);
 
         messageDone = true;
+        parsedEventDone = true;
         if (messageResolve) {
           const r = messageResolve;
           messageResolve = null;
+          r();
+        }
+        if (parsedEventResolve) {
+          const r = parsedEventResolve;
+          parsedEventResolve = null;
           r();
         }
 
@@ -292,6 +436,34 @@ export class OpenCodeBackend implements AgentBackend {
       },
     };
 
-    return { pid: proc.pid, messages, sessionId: sessionIdPromise, result: resultPromise };
+    const parsedEvents: AsyncIterable<ParsedEvent> = {
+      [Symbol.asyncIterator]() {
+        return {
+          async next(): Promise<IteratorResult<ParsedEvent>> {
+            while (parsedEventQueue.length === 0 && !parsedEventDone) {
+              await new Promise<void>((resolve) => {
+                parsedEventResolve = resolve;
+              });
+            }
+            if (parsedEventQueue.length > 0) {
+              return { value: parsedEventQueue.shift()!, done: false };
+            }
+            return { value: undefined as unknown as ParsedEvent, done: true };
+          },
+        };
+      },
+    };
+
+    const send = (): { ok: boolean; reason?: string } => {
+      return { ok: false, reason: "unsupported" };
+    };
+
+    const descriptor = {
+      lifecycle: this.lifecycle,
+      busyDeliveryMode: this.busyDeliveryMode,
+      supportsStdinNotification: this.supportsStdinNotification,
+    };
+
+    return { pid: proc.pid, messages, parsedEvents, sessionId: sessionIdPromise, result: resultPromise, send, descriptor };
   }
 }

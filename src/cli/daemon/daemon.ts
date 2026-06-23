@@ -1,7 +1,7 @@
 import { DaemonClient } from "./client.js";
 import { type DaemonConfig, loadDaemonConfig, sessionRunnerLogDir, daemonLogFilePath } from "./config.js";
 import { createHealthServer } from "./health.js";
-import { detectVersion } from "./agent/index.js";
+import { detectVersion, createBackend } from "./agent/index.js";
 import { type Task, type Attachment, type SessionRunnerInput, fromApiTask } from "./types.js";
 import { type MarkerData, writeMarkerFile, downloadAttachments } from "./session-runner.js";
 import { buildPrompt, buildMergedPrompt } from "./prompt.js";
@@ -24,6 +24,12 @@ import {
   releaseSteeringLock,
   cleanupStaleIntents,
 } from "./execenv/steering.js";
+import {
+  ensureMailboxDirs,
+  writeSteerMessage,
+  waitForAck,
+  inboxDir as steeringInboxDir,
+} from "./steering/mailbox.js";
 import { TASK_TYPES } from "@alook/shared";
 import { readDirectoryTree, readFileContent, validatePath } from "./workspace-files.js";
 import { startSkillScanner, stopSkillScanner } from "./skill-scanner.js";
@@ -1118,6 +1124,49 @@ async function handleTask(
 
             // Supersede predecessor if found.
             if (predecessor && predecessor.task_id !== task.id) {
+              // Steering-first: try mailbox injection for persistent backends
+              const backendInst = createBackend(provider, "");
+              const isPersistent = backendInst.lifecycle?.kind === "persistent";
+
+              if (config.enableSteering && isPersistent && predecessor.pid != null) {
+                log.info(`Steering: task ${task.id} steering into predecessor ${predecessor.task_id} via mailbox (context_key=${ctxKey})`);
+                try {
+                  ensureMailboxDirs(agentBaseDir, ctxKey);
+
+                  // Download attachments for the steered task
+                  const attachmentIds = (task.context?.attachment_ids as string[]) ?? [];
+                  let steerAttachments: { localPath: string; filename: string; contentType: string }[] = [];
+                  if (attachmentIds.length > 0) {
+                    try {
+                      const downloaded = await downloadAttachments(client, token, task.workspaceId, task.id, attachmentIds);
+                      steerAttachments = downloaded.map((a) => ({ localPath: a.path, filename: a.filename, contentType: a.content_type }));
+                    } catch (e) {
+                      log.warn(`Steering mailbox: failed to download attachments for ${task.id}`, e);
+                    }
+                  }
+
+                  const seq = writeSteerMessage(agentBaseDir, ctxKey, {
+                    taskId: task.id,
+                    text: buildPrompt(task),
+                    attachments: steerAttachments,
+                    createdAt: new Date().toISOString(),
+                  });
+
+                  const ackResult = await waitForAck(agentBaseDir, ctxKey, seq);
+                  if (ackResult.acked) {
+                    log.info(`Steering: task ${task.id} steered into predecessor ${predecessor.task_id} (acked)`);
+                    try { await client.startTask(token, task.id); } catch { /* best effort — already started above */ }
+                    pendingSteer.delete(ctxKey);
+                    activeTasks.delete(task.id);
+                    return;
+                  }
+                  log.info(`Steering: mailbox delivery failed for ${task.id} (${ackResult.nackReason}), falling back to kill-and-respawn`);
+                } catch (e) {
+                  log.warn(`Steering: mailbox error for ${task.id}, falling back to kill-and-respawn`, e);
+                }
+              }
+
+              // Fallback: kill-and-respawn (existing behavior)
               log.info(`Steering: task ${task.id} supersedes predecessor ${predecessor.task_id} (context_key=${ctxKey})`);
               if (predecessor.pid != null) {
                 writeKillIntent(agentBaseDir, { reason: "superseded", targetTaskId: predecessor.task_id, expectedPid: predecessor.pid, successorTaskId: task.id });
@@ -1196,6 +1245,16 @@ async function handleTask(
   const agentModel = task.agent?.runtimeConfig?.model;
   const model = (typeof agentModel === "string" && agentModel) ? agentModel : configModel;
 
+  // Determine if this session-runner should watch the steering mailbox
+  const backendForInput = createBackend(provider, "");
+  const steeringEligible = config.enableSteering && backendForInput.lifecycle?.kind === "persistent" && !!task.contextKey;
+  let steeringMailboxDir: string | undefined;
+  if (steeringEligible) {
+    const agentBaseDirForSteering = join(config.workspacesRoot, task.workspaceId, task.agentId, "workdir");
+    ensureMailboxDirs(agentBaseDirForSteering, task.contextKey!);
+    steeringMailboxDir = steeringInboxDir(agentBaseDirForSteering, task.contextKey!);
+  }
+
   const input: SessionRunnerInput = {
     task,
     provider,
@@ -1207,6 +1266,8 @@ async function handleTask(
     agentTimeout: config.agentTimeout,
     messageInactivityTimeout: config.messageInactivityTimeout,
     ...(promptOverride && { promptOverride }),
+    ...(steeringEligible && { steeringEnabled: true }),
+    ...(steeringMailboxDir && { steeringMailboxDir }),
   };
 
   const child = spawnSessionRunner(input);

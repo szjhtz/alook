@@ -19,6 +19,23 @@ import {
   findResumableSessionByContextKey,
 } from "./execenv/timeline.js";
 import { readKillIntent, clearKillIntent } from "./execenv/steering.js";
+import { watchInbox, writeAck, writeNack, cleanupInboxFile, cleanupSteeringDir, type MailboxWatcher } from "./steering/mailbox.js";
+import { RuntimeTurnState } from "./steering/turnState.js";
+import {
+  createInitialApmState,
+  reduceApmGatedToolUse,
+  reduceApmGatedCompaction,
+  reduceApmGatedEnqueue,
+  reduceApmGatedTurnEnd,
+  reduceApmGatedError,
+  reduceApmGatedFlushReadiness,
+  reduceApmGatedRecentEvent,
+  reduceApmStalledRecoveryTermination,
+  reduceApmStartupTimeoutTermination,
+} from "./steering/apmStateMachine.js";
+import { RuntimeNotificationState } from "./steering/notificationState.js";
+import { RuntimeProgressState } from "./steering/progressState.js";
+import { classifyRuntimeError, scrubDiagnosticText } from "./steering/errorDiagnostics.js";
 import { killProcessTree } from "./kill-tree.js";
 import { buildPrompt } from "./prompt.js";
 import { createLogger } from "../lib/logger.js";
@@ -214,6 +231,9 @@ export async function runSession(input: SessionRunnerInput): Promise<void> {
     }
   };
 
+  let mailboxWatcher: MailboxWatcher | null = null;
+  let stalledRecoveryTimer: ReturnType<typeof setInterval> | undefined;
+
   // --- Single SIGTERM/SIGINT handler, registered ONCE for the whole lifetime.
   //     Every field it touches is guarded for the "not yet initialized" window
   //     (kill arriving before the agent is spawned / batching has started). ---
@@ -221,6 +241,10 @@ export async function runSession(input: SessionRunnerInput): Promise<void> {
     if (killed) return;
     killed = true;
     log.info(`killed by signal (messages=${seq}, tools=${toolCount})`);
+
+    // 0. Stop mailbox watcher and stalled recovery timer (if running)
+    if (mailboxWatcher) mailboxWatcher.stop();
+    if (stalledRecoveryTimer) clearInterval(stalledRecoveryTimer);
 
     // 1. Kill the inner agent process group (CLI + tool/MCP subprocesses),
     //    escalating to SIGKILL if it ignores SIGTERM. No-op if not yet spawned.
@@ -331,6 +355,7 @@ export async function runSession(input: SessionRunnerInput): Promise<void> {
     env,
     timeout: agentTimeout,
     resumeSessionId,
+    steeringEnabled: input.steeringEnabled,
   });
 
   // Capture agent PID so the handler can reap it. backend.execute() spawns
@@ -363,6 +388,246 @@ export async function runSession(input: SessionRunnerInput): Promise<void> {
   });
 
   flushTimer = setInterval(flushMessages, FLUSH_INTERVAL_MS);
+
+  // --- Steering: mailbox watcher + state machines ---
+  const turnState = new RuntimeTurnState();
+  let apmState = createInitialApmState();
+  const notificationState = new RuntimeNotificationState();
+  const progressState = new RuntimeProgressState();
+  const pendingSteeredTasks = new Set<string>();
+  let hasReceivedProgressEvent = false;
+
+  if (input.steeringEnabled && input.steeringMailboxDir && task.contextKey) {
+    const descriptor = session.descriptor;
+    const STALLED_THRESHOLD_MS = 120_000; // 2 minutes
+    const STALLED_CHECK_INTERVAL_MS = 30_000; // 30 seconds
+
+    // Start a background ParsedEvent consumer for steering state machine updates
+    if (session.parsedEvents) {
+      const parsedIter = session.parsedEvents[Symbol.asyncIterator]();
+      const consumeParsedEvents = async () => {
+        try {
+          while (!killed) {
+            const { value: event, done } = await parsedIter.next();
+            if (done) break;
+
+            hasReceivedProgressEvent = true;
+
+            // Track progress for granular liveness detection
+            progressState.processEvent(event);
+
+            // Record recent event for diagnostics
+            const recentResult = reduceApmGatedRecentEvent(apmState, { event: event.kind });
+            apmState = recentResult.nextState;
+
+            // Classify errors for structured diagnostics + update APM state
+            if (event.kind === "error") {
+              const classified = classifyRuntimeError(event.message);
+              log.info(`steering: error classified as ${classified.errorClass}: ${scrubDiagnosticText(event.message)}`);
+              const errResult = reduceApmGatedError(apmState, { disableToolBoundaryFlush: true });
+              apmState = errResult.nextState;
+            }
+
+            // turnState gate transitions — BEFORE reducer calls
+            switch (event.kind) {
+              case "tool_call":
+              case "thinking":
+              case "compaction_started":
+                turnState.markToolBoundary();
+                break;
+              case "text":
+              case "tool_output":
+              case "compaction_finished":
+                turnState.markProgress();
+                break;
+            }
+
+            switch (event.kind) {
+              case "session_init":
+                turnState.markTurnStarted(event.sessionId);
+                break;
+              case "text":
+                if (!turnState.isInTurn) turnState.markTurnStarted();
+                break;
+              case "tool_call": {
+                if (!turnState.isInTurn) turnState.markTurnStarted();
+                const result = reduceApmGatedToolUse(apmState, { kind: "tool_call" });
+                apmState = result.nextState;
+                break;
+              }
+              case "tool_output": {
+                const result = reduceApmGatedToolUse(apmState, { kind: "tool_output" });
+                apmState = result.nextState;
+                if (result.shouldFlushToolBatch && session.send && apmState.pendingMessages.length > 0) {
+                  const readiness = reduceApmGatedFlushReadiness(apmState, {
+                    isGated: descriptor?.busyDeliveryMode === "gated",
+                    hasSession: !!earlySessionId,
+                    inboxLength: apmState.pendingMessages.length,
+                    reason: "tool_batch_complete",
+                  });
+                  if (readiness.shouldNotify) {
+                    for (const msg of apmState.pendingMessages) {
+                      session.send(msg, "busy");
+                    }
+                    apmState = { ...apmState, pendingMessages: [] };
+                  }
+                }
+                break;
+              }
+              case "compaction_started":
+              case "compaction_finished": {
+                const result = reduceApmGatedCompaction(apmState, { kind: event.kind });
+                apmState = result.nextState;
+                if (event.kind === "compaction_finished" && session.send && apmState.pendingMessages.length > 0) {
+                  const readiness = reduceApmGatedFlushReadiness(apmState, {
+                    isGated: descriptor?.busyDeliveryMode === "gated",
+                    hasSession: !!earlySessionId,
+                    inboxLength: apmState.pendingMessages.length,
+                    reason: "compaction_finished",
+                  });
+                  if (readiness.shouldNotify) {
+                    for (const msg of apmState.pendingMessages) {
+                      session.send(msg, "busy");
+                    }
+                    apmState = { ...apmState, pendingMessages: [] };
+                  }
+                }
+                break;
+              }
+              case "turn_end": {
+                const result = reduceApmGatedTurnEnd(apmState, {
+                  inboxLength: apmState.pendingMessages.length,
+                  supportsStdinNotification: descriptor?.supportsStdinNotification,
+                  hasSession: !!earlySessionId,
+                });
+                apmState = result.nextState;
+                for (const eff of result.effects) {
+                  if (eff.kind === "deliver_stdin" && session.send) {
+                    for (const msg of apmState.pendingMessages) {
+                      session.send(msg, eff.stdinMode);
+                    }
+                    apmState = { ...apmState, pendingMessages: [] };
+                  }
+                }
+                // Complete any pending steered tasks
+                for (const steeredId of pendingSteeredTasks) {
+                  client.completeTask(token, steeredId, { output: "" }).catch((e) => {
+                    log.debug(`steering: failed to complete steered task ${steeredId}`, e);
+                  });
+                }
+                pendingSteeredTasks.clear();
+                turnState.markTurnCompleted();
+                break;
+              }
+            }
+          }
+        } catch { /* stream ended */ }
+      };
+      consumeParsedEvents();
+    }
+
+    // Stalled recovery + startup timeout timer
+    stalledRecoveryTimer = setInterval(() => {
+      if (killed) return;
+
+      // Startup timeout check on first tick
+      if (!hasReceivedProgressEvent) {
+        const startupResult = reduceApmStartupTimeoutTermination(apmState, {
+          hasRuntimeProgressEvent: hasReceivedProgressEvent,
+        });
+        apmState = startupResult.nextState;
+        if (startupResult.shouldTerminate) {
+          log.warn("steering: startup timeout — no progress events received, killing agent");
+          if (agentPid !== undefined) void killProcessTree(agentPid);
+          return;
+        }
+      }
+
+      // Stalled recovery check
+      const staleForMs = progressState.ageMs();
+      if (staleForMs > STALLED_THRESHOLD_MS && !progressState.isStale) {
+        progressState.markStale();
+      }
+      const stalledResult = reduceApmStalledRecoveryTermination(apmState, {
+        inboxLength: apmState.pendingMessages.length,
+        staleForMs,
+        staleThresholdMs: STALLED_THRESHOLD_MS,
+        runtimeProgressIsStale: progressState.isStale,
+        hasSession: !!earlySessionId,
+        busyDeliveryMode: descriptor?.busyDeliveryMode ?? "none",
+        hasDirectStdinRecoveryEvidence: false,
+      });
+      apmState = stalledResult.nextState;
+      if (stalledResult.shouldTerminate) {
+        log.warn(`steering: stalled recovery — agent stale for ${(staleForMs / 1000).toFixed(1)}s with ${apmState.pendingMessages.length} pending messages, killing`);
+        if (agentPid !== undefined) void killProcessTree(agentPid);
+      }
+    }, STALLED_CHECK_INTERVAL_MS);
+
+    // Start watching the mailbox for steered messages from daemon
+    mailboxWatcher = watchInbox(
+      agentBaseDir,
+      task.contextKey,
+      (seq, message) => {
+        const sessionId = earlySessionId || "";
+        if (notificationState.isDuplicateNotice(String(seq), sessionId)) {
+          writeAck(agentBaseDir, task.contextKey!, seq);
+          cleanupInboxFile(agentBaseDir, task.contextKey!, seq);
+          return;
+        }
+
+        const busyMode = session.descriptor?.busyDeliveryMode;
+        let delivered = false;
+
+        if (busyMode === "direct" && session.send) {
+          const result = session.send(message.text, turnState.isInTurn ? "busy" : "idle");
+          if (result.ok) {
+            notificationState.recordNoticeWritten(String(seq), sessionId, [{ id: String(seq) }]);
+            writeAck(agentBaseDir, task.contextKey!, seq);
+            delivered = true;
+          } else {
+            writeNack(agentBaseDir, task.contextKey!, seq, result.reason || "send failed");
+          }
+        } else if (busyMode === "gated") {
+          const enqueueResult = reduceApmGatedEnqueue(apmState, message.text);
+          apmState = enqueueResult.nextState;
+
+          // Check if we can flush immediately
+          if (turnState.canSteerBusy && session.send && apmState.pendingMessages.length > 0) {
+            const readiness = reduceApmGatedFlushReadiness(apmState, {
+              isGated: true,
+              hasSession: !!earlySessionId,
+              inboxLength: apmState.pendingMessages.length,
+              reason: "enqueue",
+            });
+            if (readiness.shouldNotify) {
+              for (const msg of apmState.pendingMessages) {
+                session.send(msg, "busy");
+              }
+              apmState = { ...apmState, pendingMessages: [] };
+            }
+          }
+
+          notificationState.recordNoticeWritten(String(seq), sessionId, [{ id: String(seq) }]);
+          writeAck(agentBaseDir, task.contextKey!, seq);
+          delivered = true;
+        } else {
+          writeNack(agentBaseDir, task.contextKey!, seq, "unsupported backend");
+        }
+
+        // Report steered task lifecycle to server
+        if (delivered && message.taskId) {
+          pendingSteeredTasks.add(message.taskId);
+          client.startTask(token, message.taskId).catch((e) => {
+            log.debug(`steering: failed to start steered task ${message.taskId}`, e);
+          });
+        }
+
+        cleanupInboxFile(agentBaseDir, task.contextKey!, seq);
+      },
+    );
+
+  }
 
   // Message inactivity timeout — kill hung agent if no messages arrive within the window
   const INACTIVITY_TIMEOUT_MS = messageInactivityTimeout ?? 5 * 60 * 1000;
@@ -452,6 +717,13 @@ export async function runSession(input: SessionRunnerInput): Promise<void> {
   if (inactivityTimedOut) {
     result.status = "failed";
     result.error = `message inactivity timeout (no messages for ${INACTIVITY_TIMEOUT_MS / 1000}s)`;
+  }
+
+  // Stop steering timers and clean up
+  if (stalledRecoveryTimer) clearInterval(stalledRecoveryTimer);
+  if (mailboxWatcher) {
+    mailboxWatcher.stop();
+    if (task.contextKey) cleanupSteeringDir(agentBaseDir, task.contextKey);
   }
 
   // Cleanup attachments after task completion

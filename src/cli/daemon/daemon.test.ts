@@ -70,6 +70,7 @@ vi.mock("./ws-client.js", () => {
 
 vi.mock("./agent/index.js", () => ({
   detectVersion: vi.fn(async () => "1.0.0"),
+  createBackend: vi.fn(() => ({ lifecycle: { kind: "per_turn" }, busyDeliveryMode: "none", supportsStdinNotification: false })),
 }));
 
 vi.mock("../lib/config.js", () => ({
@@ -131,6 +132,13 @@ vi.mock("./execenv/steering.js", () => ({
   acquireSteeringLock: (...args: any[]) => mockAcquireSteeringLock(...(args as any[])),
   releaseSteeringLock: (...args: any[]) => mockReleaseSteeringLock(...(args as any[])),
   cleanupStaleIntents: (...args: any[]) => mockCleanupStaleIntents(...(args as any[])),
+}));
+
+vi.mock("./steering/mailbox.js", () => ({
+  ensureMailboxDirs: vi.fn(),
+  writeSteerMessage: vi.fn(() => "000001"),
+  waitForAck: vi.fn(async () => ({ acked: false, nackReason: "mock" })),
+  inboxDir: vi.fn(() => "/tmp/mock-inbox"),
 }));
 
 // Track spawned children
