@@ -110,7 +110,7 @@ export interface SessionRunnerInput {
 
 // --- Steering & ParsedEvent types ---
 
-export type DriverLifecycleKind = "persistent" | "per_turn";
+type DriverLifecycleKind = "persistent" | "per_turn";
 
 export type BusyDeliveryMode = "gated" | "direct" | "none";
 

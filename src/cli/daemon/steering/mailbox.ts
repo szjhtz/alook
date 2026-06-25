@@ -22,7 +22,7 @@ export interface SteerMessage {
   createdAt: string;
 }
 
-export interface NackPayload {
+interface NackPayload {
   reason: string;
 }
 
@@ -33,12 +33,12 @@ export function inboxDir(baseDir: string, contextKey: string): string {
   return join(baseDir, ".steering", safeKey, "inbox");
 }
 
-export function ackDir(baseDir: string, contextKey: string): string {
+function ackDir(baseDir: string, contextKey: string): string {
   const safeKey = contextKey.replace(/[^a-zA-Z0-9_:-]/g, "_");
   return join(baseDir, ".steering", safeKey, "ack");
 }
 
-export function steeringDir(baseDir: string, contextKey: string): string {
+function steeringDir(baseDir: string, contextKey: string): string {
   const safeKey = contextKey.replace(/[^a-zA-Z0-9_:-]/g, "_");
   return join(baseDir, ".steering", safeKey);
 }
@@ -107,7 +107,7 @@ export function waitForAck(
 
 // --- Session-runner side (reader) ---
 
-export function readSteerMessage(filePath: string): SteerMessage | null {
+function readSteerMessage(filePath: string): SteerMessage | null {
   try {
     const content = readFileSync(filePath, "utf-8");
     return JSON.parse(content) as SteerMessage;
@@ -202,23 +202,3 @@ export function watchInbox(
   };
 }
 
-// --- Daemon restart: stale message detection ---
-
-export function findStaleInboxMessages(baseDir: string, contextKey: string, maxAgeMs: number = 30_000): string[] {
-  const inbox = inboxDir(baseDir, contextKey);
-  const stale: string[] = [];
-  try {
-    const files = readdirSync(inbox).filter((f) => f.endsWith(".json") && !f.endsWith(".tmp"));
-    const now = Date.now();
-    for (const file of files) {
-      try {
-        const content = readFileSync(join(inbox, file), "utf-8");
-        const msg = JSON.parse(content) as SteerMessage;
-        if (msg.createdAt && now - Date.parse(msg.createdAt) > maxAgeMs) {
-          stale.push(file.replace(/\.json$/, ""));
-        }
-      } catch { /* skip malformed */ }
-    }
-  } catch { /* inbox doesn't exist */ }
-  return stale;
-}

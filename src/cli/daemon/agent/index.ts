@@ -35,14 +35,6 @@ export interface AgentBackend {
   encodeStdinMessage?(text: string, mode: StdinMode, opts?: EncodeOpts): string | null;
 }
 
-export function descriptorFromDriver(backend: AgentBackend): RuntimeSessionDescriptor {
-  return {
-    lifecycle: backend.lifecycle ?? { kind: "per_turn" },
-    busyDeliveryMode: backend.busyDeliveryMode ?? "none",
-    supportsStdinNotification: backend.supportsStdinNotification ?? false,
-  };
-}
-
 export function createBackend(
   provider: string,
   cliPath: string,

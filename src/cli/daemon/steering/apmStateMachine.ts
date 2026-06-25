@@ -18,7 +18,7 @@
 
 export const MAX_APM_GATED_STEERING_EVENTS = 12;
 
-export type ApmPhase =
+type ApmPhase =
   | "idle"
   | "tool_wait"
   | "tool_boundary"

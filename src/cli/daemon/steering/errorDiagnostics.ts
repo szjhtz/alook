@@ -10,7 +10,7 @@
  *   4. Fallback: `RuntimeError`.
  */
 
-export type ErrorClass =
+type ErrorClass =
   | "RateLimitError"
   | "AuthError"
   | "NotFoundError"
@@ -22,7 +22,7 @@ export type ErrorClass =
   | "ProviderApiError"
   | "RuntimeError";
 
-export type ErrorAction = "retry" | "retry_backoff" | "retry_jitter" | "abort" | "report";
+type ErrorAction = "retry" | "retry_backoff" | "retry_jitter" | "abort" | "report";
 
 export interface ClassifiedError {
   errorClass: ErrorClass;
@@ -71,7 +71,7 @@ export function extractHttpStatus(message: string): number | null {
   return semantic ? Number(semantic[1]) : null;
 }
 
-export const AUTH_ACTION_REQUIRED_PATTERNS: RegExp[] = [
+const AUTH_ACTION_REQUIRED_PATTERNS: RegExp[] = [
   /access token could not be refreshed/i,
   /\btoken_(?:revoked|invalidated)\b/i,
   /refresh token was already used/i,
