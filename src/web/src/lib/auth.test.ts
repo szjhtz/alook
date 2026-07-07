@@ -60,6 +60,12 @@ function makeEnv(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 type AuthOptions = {
+  user?: {
+    additionalFields?: Record<
+      string,
+      { type: string; required?: boolean; input?: boolean; returned?: boolean }
+    >
+  }
   rateLimit: {
     enabled: boolean
     customRules: Record<string, { window: number; max: number }>
@@ -77,6 +83,11 @@ type AuthOptions = {
   databaseHooks?: {
     user?: {
       create?: {
+        before?: (user: {
+          name?: string
+          email?: string
+          [k: string]: unknown
+        }) => Promise<{ data: { name?: string; email?: string; [k: string]: unknown } }>
         after?: (user: unknown, ctx: unknown) => Promise<void>
       }
     }
@@ -197,6 +208,20 @@ describe("createAuth session cookie cache", () => {
   })
 })
 
+describe("createAuth user fields", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("registers discriminator as a Better Auth user field", async () => {
+    const createAuth = await loadCreateAuth()
+    const opts = (createAuth(makeEnv({ NODE_ENV: "production" }) as never) as { __options: AuthOptions }).__options
+    expect(opts.user?.additionalFields?.discriminator).toEqual({
+      type: "string",
+      required: false,
+      input: false,
+    })
+  })
+})
+
 describe("createAuth device authorization plugin", () => {
   beforeEach(() => vi.clearAllMocks())
 
@@ -300,5 +325,63 @@ describe("createAuth databaseHooks — user.create.after", () => {
     const opts = (createAuth(makeEnv({ NODE_ENV: "production" }) as never) as { __options: AuthOptions }).__options
     const afterHook = opts.databaseHooks!.user!.create!.after!
     await expect(afterHook({ id: "u5" }, null)).resolves.toBeUndefined()
+  })
+})
+
+describe("createAuth databaseHooks — user.create.before", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("coalesces empty name to email prefix", async () => {
+    const createAuth = await loadCreateAuth()
+    const opts = (createAuth(makeEnv({ NODE_ENV: "production" }) as never) as { __options: AuthOptions }).__options
+    const beforeHook = opts.databaseHooks!.user!.create!.before!
+    const result = await beforeHook({ id: "u1", name: "", email: "alice@example.com" })
+    expect(result.data.name).toBe("alice")
+    expect(result.data.email).toBe("alice@example.com")
+    expect(result.data.discriminator).toMatch(/^\d{4}$/)
+  })
+
+  it("keeps a non-empty name and always stamps a 4-digit discriminator", async () => {
+    const createAuth = await loadCreateAuth()
+    const opts = (createAuth(makeEnv({ NODE_ENV: "production" }) as never) as { __options: AuthOptions }).__options
+    const beforeHook = opts.databaseHooks!.user!.create!.before!
+    const input = { id: "u2", name: "Alice", email: "alice@example.com" }
+    const result = await beforeHook(input)
+    expect(result.data.name).toBe("Alice")
+    expect(result.data.email).toBe("alice@example.com")
+    expect(result.data.discriminator).toMatch(/^\d{4}$/)
+  })
+
+  it("coalesces whitespace-only name to email prefix", async () => {
+    const createAuth = await loadCreateAuth()
+    const opts = (createAuth(makeEnv({ NODE_ENV: "production" }) as never) as { __options: AuthOptions }).__options
+    const beforeHook = opts.databaseHooks!.user!.create!.before!
+    const result = await beforeHook({ id: "u3", name: "   ", email: "bob@example.com" })
+    expect(result.data.name).toBe("bob")
+  })
+
+  it("coalesces null-ish name (GitHub OAuth with no profile name) to email prefix", async () => {
+    const createAuth = await loadCreateAuth()
+    const opts = (createAuth(makeEnv({ NODE_ENV: "production" }) as never) as { __options: AuthOptions }).__options
+    const beforeHook = opts.databaseHooks!.user!.create!.before!
+    // Better-Auth's GitHub adapter can pass through name as null / undefined
+    // when the provider profile has no display name set.
+    const result = await beforeHook({ id: "u4", email: "carol@example.com" } as {
+      name?: string
+      email?: string
+    })
+    expect(result.data.name).toBe("carol")
+  })
+
+  it("discriminator is deterministic on the provided id", async () => {
+    const createAuth = await loadCreateAuth()
+    const opts = (createAuth(makeEnv({ NODE_ENV: "production" }) as never) as { __options: AuthOptions }).__options
+    const beforeHook = opts.databaseHooks!.user!.create!.before!
+    const { computeDiscriminator } = await import("@alook/shared")
+    const a = await beforeHook({ id: "u_fixed_id", name: "x", email: "x@example.com" })
+    const b = await beforeHook({ id: "u_fixed_id", name: "y", email: "y@example.com" })
+    expect(a.data.discriminator).toBe(b.data.discriminator)
+    expect(a.data.discriminator).toBe(computeDiscriminator("u_fixed_id"))
+    expect(a.data.discriminator).not.toBe("0000")
   })
 })

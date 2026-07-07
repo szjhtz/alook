@@ -2,6 +2,7 @@ declare namespace Cloudflare {
   interface Env {
     DB: D1Database
     EMAIL_BUCKET: R2Bucket
+    COMMUNITY_MEDIA: R2Bucket
     WS_DO_WORKER: Fetcher
     EMAIL_WORKER: Fetcher
     WORKER_SELF_REFERENCE: Fetcher
@@ -23,6 +24,7 @@ declare namespace Cloudflare {
     MIN_CLI_VERSION?: string
     DEVICE_CLIENT_IDS?: string
     NODE_ENV?: string
+    DEV_WS_DO_URL?: string
   }
 }
 
