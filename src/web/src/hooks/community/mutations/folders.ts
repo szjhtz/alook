@@ -34,11 +34,17 @@ export function useCreateServerFolderWith() {
     { snapshot: FoldersResponse | undefined; tempId: string }
   >({
     mutationFn: async ({ serverIdA, serverIdB }) => {
+      // Right-click → "Create group" on a single rail server reuses this
+      // same mutation with `serverIdA === serverIdB` (see `server-rail.tsx`)
+      // to seed a one-server folder the user can then drag more servers
+      // into. Dedupe so that path doesn't insert the same server twice —
+      // both here and in `onMutate` below.
+      const serverIds = [...new Set([serverIdA, serverIdB])]
       return apiFetch<CreateServerFolderWithResult>(
         "/api/community/server-folders",
         {
           method: "POST",
-          body: JSON.stringify({ name: "Group", serverIds: [serverIdA, serverIdB] }),
+          body: JSON.stringify({ name: "Group", serverIds }),
         },
       )
     },
@@ -53,13 +59,12 @@ export function useCreateServerFolderWith() {
         return { id: s.id, name: s.name, initial: s.initial, icon: s.icon ?? null }
       }
       const tempId = `temp_${Date.now()}`
+      const uniqueIds = [...new Set([args.serverIdA, args.serverIdB])]
       const tempFolder: CommunityFolder = {
         id: tempId,
         name: "Group",
         position: snapshot?.folders.length ?? 0,
-        servers: [findServer(args.serverIdA), findServer(args.serverIdB)].filter(
-          (s): s is FolderServer => s !== null,
-        ),
+        servers: uniqueIds.map(findServer).filter((s): s is FolderServer => s !== null),
       }
       queryClient.setQueryData<FoldersResponse | undefined>(key, (prev) =>
         prev

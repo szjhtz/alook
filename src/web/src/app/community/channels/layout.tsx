@@ -128,16 +128,42 @@ export default function ServerLayout({ children }: { children: ReactNode }) {
     setInvitePopoverOpen(false)
   }, [serverId])
 
+  // Open the dialog the instant we see the flag — this only touches local
+  // state, so it can't race with the sibling default-channel page's own
+  // redirect below. (Splitting this from the URL cleanup fixes a bug where
+  // waiting to open the dialog until *after* the redirect meant the flag —
+  // and the URL query string carrying it — was already gone by then, so the
+  // dialog silently never opened.)
   useEffect(() => {
-    if (searchParams.get("settings") === "1") {
-      setServerSettingsOpen(true)
-      router.replace(`/community/channels/${serverId}`)
-    }
-    if (searchParams.get("invite") === "1") {
-      setInvitePopoverOpen(true)
-      router.replace(`/community/channels/${serverId}`)
-    }
-  }, [searchParams, serverId, router])
+    if (searchParams.get("settings") === "1") setServerSettingsOpen(true)
+    if (searchParams.get("invite") === "1") setInvitePopoverOpen(true)
+  }, [searchParams])
+
+  useEffect(() => {
+    const wantsSettings = searchParams.get("settings") === "1"
+    const wantsInvite = searchParams.get("invite") === "1"
+    if (!wantsSettings && !wantsInvite) return
+
+    // These flags land on the bare `/community/channels/:serverId` URL
+    // (e.g. right-click a rail server → "Server settings"/"Invite to
+    // Server"), which is also the URL the sibling default-channel page
+    // redirects away from once it knows the server's first channel. When
+    // that server's detail query is already warm in the cache, both
+    // redirects fire in the very same commit — and since React runs a
+    // child's effects before its parent's, our `router.replace` below would
+    // run *after* the page's channel redirect and clobber it, stranding the
+    // URL on the channel-less server root. Wait for that race to resolve
+    // (channel present, or confirmed there are none) before stripping the
+    // query so we don't fight the page's own navigation — once it lands on
+    // a channel URL, that URL has no query string left to strip anyway.
+    const stillRedirecting =
+      !hasChannel && !!currentServer && currentServer.categories.some((c) => c.channels.length > 0)
+    if (stillRedirecting) return
+
+    router.replace(
+      hasChannel ? `/community/channels/${serverId}/${params.channelId}` : `/community/channels/${serverId}`,
+    )
+  }, [searchParams, serverId, router, hasChannel, currentServer, params.channelId])
 
   const categories = currentServer?.categories ?? []
   const channelTree = useChannelTree(categories)
