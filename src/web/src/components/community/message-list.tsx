@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { ArrowDown } from "lucide-react"
 import { DateDivider, NewDivider } from "./dividers"
 import { Message } from "./message"
@@ -17,7 +17,7 @@ export function MessageList({
   channel, messages, loading, pinnedIds, newDividerBefore, typingUsers, onOpenThread, onOpenProfile,
   onToggleReaction, onReact,
   onReply, onPin, onCreateThread, onCopy, onRetry, onPreviewImage, onDownloadFile,
-  resolveUserName, scrollToMessageId, hero, onScrollRoot,
+  resolveUserName, scrollToMessageId, hero, onScrollRoot, viewerUserId, initialScrollReady = true,
 }: {
   channel: string
   messages: Msg[]
@@ -46,6 +46,16 @@ export function MessageList({
    * page's default viewport.
    */
   onScrollRoot?: (el: HTMLDivElement | null) => void
+  // Viewer id — enables "scroll to bottom when the viewer sends a message".
+  // Without this the auto-follow only fires at mount time; incoming peer
+  // messages never pull the view.
+  viewerUserId?: string
+  // Gate for the mount-time initial scroll. Owners that need to wait for
+  // async NEW-divider anchor data (`useChannelReadStateSnapshot`) pass
+  // `false` until the snapshot resolves; otherwise the effect fires with a
+  // stale `newDividerBefore = undefined` and snaps to bottom before the
+  // anchor is known.
+  initialScrollReady?: boolean
 }) {
   const [jumped, setJumped] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -74,26 +84,59 @@ export function MessageList({
   //   2. No NEW divider → snap to the bottom.
   // Fires once per mount; deliberately no near-bottom heuristic. If the
   // user has scrolled up, incoming messages do NOT pull the view back —
-  // the floating "↓ N" button below is how they return.
-  useEffect(() => {
+  // the floating "↓ N" button below is how they return, and the sibling
+  // "self-send" effect handles the composer path.
+  //
+  // Owners key `<MessageList>` on channelId/dmId, so channel switches
+  // remount the component and reset this ref — no explicit reset logic
+  // needed here.
+  useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el) return
     if (didInitialScrollRef.current) return
     if (messages.length === 0) return
+    // Wait for the owner's async anchor (e.g. useChannelReadStateSnapshot)
+    // — running the effect before newDividerBefore is known silently snaps
+    // to the bottom and burns the one-shot gate.
+    if (!initialScrollReady) return
 
     if (newDividerBefore) {
       const target = el.querySelector<HTMLElement>(
         `[data-msg-id="${cssEscape(newDividerBefore)}"]`,
       )
       if (target) {
-        target.scrollIntoView({ block: "center" })
+        target.scrollIntoView({ block: "center", behavior: "smooth" })
         didInitialScrollRef.current = true
         return
       }
     }
-    el.scrollTop = el.scrollHeight
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
     didInitialScrollRef.current = true
-  }, [messages, newDividerBefore])
+  }, [messages, newDividerBefore, initialScrollReady])
+
+  // Rule #3: when the viewer sends a message, snap to the bottom.
+  // Tracks the tail message id across renders and only fires when the tail
+  // moves AND the new tail is authored by the viewer. `fetchOlder` prepends
+  // older rows and leaves the tail id unchanged, so paging up never triggers
+  // a jump. Peer sends move the tail but with a different authorId — those
+  // stay on the "↓ N" pill path.
+  const lastTailIdRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    if (messages.length === 0) {
+      lastTailIdRef.current = null
+      return
+    }
+    const tail = messages[messages.length - 1]
+    const prev = lastTailIdRef.current
+    lastTailIdRef.current = tail.id
+    if (prev === null) return
+    if (prev === tail.id) return
+    if (!viewerUserId) return
+    if (tail.authorId !== viewerUserId) return
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
+  }, [messages, viewerUserId])
 
   // Live count of messages sitting below the viewport. Recomputed on scroll,
   // on messages change, and via a ResizeObserver so appended rows update the

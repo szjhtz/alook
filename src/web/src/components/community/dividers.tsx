@@ -11,11 +11,13 @@ export function DateDivider({ label }: { label: string }) {
 }
 
 export function NewDivider() {
+  // The row's height tracks the separator line only; the "New" pill is taken
+  // out of flow so its taller box doesn't push messages apart.
   return (
-    <div className="my-1 flex items-center gap-2">
+    <div className="relative my-1 flex items-center">
       <Separator className="flex-1 bg-destructive/60" />
       <span
-        className="rounded-sm bg-destructive px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-white"
+        className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 rounded-sm bg-destructive px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-white"
         style={{ WebkitTextStroke: "0.4px currentColor" }}
       >
         New

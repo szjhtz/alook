@@ -199,6 +199,7 @@ function DmView() {
       <DmHeader dm={dm} onBack={bp === "mobile" ? goBack : undefined} />
       <main className="flex min-h-0 flex-1 flex-col">
         <MessageList
+          key={dmId}
           channel={dm.name}
           messages={messages}
           loading={messagesLoading}
@@ -210,6 +211,7 @@ function DmView() {
           onRetry={dmBlocked ? undefined : messageActions.onRetry}
           onOpenProfile={openProfile}
           resolveUserName={resolveUserName}
+          viewerUserId={currentUser.id}
           hero={
             <>
               <div className="relative mb-3 w-fit"><Avatar label={dm.avatar} size={64} /></div>

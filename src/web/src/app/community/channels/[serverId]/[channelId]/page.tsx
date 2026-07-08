@@ -115,7 +115,8 @@ function ChannelView() {
   // Frozen-once snapshot of the viewer's read pointer for this channel — the
   // anchor for the "New" divider AND the mount-time initial scroll target.
   // The value NEVER changes during the mount even as the watermark advances.
-  const { snapshot: readSnapshot } = useChannelReadStateSnapshot(channelId)
+  const { snapshot: readSnapshot, isFetching: readSnapshotFetching } =
+    useChannelReadStateSnapshot(channelId)
 
   // The message immediately after the viewer's `lastReadMessageId` inside the
   // current window. id-first: the invariant guarantees
@@ -506,6 +507,7 @@ function ChannelView() {
         />
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <MessageList
+            key={channelId}
             channel={channelName}
             messages={messages}
             loading={messagesLoading}
@@ -517,6 +519,7 @@ function ChannelView() {
             resolveUserName={resolveUserName}
             scrollToMessageId={scrollToMessageId}
             hero={opener}
+            viewerUserId={currentUser.id}
           />
           <Composer
             channel={channelName}
@@ -606,6 +609,9 @@ function ChannelView() {
       />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
         <MessageList
+          // Remount per channel so mount-time initial-scroll fires afresh
+          // and internal refs (didInitialScrollRef, lastTailIdRef) reset.
+          key={channelId}
           channel={channelName}
           messages={messages}
           loading={messagesLoading}
@@ -618,6 +624,11 @@ function ChannelView() {
           resolveUserName={resolveUserName}
           scrollToMessageId={scrollToMessageId}
           onScrollRoot={setScrollRootEl}
+          viewerUserId={currentUser.id}
+          // Delay initial scroll until the read-state snapshot resolves —
+          // otherwise the effect fires with newDividerBefore still stale
+          // and snaps to bottom before the anchor is known.
+          initialScrollReady={!readSnapshotFetching}
         />
         <Composer
           channel={channelName}
