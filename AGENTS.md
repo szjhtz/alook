@@ -10,6 +10,7 @@ Alook's main purpose is to make the cli agent always on, and give it a email add
 - `src/ws-do`: WebSocket Durable Object worker
 
 ## MUST
+- Don't write comment: comment may be outdated, code never. Unless the comment are specs and rules.
 - run `pnpm typecheck`, `pnpm test` as the final check when you think the code is ready.
 - service must be STATELESS! All the state must be in DB or local, never put important states in memory.
 - scope the queries before, not check the ownership after. don't query data then check if the data belongs to a workspace, use workspace id ahead to query the data.

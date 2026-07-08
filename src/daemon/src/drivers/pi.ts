@@ -13,6 +13,7 @@
  * same convention).
  */
 import { createRequire } from "module";
+import { mkdirSync } from "fs";
 import type { Driver, LaunchConfig, LaunchContext, ParsedEvent, SpawnResult } from "../types.js";
 import { buildCliTransportSystemPrompt } from "./cliTransport.js";
 import { writeAgentFile } from "./agentFile.js";
@@ -115,8 +116,13 @@ export class PiDriver implements Driver {
     const spawnEnv = await deps.buildSpawnEnv();
     // Pi has no child process, so it never goes through prepareCliTransport —
     // write AGENTS.md here directly (same unified packing every other driver
-    // gets); Pi's SDK auto-reads it from cwd, same as the CLI drivers.
-    if (ctx.standingPrompt) writeAgentFile(ctx.workingDirectory, ctx.standingPrompt);
+    // gets); Pi's SDK auto-reads it from cwd, same as the CLI drivers. Unlike
+    // prepareCliTransport (which creates the workdir via its stateDir mkdir),
+    // nothing guarantees ctx.workingDirectory exists yet, so create it first.
+    if (ctx.standingPrompt) {
+      mkdirSync(ctx.workingDirectory, { recursive: true });
+      writeAgentFile(ctx.workingDirectory, ctx.standingPrompt);
+    }
     const f = resolveLaunchFieldsOrDefault(ctx.config.runtimeConfig);
     const { session, sessionId } = await deps.createAgentSession({
       cwd: ctx.workingDirectory,

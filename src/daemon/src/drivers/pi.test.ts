@@ -73,4 +73,11 @@ describe("PiDriver.createSession — AGENTS.md packing", () => {
     await driver.createSession(baseCtx({ standingPrompt: "" }), fakeDeps());
     expect(fs.existsSync(path.join(tmpDir, CANONICAL_FILE))).toBe(false);
   });
+
+  it("creates the workdir first when it doesn't exist yet (unlike prepareCliTransport's stateDir mkdir, nothing else guarantees this for Pi)", async () => {
+    const driver = new PiDriver();
+    const notYetCreated = path.join(tmpDir, "not-yet-created", "agent_1");
+    await driver.createSession(baseCtx({ workingDirectory: notYetCreated }), fakeDeps());
+    expect(fs.readFileSync(path.join(notYetCreated, CANONICAL_FILE), "utf-8")).toBe("You are Pi.");
+  });
 });
