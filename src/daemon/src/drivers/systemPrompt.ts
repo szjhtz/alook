@@ -3,7 +3,10 @@
  *
  * Every CLI driver's `buildSystemPrompt` funnels through here. The prompt is
  * assembled from a fixed sequence of sections:
- *   1. Identity line
+ *   1. Identity (intro line + name + handle explanation + Role, from
+ *      `config.description` when set — all merged into one section so an
+ *      agent's "who am I" reads as a single block up front instead of being
+ *      split between a bare intro line and a Role section at the very end)
  *   2. CLI commands (reference list of every available command, grouped by
  *      category, plus the universal output-format contract — the ONE place
  *      that enumerates commands, so new non-messaging categories, e.g. tasks
@@ -18,7 +21,6 @@
  *   7. Channel awareness
  *   8. Workspace & memory
  *   9. Message notifications (auto-generated from `lifecycleKind`)
- *   10. Role (from `config.description`, when set)
  *
  * Alook is the product — there's no other host to be neutral toward, so the
  * CLI name (`alook`) and platform label (`Alook`) are hardcoded, not
@@ -49,6 +51,42 @@ export interface SystemPromptOpts {
 /* ------------------------------------------------------------------ */
 /* Section builders                                                     */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Intro line + name + handle explanation + Role (from `config.description`),
+ * merged into one "who am I" section. Placed first so an agent's identity
+ * and its assigned role read together up front instead of being split
+ * between a bare intro line and a Role section tacked on at the very end.
+ */
+function identitySection(config: LaunchConfig): string {
+  const parts: string[] = ["## Identity", ""];
+  const introParts = ["You are a user operating in Alook."];
+  if (config.agentName) introParts.push(`Your name is ${config.agentName}.`);
+  parts.push(introParts.join(" "));
+
+  if (config.agentHandle) {
+    parts.push(
+      "",
+      "Every account in Alook has a name plus a `#NNNN` number to make the handle unique. " +
+      `Your handle is \`${config.agentHandle}\`. ` +
+      "Speak with the name in conversation to make it natural; use the full handle when addressing (DM, mention on channel).",
+    );
+  }
+
+  if (config.description) {
+    parts.push(
+      "",
+      "### Role",
+      "",
+      config.description,
+      "",
+      "This is a starting point, not fixed — as you build context through interactions, capture how " +
+      "your role has evolved in `./memory.md` (the Role text above isn't something you can edit directly).",
+    );
+  }
+
+  return parts.join("\n");
+}
 
 /**
  * Reference list of every command `alook` exposes, grouped by category, plus
@@ -101,11 +139,11 @@ function messagingSection(): string {
     "",
     "Channels and messages are addressed with path-style refs:",
     "",
-    "| Shape | Meaning |",
+    "| Channel Ref | Meaning |",
     "|---|---|",
     "| `/<server>/<channel>` | A channel in a server |",
     "| `/<server>/<channel>/#N` | Thread rooted at message #N |",
-    "| `/.dm/<peer>` | A DM with another user/agent |",
+    "| `/.dm/<peer>` | A DM with another user/agent (peer = handle, `name#0042`) |",
     "| `/.dm/<peer>#N` | Message #N in a DM |",
     "| `/.dm/<peer>/#N` | Thread in a DM |",
     "",
@@ -117,13 +155,13 @@ function messagingSection(): string {
     `When you call \`${CLI} inbox pull\`, you receive messages as JSON objects:`,
     "",
     "```json",
-    '{"seq": "#3", "channel": "/demo/general", "sender": "@gustavo", "content": {"text": "hello"}, "time": "2026-06-01T12:00:00Z"}',
+    '{"seq": "#3", "channel": "/demo/general", "sender": "@gustavo#4821", "content": {"text": "hello"}, "time": "2026-06-01T12:00:00Z"}',
     "```",
     "",
     "Fields:",
     "- `seq` — per-channel sequence number (`#N`). Identifies a message within its channel.",
     "- `channel` — the path ref of the channel/DM. Reuse as `--target` when replying.",
-    "- `sender` — `@handle` of who sent it.",
+    "- `sender` — handle (`@name#0042`) of who sent it.",
     "- `content.text` — the message body.",
     "- `time` — ISO-8601 timestamp.",
   ].join("\n");
@@ -266,12 +304,8 @@ function messageNotificationSection(lifecycleKind: SystemPromptOpts["lifecycleKi
  * and notification handling. The only per-driver input is `lifecycleKind`.
  */
 export function buildCliSystemPrompt(config: LaunchConfig, opts: SystemPromptOpts): string {
-  const identityParts = ["You are an AI agent operating in Alook."];
-  if (config.agentName) identityParts.push(`Your name is ${config.agentName}.`);
-  if (config.agentHandle) identityParts.push(`Your handle is \`${config.agentHandle}\` (others use this to @mention you).`);
-
   const sections: string[] = [
-    identityParts.join(" "),
+    identitySection(config),
     cliCommandsSection(),
     messagingSection(),
     criticalRulesSection(),
@@ -281,15 +315,6 @@ export function buildCliSystemPrompt(config: LaunchConfig, opts: SystemPromptOpt
     workspaceMemorySection(),
     messageNotificationSection(opts.lifecycleKind),
   ];
-
-  if (config.description) {
-    sections.push(
-      "## Role\n" +
-      config.description +
-      "\n\nThis is a starting point, not fixed — as you build context through interactions, capture how your " +
-      "role has evolved in `./memory.md` (the Role text above isn't something you can edit directly).",
-    );
-  }
 
   return sections.filter((s) => s && s.length > 0).join("\n\n");
 }

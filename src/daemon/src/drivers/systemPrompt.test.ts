@@ -35,28 +35,37 @@ describe("buildCliSystemPrompt", () => {
   });
 
   it("injects agentName and agentHandle into the prompt only when set", () => {
+    // Discriminator deliberately avoids "4821" — the messaging section's own
+    // illustrative example (`@gustavo#4821`) is fixed doc prose, unrelated to
+    // `config.agentHandle`, and would collide with a `not.toContain` check
+    // below if reused here.
     const withIdentity = buildCliSystemPrompt(
-      { ...baseConfig, agentName: "Nova", agentHandle: "nova" },
+      { ...baseConfig, agentName: "Nova", agentHandle: "@nova#7392" },
       { lifecycleKind: "persistent" },
     );
     expect(withIdentity).toContain("Nova");
-    expect(withIdentity).toContain("nova");
+    // Assert on the contract (config.agentHandle's exact value round-trips
+    // verbatim), not on the surrounding prose — see this file's philosophy
+    // note above.
+    expect(withIdentity).toContain("@nova#7392");
 
     const without = buildCliSystemPrompt(baseConfig, { lifecycleKind: "persistent" });
     expect(without).not.toContain("Nova");
+    expect(without).not.toContain("#7392");
   });
 
-  it("includes a Role section with config.description's exact text only when it's set", () => {
+  it("includes a Role subsection (nested under Identity) with config.description's exact text only when it's set", () => {
     const withRole = buildCliSystemPrompt(
       { ...baseConfig, description: "You are the onboarding assistant." },
       { lifecycleKind: "persistent" },
     );
     expect(withRole).toContain("You are the onboarding assistant.");
-    expect(withRole).toContain("## Role");
+    expect(withRole).toContain("### Role");
+    expect(withRole).toContain("## Identity");
 
     const withoutRole = buildCliSystemPrompt(baseConfig, { lifecycleKind: "persistent" });
     expect(withoutRole).not.toContain("You are the onboarding assistant.");
-    expect(withoutRole).not.toContain("## Role");
+    expect(withoutRole).not.toContain("### Role");
   });
 
   it("never parameterizes the CLI/product identity away (Alook is the product, not a configurable host)", () => {

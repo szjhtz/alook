@@ -1,10 +1,14 @@
 /**
- * Codex driver — persistent, JSON-RPC app-server, DIRECT steering.
+ * Codex driver — persistent, JSON-RPC app-server, GATED steering.
  *
- * Codex runs as `app-server --listen stdio://` and speaks JSON-RPC 2.0. Unlike
- * Claude, it tolerates injection at any time, so busy delivery is `direct`:
- * a busy message becomes a `turn/steer` RPC against the active turn, while an
- * idle message becomes a fresh `turn/start`.
+ * Codex runs as `app-server --listen stdio://` and speaks JSON-RPC 2.0. Like
+ * Claude, a `turn/steer` sent while a tool call / compaction / review is in
+ * flight can race the app-server's own turn-state handling, so busy delivery
+ * is `gated` — held until a safe boundary by the manager-level mechanism in
+ * `manager/managerPolicy.ts` (see plans/wire-gated-busy-steering-daemon.md). A
+ * busy message becomes a `turn/steer` RPC against the active turn, while an
+ * idle message becomes a fresh `turn/start` — the encoding itself is
+ * unaffected by gating, only WHEN the manager calls it.
  *
  * Handshake (queued on spawn): `initialize` → then `thread/start` (or
  * `thread/resume` with the prior threadId). The thread id is the session id.
@@ -42,7 +46,7 @@ export function classifyCodexResumeError(
 
 export class CodexDriver implements Driver {
   readonly id = "codex";
-  readonly lifecycle = { kind: "persistent", stdin: "direct", inFlightWake: "steer" } as const;
+  readonly lifecycle = { kind: "persistent", stdin: "gated", inFlightWake: "queue" } as const;
   readonly session = { recovery: "resume_or_fresh" } as const;
   readonly model = {
     detectedModelsVerifiedAs: "launchable",
@@ -50,7 +54,7 @@ export class CodexDriver implements Driver {
   } as const;
 
   readonly supportsStdinNotification = true;
-  readonly busyDeliveryMode = "direct" as const;
+  readonly busyDeliveryMode = "gated" as const;
   readonly supportsNativeStandingPrompt = true;
 
   private readonly eventNormalizer = new CodexEventNormalizer();
@@ -59,11 +63,6 @@ export class CodexDriver implements Driver {
   private codexHomeRoot: string | null = null;
   private nextRequestId(): number {
     return ++this.requestId;
-  }
-
-  /** Safe to inject a busy (steering) message right now? */
-  get canSteerBusy(): boolean {
-    return this.eventNormalizer.canSteerBusy;
   }
 
   /** Resolved Codex home root (CODEX_HOME or ~/.codex). Null until spawned. */

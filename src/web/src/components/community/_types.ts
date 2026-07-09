@@ -141,6 +141,9 @@ export type Member = {
   id: string
   userId: string
   name: string
+  // 4-digit discriminator (`"0042"`). Optional so mock/older payloads that
+  // predate the column keep type-checking; live payloads always include it.
+  discriminator?: string
   avatar: string
   status: Presence
   sub: string
@@ -237,4 +240,7 @@ export type UnreadServer = {
 }
 
 // Shared callback signature for opening a user's profile card at a click point.
-export type OpenProfile = (name: string, e: React.MouseEvent) => void
+// `discriminator` is only ever passed for a mention pill that carried a
+// disambiguating `#0042` tag (see message-markdown.tsx) — it lets the lookup
+// pick the exact same-named member/friend instead of the first name match.
+export type OpenProfile = (name: string, e: React.MouseEvent, discriminator?: string) => void

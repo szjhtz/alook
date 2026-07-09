@@ -459,7 +459,7 @@ export { parseIcs } from "./lib/ics-parser";
 export type { MeetingInfo } from "./lib/ics-parser";
 export { buildMimeMessage, extractAttachmentMeta, filterDownloadableAttachments } from "./lib/mime";
 export type { MimeAttachment, BuildMimeOptions, InboundAttachmentMeta } from "./lib/mime";
-export { computeDiscriminator, parseNameAndTag } from "./lib/discriminator";
+export { computeDiscriminator, parseNameAndTag, formatHandle } from "./lib/discriminator";
 export {
   addRepeatInterval,
   computeNextScheduledAt,
