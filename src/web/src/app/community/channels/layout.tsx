@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api/client"
@@ -18,8 +18,12 @@ import {
   useCurrentChannelMeta,
 } from "@/stores/community"
 import { useCurrentUser } from "@/contexts/community/current-user"
-import { useServer } from "@/hooks/community/use-servers"
+import { useServer, useServers } from "@/hooks/community/use-servers"
 import { useServerMembers } from "@/hooks/community/use-server-members"
+import {
+  consumeVoluntaryLeave,
+  pickPostEjectDestination,
+} from "@/components/community/eject-server"
 import {
   useInvites,
   useAuditLog,
@@ -103,6 +107,38 @@ export default function ServerLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     useCommunityStore.getState().setCurrentServerId(serverId)
+  }, [serverId])
+
+  // Eject when the URL is scoped to a server the viewer isn't in. Covers
+  // four triggers with one effect:
+  //   1. Viewer clicked "Leave" (rail button pre-marks the id via
+  //      markVoluntaryLeave — we stay silent, the button owns the toast).
+  //   2. Viewer was kicked from another tab (WS member.leave invalidates
+  //      `servers()` when userId === viewer, list drops the row).
+  //   3. Owner deleted the server (WS server.delete invalidates same).
+  //   4. Viewer pasted a URL for a server they were never in (list
+  //      finishes loading, id is missing from the start).
+  //
+  // Wait for the servers query to finish its first fetch — otherwise the
+  // pre-fetch render bounces every legitimate URL. Also gate on the
+  // `!ejectedRef` to prevent a re-fire while the redirect is in flight.
+  const serversList = useServers()
+  const ejectedRef = useRef(false)
+  useEffect(() => {
+    if (ejectedRef.current) return
+    if (serversList.isLoading) return
+    const inRail = serversList.servers.some((s) => s.id === serverId)
+    if (inRail) return
+    ejectedRef.current = true
+    const voluntary = consumeVoluntaryLeave(serverId)
+    if (!voluntary) toast("You're no longer in this server")
+    router.replace(pickPostEjectDestination(serversList.servers, serverId))
+  }, [serverId, serversList.isLoading, serversList.servers, router])
+  // Reset the guard when the URL changes to a NEW server id — otherwise
+  // navigating server → dangling-server → server would leave the ref
+  // latched and skip the eject.
+  useEffect(() => {
+    ejectedRef.current = false
   }, [serverId])
 
   // Seed the presence set on server switch — WS `presence.update` keeps it

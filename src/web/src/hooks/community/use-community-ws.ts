@@ -643,6 +643,13 @@ export function useCommunityWs(options?: UseCommunityWsOptions) {
               key,
               (cache) => patchCacheLeave(cache, event),
             )
+            // If the leaver is the viewer (kick from another tab / owner
+            // cascade), the viewer's server rail is stale — invalidate it
+            // so the layout's eject effect can detect the drop and route
+            // the user away from the now-forbidden URL.
+            if (event.userId === viewerUserIdRef.current) {
+              void queryClient.invalidateQueries({ queryKey: communityKeys.servers() })
+            }
           } else {
             queryClient.setQueryData<InfiniteData<MembersEnvelope> | undefined>(
               key,

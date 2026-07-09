@@ -11,6 +11,7 @@ import { useBreakpoint } from "@/hooks/use-mobile"
 import { Shell } from "./shell"
 import { ServerRail } from "./server-rail"
 import { UserBar } from "./user-bar"
+import { markVoluntaryLeave, pickPostEjectDestination } from "./eject-server"
 import { InboxPopover } from "./community-inbox-popover"
 import { UserSettings } from "./edit-profile-dialog"
 import { ProfileCard } from "./profile-card"
@@ -164,20 +165,25 @@ export function ShellFrame({
   )
   const onRailLeaveServer = useCallback(
     (id: string) => {
+      // Mark BEFORE mutate — the WS `member.leave` fanout / servers-list
+      // refetch can race the mutation callback and reach the layout's
+      // eject effect first. Marker present → layout stays silent and
+      // this button owns the "Left server" toast.
+      markVoluntaryLeave(id)
       leaveServer.mutate(
         { serverId: id },
         {
           onSuccess: () => {
             toast("Left server")
             if (currentServerId === id) {
-              useCommunityStore.getState().setCurrentServerId(null)
+              router.replace(pickPostEjectDestination(servers, id))
             }
           },
           onError: () => toast("Failed to leave server"),
         },
       )
     },
-    [leaveServer, currentServerId],
+    [leaveServer, currentServerId, router, servers],
   )
   const onRailOpenSettings = useCallback(
     (id?: string) => {
