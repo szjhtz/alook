@@ -1,4 +1,4 @@
-import { eq, and, desc, lt, or, sql, inArray } from "drizzle-orm";
+import { eq, and, asc, desc, gt, lt, or, sql, inArray } from "drizzle-orm";
 import {
   communityMessage,
   communityChannel,
@@ -76,7 +76,9 @@ export async function createMessage(
   // the counter has a harmless gap — no duplicate seq is ever possible since
   // this claim is independently atomic under D1's single-writer serialization.
   // Do NOT wrap these two statements in a transaction to "fix" this — D1
-  // doesn't support one that could express it.
+  // doesn't support one that could express it. Kept outside the batch below
+  // because D1 `batch()` cannot feed one statement's `.returning()` into a
+  // later statement's values.
   const scopeKey = scopeKeyForTarget(data);
   const seq = await claimNextSeq(db, scopeKey);
 
@@ -86,7 +88,7 @@ export async function createMessage(
   // `$defaultFn` fires a microsecond later and the timestamps diverge — the
   // inbox predicate `lastMessageAt > lastReadAt` would then wrongly fire for
   // the author's own send on a cold read.
-  const rows = await db
+  const insertMsg = db
     .insert(communityMessage)
     .values({
       authorId: data.authorId,
@@ -102,72 +104,69 @@ export async function createMessage(
     })
     .returning();
 
-  const msg = rows[0]!;
+  // Message insert + scope counter/timestamp bump commit atomically via
+  // `db.batch(...)`. Table CHECK guarantees exactly one of channelId /
+  // dmConversationId is set, so the branch is mutually exclusive.
+  const scopeUpdate = data.channelId
+    ? db
+        .update(communityChannel)
+        .set({
+          lastMessageAt: now,
+          messageCount: sql`${communityChannel.messageCount} + 1`,
+        })
+        .where(eq(communityChannel.id, data.channelId))
+    : db
+        .update(communityDmConversation)
+        .set({ lastMessageAt: now })
+        .where(eq(communityDmConversation.id, data.dmConversationId!));
 
-  if (data.channelId) {
-    await db
-      .update(communityChannel)
-      .set({
-        lastMessageAt: now,
-        messageCount: sql`${communityChannel.messageCount} + 1`,
-      })
-      .where(eq(communityChannel.id, data.channelId));
+  type InsertedMessage = Awaited<typeof insertMsg>[number];
+  const results = (await db.batch([insertMsg, scopeUpdate] as any)) as any[];
+  const msg = (results[0] as InsertedMessage[])[0]!;
 
-    // Author read-watermark: advance the sender's own read-state to this
-    // message so `listUnreadChannels` (predicate: lastMessageAt > lastReadAt)
-    // never surfaces the channel the author just sent in. Keep this inline —
-    // future readers should see the invariant next to the `lastMessageAt`
-    // bump. Upsert against the `idx_read_state_user_channel` partial-unique
-    // index (same shape as `markReadToMessageBuilder`). `lastReadSeq` is
-    // extended here too (design §4) — required for wake-filter correctness:
-    // every author (bot or human) must have its own `lastReadSeq` stay in
-    // lockstep with its sends, or `enqueueBotWakes` sees a stale watermark.
-    await db
-      .insert(communityReadState)
-      .values({
-        userId: data.authorId,
-        channelId: data.channelId,
-        dmConversationId: null,
-        lastReadAt: now,
-        lastReadMessageId: msg.id,
-        lastReadSeq: seq,
-      })
-      .onConflictDoUpdate({
-        target: [communityReadState.userId, communityReadState.channelId],
-        targetWhere: sql`${communityReadState.channelId} IS NOT NULL`,
-        set: { lastReadAt: now, lastReadMessageId: msg.id, lastReadSeq: seq },
-        setWhere: sql`${communityReadState.lastReadSeq} < ${seq}`,
-      });
-  }
-
-  if (data.dmConversationId) {
-    await db
-      .update(communityDmConversation)
-      .set({ lastMessageAt: now })
-      .where(eq(communityDmConversation.id, data.dmConversationId));
-
-    // Author read-watermark (DM path). Upsert against the
-    // `idx_read_state_user_dm` partial-unique index. Same invariant as the
-    // channel branch: keep the sender's watermark equal to the message they
-    // just sent so their inbox does not flag it as unread. `lastReadSeq`
-    // extended per design §4 — see the channel branch comment above.
-    await db
-      .insert(communityReadState)
-      .values({
-        userId: data.authorId,
-        channelId: null,
-        dmConversationId: data.dmConversationId,
-        lastReadAt: now,
-        lastReadMessageId: msg.id,
-        lastReadSeq: seq,
-      })
-      .onConflictDoUpdate({
-        target: [communityReadState.userId, communityReadState.dmConversationId],
-        targetWhere: sql`${communityReadState.dmConversationId} IS NOT NULL`,
-        set: { lastReadAt: now, lastReadMessageId: msg.id, lastReadSeq: seq },
-        setWhere: sql`${communityReadState.lastReadSeq} < ${seq}`,
-      });
-  }
+  // Author read-watermark: advance the sender's own read-state to this
+  // message so `listUnreadChannels` (predicate: lastMessageAt > lastReadAt)
+  // never surfaces the channel/DM the author just sent in. Kept inline
+  // (NOT folded into `markReadToMessageBuilder`, which is deliberately
+  // "humans only" — see its comment) because this path must write
+  // `lastReadSeq` per design §4 — every author (bot or human) must have
+  // its own `lastReadSeq` stay in lockstep with its sends, or
+  // `enqueueBotWakes` sees a stale watermark. Runs as a separate await
+  // because it needs `msg.id` from the batch result.
+  const readStateStmt = data.channelId
+    ? db
+        .insert(communityReadState)
+        .values({
+          userId: data.authorId,
+          channelId: data.channelId,
+          dmConversationId: null,
+          lastReadAt: now,
+          lastReadMessageId: msg.id,
+          lastReadSeq: seq,
+        })
+        .onConflictDoUpdate({
+          target: [communityReadState.userId, communityReadState.channelId],
+          targetWhere: sql`${communityReadState.channelId} IS NOT NULL`,
+          set: { lastReadAt: now, lastReadMessageId: msg.id, lastReadSeq: seq },
+          setWhere: sql`${communityReadState.lastReadSeq} < ${seq}`,
+        })
+    : db
+        .insert(communityReadState)
+        .values({
+          userId: data.authorId,
+          channelId: null,
+          dmConversationId: data.dmConversationId!,
+          lastReadAt: now,
+          lastReadMessageId: msg.id,
+          lastReadSeq: seq,
+        })
+        .onConflictDoUpdate({
+          target: [communityReadState.userId, communityReadState.dmConversationId],
+          targetWhere: sql`${communityReadState.dmConversationId} IS NOT NULL`,
+          set: { lastReadAt: now, lastReadMessageId: msg.id, lastReadSeq: seq },
+          setWhere: sql`${communityReadState.lastReadSeq} < ${seq}`,
+        });
+  await readStateStmt;
 
   return msg;
 }
@@ -180,6 +179,47 @@ export async function createMessage(
  */
 export async function hardDeleteMessage(db: Database, messageId: string) {
   await db.delete(communityMessage).where(eq(communityMessage.id, messageId));
+}
+
+// Shared select projection for the three list-messages paths (`listMessages`,
+// `listMessagesAround`, `listMessagesSince`). Keeps their row shape identical
+// so downstream mappers (`mapMessageForApi`) don't have to branch on source.
+const listedMessageProjection = {
+  id: communityMessage.id,
+  authorId: communityMessage.authorId,
+  content: communityMessage.content,
+  type: communityMessage.type,
+  mentionType: communityMessage.mentionType,
+  replyToId: communityMessage.replyToId,
+  embeds: communityMessage.embeds,
+  flags: communityMessage.flags,
+  createdAt: communityMessage.createdAt,
+  channelId: communityMessage.channelId,
+  dmConversationId: communityMessage.dmConversationId,
+  authorName: user.name,
+  authorEmail: user.email,
+  authorImage: user.image,
+} as const;
+
+export type ListedMessageRow = {
+  id: string;
+  authorId: string;
+  content: string;
+  type: string;
+  mentionType: string | null;
+  replyToId: string | null;
+  embeds: unknown | undefined;
+  flags: number | null;
+  createdAt: string;
+  channelId: string | null;
+  dmConversationId: string | null;
+  authorName: string;
+  authorEmail: string;
+  authorImage: string | null;
+};
+
+function parseEmbeds(r: { id: string; embeds: string | null } & Record<string, unknown>): ListedMessageRow {
+  return { ...(r as unknown as ListedMessageRow), embeds: safeParseEmbeds(r.embeds, r.id) };
 }
 
 export async function listMessages(
@@ -215,29 +255,171 @@ export async function listMessages(
   }
 
   const rows = await db
-    .select({
-      id: communityMessage.id,
-      authorId: communityMessage.authorId,
-      content: communityMessage.content,
-      type: communityMessage.type,
-      mentionType: communityMessage.mentionType,
-      replyToId: communityMessage.replyToId,
-      embeds: communityMessage.embeds,
-      flags: communityMessage.flags,
-      createdAt: communityMessage.createdAt,
-      channelId: communityMessage.channelId,
-      dmConversationId: communityMessage.dmConversationId,
-      authorName: user.name,
-      authorEmail: user.email,
-      authorImage: user.image,
-    })
+    .select(listedMessageProjection)
     .from(communityMessage)
     .innerJoin(user, eq(communityMessage.authorId, user.id))
     .where(and(...conditions))
     .orderBy(desc(communityMessage.createdAt), desc(communityMessage.id))
     .limit(limit);
 
-  return rows.map((r) => ({ ...r, embeds: safeParseEmbeds(r.embeds, r.id) }));
+  return rows.map(parseEmbeds);
+}
+
+/**
+ * Windowed page centered on `anchor` — used by the client's "jump to unread"
+ * and "jump to reply" flows. Returns the older half (strictly before the
+ * anchor, DESC) and the newer half (INCLUSIVE of the anchor, ASC) separately
+ * so the caller can encode `hasMoreOlder` / `hasMoreNewer` without re-deriving
+ * boundary math. See plans/community-message-scroll-v2.md §A1.
+ *
+ * The two halves are fetched in parallel (`Promise.all`) — they share no state
+ * beyond the anchor tuple. Each half fetches one extra row past the requested
+ * window size to detect a "more available" boundary.
+ */
+export async function listMessagesAround(
+  db: Database,
+  opts: {
+    channelId?: string;
+    dmConversationId?: string;
+    anchor: { createdAt: string; id: string };
+    limit?: number;
+  }
+): Promise<{
+  older: ListedMessageRow[];
+  newer: ListedMessageRow[];
+  hasMoreOlder: boolean;
+  hasMoreNewer: boolean;
+}> {
+  const limit = opts.limit ?? DEFAULT_LIMIT;
+  const olderHalf = Math.ceil(limit / 2);
+  const newerHalf = Math.floor(limit / 2);
+
+  const scopeConds: ReturnType<typeof eq>[] = [];
+  if (opts.channelId) scopeConds.push(eq(communityMessage.channelId, opts.channelId));
+  if (opts.dmConversationId) scopeConds.push(eq(communityMessage.dmConversationId, opts.dmConversationId));
+
+  // Older half: strictly older than the anchor tuple, DESC. Fetch one extra
+  // row to distinguish "exactly N older" from "N older with more available".
+  const olderCond = or(
+    lt(communityMessage.createdAt, opts.anchor.createdAt),
+    and(
+      eq(communityMessage.createdAt, opts.anchor.createdAt),
+      lt(communityMessage.id, opts.anchor.id)
+    )
+  )! as ReturnType<typeof eq>;
+
+  // Newer half INCLUDES the anchor (id >= anchor.id at the same createdAt) so
+  // the returned window renders the anchor row itself.
+  const newerCond = or(
+    gt(communityMessage.createdAt, opts.anchor.createdAt),
+    and(
+      eq(communityMessage.createdAt, opts.anchor.createdAt),
+      // gte via (id > anchor.id OR id = anchor.id) — no ORM `gte` combinator on
+      // text; expressing it as two comparisons is the shortest Drizzle-only path.
+      or(
+        gt(communityMessage.id, opts.anchor.id),
+        eq(communityMessage.id, opts.anchor.id)
+      )!
+    )
+  )! as ReturnType<typeof eq>;
+
+  const [olderRows, newerRows] = await Promise.all([
+    db
+      .select(listedMessageProjection)
+      .from(communityMessage)
+      .innerJoin(user, eq(communityMessage.authorId, user.id))
+      .where(and(...scopeConds, olderCond))
+      .orderBy(desc(communityMessage.createdAt), desc(communityMessage.id))
+      .limit(olderHalf + 1),
+    db
+      .select(listedMessageProjection)
+      .from(communityMessage)
+      .innerJoin(user, eq(communityMessage.authorId, user.id))
+      .where(and(...scopeConds, newerCond))
+      // Anchor + newerHalf newer rows + 1 extra probe.
+      .orderBy(asc(communityMessage.createdAt), asc(communityMessage.id))
+      .limit(newerHalf + 1 + 1),
+  ]);
+
+  const hasMoreOlder = olderRows.length > olderHalf;
+  const older = (hasMoreOlder ? olderRows.slice(0, olderHalf) : olderRows).map(parseEmbeds);
+
+  // The newer window's target size is (anchor + newerHalf). Anything beyond
+  // means more newer rows exist server-side.
+  const newerBudget = newerHalf + 1;
+  const hasMoreNewer = newerRows.length > newerBudget;
+  const newer = (hasMoreNewer ? newerRows.slice(0, newerBudget) : newerRows).map(parseEmbeds);
+
+  return { older, newer, hasMoreOlder, hasMoreNewer };
+}
+
+/**
+ * Rows strictly newer than `since`, in chronological ASC order. Used by the
+ * client's cache-hydration and WS-reconnect catch-up flows to top-off a stale
+ * cache without re-fetching everything. See plans/community-message-scroll-v2.md §A1.
+ *
+ * Returns `limit + 1` rows when more exist; the caller trims to `limit` and
+ * sets `hasMoreNewer`.
+ */
+export async function listMessagesSince(
+  db: Database,
+  opts: {
+    channelId?: string;
+    dmConversationId?: string;
+    since: { createdAt: string; id: string };
+    limit?: number;
+  }
+): Promise<ListedMessageRow[]> {
+  const limit = opts.limit ?? DEFAULT_LIMIT;
+  const conditions: ReturnType<typeof eq>[] = [];
+  if (opts.channelId) conditions.push(eq(communityMessage.channelId, opts.channelId));
+  if (opts.dmConversationId) conditions.push(eq(communityMessage.dmConversationId, opts.dmConversationId));
+
+  conditions.push(
+    or(
+      gt(communityMessage.createdAt, opts.since.createdAt),
+      and(
+        eq(communityMessage.createdAt, opts.since.createdAt),
+        gt(communityMessage.id, opts.since.id)
+      )
+    )! as ReturnType<typeof eq>
+  );
+
+  const rows = await db
+    .select(listedMessageProjection)
+    .from(communityMessage)
+    .innerJoin(user, eq(communityMessage.authorId, user.id))
+    .where(and(...conditions))
+    .orderBy(asc(communityMessage.createdAt), asc(communityMessage.id))
+    .limit(limit + 1);
+
+  return rows.map(parseEmbeds);
+}
+
+/**
+ * The largest `seq` value in a channel or DM scope, or `0` for an empty
+ * scope. Consumed by the message-list envelope so the client can compute
+ * `↓ N` (unread count vs. `latestSeq`) and drive `?since` catch-up without a
+ * second round-trip. See plans/community-message-scroll-v2.md §A1.
+ */
+export async function getLatestMessageSeq(
+  db: Database,
+  target: { channelId: string } | { dmConversationId: string }
+): Promise<number> {
+  const cond =
+    "channelId" in target
+      ? eq(communityMessage.channelId, target.channelId)
+      : eq(communityMessage.dmConversationId, target.dmConversationId);
+
+  // `MAX()` returns NULL when the scope is empty; coalesce to 0 to keep the
+  // shape of `latestSeq` scalar rather than optional. No ORM aggregator for
+  // MAX in Drizzle — same `sql\`MAX(...)\`` idiom as `getLatestMessagesByChannelIds`.
+  const rows = await db
+    .select({ maxSeq: sql<number | null>`MAX(${communityMessage.seq})` })
+    .from(communityMessage)
+    .where(cond);
+
+  return rows[0]?.maxSeq ?? 0;
 }
 
 /**

@@ -20,6 +20,7 @@ import { ProfileCard } from "./profile-card"
 import { ImageLightbox } from "./image-lightbox"
 import type { MobileZone, Profile, View } from "./_types"
 import { signOut } from "@/lib/auth-client"
+import { clearPersistedCache } from "@/lib/query-persister"
 import { useCommunityStore } from "@/stores/community"
 import { useCommunityWsStore } from "@/stores/community/ws"
 import { useCurrentUser, useSetCurrentUser } from "@/contexts/community/current-user"
@@ -98,6 +99,7 @@ export function ShellFrame({
   const inboxUnreads = useInboxUnreads()
   const inboxMentions = useInboxMentions()
   const unreadFeed = inboxUnreads.servers
+  const unreadDms = inboxUnreads.dms
   const mentions = inboxMentions.mentions
   const inboxLoading = inboxUnreads.isLoading || inboxMentions.isLoading
 
@@ -254,6 +256,11 @@ export function ShellFrame({
     folders,
     activeServerId,
     serversLoading: serversQuery.isLoading,
+    // `serversReady` gates the ServerRail auto-open — true only after the
+    // very first fetch settles AND the query isn't refetching. Using
+    // `isLoading` alone would let post-invalidate races (WS member.leave,
+    // reconnect) with `servers=[]` re-fire the "Create a Server" dialog.
+    serversReady: serversQuery.isFetched && !serversQuery.isFetching,
     setMobileZone,
     view,
     onHome: goHome,
@@ -407,12 +414,34 @@ export function ShellFrame({
     [router],
   )
 
+  const openInboxDm = useCallback(
+    (dmId: string) => {
+      // Mirrors the DM sidebar's `enterDm` (see app/community/me/layout.tsx):
+      // client-only optimistic clear on `communityKeys.dms()` — no eager
+      // mark-read PUT. Eagerly aligning the read pointer to the tail here
+      // would resolve the DM's read-state snapshot at tail on mount and
+      // suppress the NEW divider. The DM page's IntersectionObserver
+      // (`useDmWatermark`) is authoritative for advancing the server pointer.
+      queryClient.setQueryData(
+        communityKeys.dms(),
+        (prev: { conversations: { id: string; unread?: boolean }[] } | undefined) =>
+          prev
+            ? { ...prev, conversations: prev.conversations.map((d) => (d.id === dmId ? { ...d, unread: false } : d)) }
+            : prev,
+      )
+      router.push(`/community/me/${dmId}`)
+    },
+    [router, queryClient],
+  )
+
   const inboxElement = (
     <InboxPopover
       unreads={unreadFeed}
+      unreadDms={unreadDms}
       mentions={mentions}
       loading={inboxLoading}
       onOpenChannel={openServerChannel}
+      onOpenDm={openInboxDm}
       onOpenMention={(mention) => {
         if (mention.serverId && mention.channelId) openServerChannel(mention.serverId, mention.channelId)
       }}
@@ -421,13 +450,14 @@ export function ShellFrame({
     />
   )
   const inboxHasUnread =
-    (unreadFeed?.length ?? 0) > 0 || (mentions?.length ?? 0) > 0
+    (unreadFeed?.length ?? 0) > 0 || (unreadDms?.length ?? 0) > 0 || (mentions?.length ?? 0) > 0
 
   const userSettingsDialog = (
     <Dialog open={editingProfile} onOpenChange={(o) => { if (!o) setEditingProfile(false) }}>
       <DialogContent className="flex h-[calc(100vh-4rem)] w-[calc(100vw-4rem)] sm:max-w-none flex-col gap-0 overflow-hidden rounded-xl p-0" showCloseButton={false}>
         <UserSettings
           onClose={() => setEditingProfile(false)}
+          userId={currentUser.id}
           userName={currentUser.name}
           aboutMe={currentUser.aboutMe ?? ""}
           onSave={async (data) => {
@@ -448,6 +478,9 @@ export function ShellFrame({
             // the debounce window — covers every sign-out path uniformly.
             useCommunityStore.getState().reset()
             useCommunityWsStore.getState().reset()
+            // Drop the persisted IDB blob so the next user on this machine
+            // doesn't see the previous session's cached message rows.
+            await clearPersistedCache(currentUser.id).catch(() => {})
             await signOut()
             router.push("/sign-in")
           }}

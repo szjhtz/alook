@@ -45,6 +45,7 @@ import {
   useKickMember,
   useSetChannelNotif,
   useUploadFile,
+  type SendMessageResult,
 } from "@/hooks/community/mutations"
 import {
   communityWsSubscribe,
@@ -121,15 +122,34 @@ function ChannelView() {
       serverName: currentServer?.name ?? "",
     }))
   }, [currentServer, serverId])
-
-  const messagesQuery = useMessages(channelId)
-  const { messages, isLoading: messagesLoading } = messagesQuery
-
   // Frozen-once snapshot of the viewer's read pointer for this channel — the
   // anchor for the "New" divider AND the mount-time initial scroll target.
   // The value NEVER changes during the mount even as the watermark advances.
   const { snapshot: readSnapshot, isFetching: readSnapshotFetching } =
     useChannelReadStateSnapshot(channelId)
+
+  // Anchor the initial page on the read pointer so an unread-heavy channel
+  // opens with a centered window instead of the newest 50. Pass `undefined`
+  // while the snapshot is still resolving — the hook stays disabled until
+  // the value settles (a bare `null` would fall back to newest-mode too
+  // early).
+  const messagesQuery = useMessages(channelId, {
+    lastReadMessageId: readSnapshotFetching
+      ? undefined
+      : (readSnapshot?.lastReadMessageId ?? null),
+  })
+  const {
+    messages,
+    isLoading: messagesLoading,
+    hasMoreOlder: hasMoreMessages,
+    hasMoreNewer: hasMoreNewerMessages,
+    isFetchingOlder: isFetchingOlderMessages,
+    isFetchingNewer: isFetchingNewerMessages,
+    fetchOlder: fetchOlderMessages,
+    fetchNewer: fetchNewerMessages,
+    jumpToPresent,
+    latestSeq,
+  } = messagesQuery
 
   // The message immediately after the viewer's `lastReadMessageId` inside the
   // current window. id-first: the invariant guarantees
@@ -144,8 +164,18 @@ function ChannelView() {
   // walk, the divider anchors above the viewer's OWN just-sent message,
   // which is never "unread" from the sender's perspective.
   const newDividerBefore = useMemo(() => {
-    const lastId = readSnapshot?.lastReadMessageId
-    if (!lastId) return undefined
+    if (!readSnapshot) return undefined
+    const lastId = readSnapshot.lastReadMessageId
+    // First-visit case (viewer never read this channel): anchor the
+    // divider on the first non-self message so users landing from
+    // inbox / rail see "here's what you missed" instead of the bottom.
+    // Mirrors the DM view for parity.
+    if (!lastId) {
+      for (const m of messages) {
+        if (m.authorId !== currentUser.id) return m.id
+      }
+      return undefined
+    }
     const idx = messages.findIndex((m) => m.id === lastId)
     if (idx === -1) return undefined
     for (let i = idx + 1; i < messages.length; i++) {
@@ -160,6 +190,16 @@ function ChannelView() {
   // `onScrollRoot`.
   const [scrollRootEl, setScrollRootEl] = useState<HTMLDivElement | null>(null)
   useChannelWatermark({ channelId, messages, scrollRootEl })
+
+  // `↓ N` unread count for the anchor-window path — server truth
+  // (`latestSeq - viewerLastReadSeq`). Clamped to 0 in case the read
+  // pointer somehow overshot latestSeq (e.g. a bot updated latestSeq
+  // between the two fetches).
+  const unreadCount = useMemo(() => {
+    const seenSeq = readSnapshot?.lastReadSeq ?? 0
+    const diff = latestSeq - seenSeq
+    return diff > 0 ? diff : 0
+  }, [latestSeq, readSnapshot])
 
   const { threads, isLoading: threadsLoading } = useThreads(channelId)
   const { posts: forumPosts, isLoading: forumPostsLoading } = useForumPosts(channelId, isForum)
@@ -278,20 +318,32 @@ function ChannelView() {
   }
 
   // ── Message actions ─────────────────────────────────────────────────────
+  //
+  // Swallow send failures at the caller boundary. `useSendMessage`'s `onError`
+  // already marks the optimistic row `failed: true` AND fires the rate-limit
+  // toast; we don't need the raw rejection to propagate any further. Letting
+  // it escape via `mutateAsync` would surface a bare `ApiError` in the Next.js
+  // error overlay (rate-limit path was the reproducer). Returning `null`
+  // instead lets thread-create + retry callers detect failure without a
+  // try/catch each.
   const doSend = useCallback(
-    (content: string, opts?: { replyToId?: string; mentionType?: MentionType; attachments?: { url: string; filename: string; contentType: string; size: number }[] }) => {
-      return sendMessageMut.mutateAsync({
-        channelId,
-        content,
-        replyToId: opts?.replyToId,
-        mentionType: opts?.mentionType,
-        attachments: opts?.attachments,
-        author: {
-          id: currentUser.id,
-          name: currentUser.name,
-          avatar: currentUser.avatar,
-        },
-      })
+    async (content: string, opts?: { replyToId?: string; mentionType?: MentionType; attachments?: { url: string; filename: string; contentType: string; size: number }[] }): Promise<SendMessageResult | null> => {
+      try {
+        return await sendMessageMut.mutateAsync({
+          channelId,
+          content,
+          replyToId: opts?.replyToId,
+          mentionType: opts?.mentionType,
+          attachments: opts?.attachments,
+          author: {
+            id: currentUser.id,
+            name: currentUser.name,
+            avatar: currentUser.avatar,
+          },
+        })
+      } catch {
+        return null
+      }
     },
     [sendMessageMut, channelId, currentUser.id, currentUser.name, currentUser.avatar],
   )
@@ -533,6 +585,14 @@ function ChannelView() {
             scrollToMessageId={scrollToMessageId}
             hero={opener}
             viewerUserId={currentUser.id}
+            hasMore={hasMoreMessages}
+            isFetchingOlder={isFetchingOlderMessages}
+            onLoadOlder={fetchOlderMessages}
+            hasMoreNewer={hasMoreNewerMessages}
+            isFetchingNewer={isFetchingNewerMessages}
+            onLoadNewer={fetchNewerMessages}
+            onJumpToPresent={jumpToPresent}
+            unreadCount={unreadCount}
           />
           <Composer
             channel={channelName}
@@ -644,6 +704,14 @@ function ChannelView() {
           // otherwise the effect fires with newDividerBefore still stale
           // and snaps to bottom before the anchor is known.
           initialScrollReady={!readSnapshotFetching}
+          hasMore={hasMoreMessages}
+          isFetchingOlder={isFetchingOlderMessages}
+          onLoadOlder={fetchOlderMessages}
+          hasMoreNewer={hasMoreNewerMessages}
+          isFetchingNewer={isFetchingNewerMessages}
+          onLoadNewer={fetchNewerMessages}
+          onJumpToPresent={jumpToPresent}
+          unreadCount={unreadCount}
         />
         <Composer
           channel={channelName}

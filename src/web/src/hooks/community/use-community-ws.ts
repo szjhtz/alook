@@ -180,12 +180,29 @@ function insertMessageIntoCache(
   const merged = [...first.messages, rendered]
   // Drop from the head (oldest end of this page) once the live tail grows
   // past the cap — keeps the newest messages, sheds the oldest.
-  const messages = merged.length > MAX_LIVE_PAGE_MESSAGES
+  const trimmed = merged.length > MAX_LIVE_PAGE_MESSAGES
+  const messages = trimmed
     ? merged.slice(merged.length - MAX_LIVE_PAGE_MESSAGES)
     : merged
+  // When we drop rows off the head of the live page we've forgotten history
+  // that the server still has. Flip both the anchor-mode and the legacy
+  // `hasMore` flags to `true` so the older-pagination affordance re-arms —
+  // otherwise `hasMoreOlder ?? hasMore ?? false` collapses to `false` for
+  // the trimmed page and the UI stops offering "Load more" even though
+  // there's still history to fetch. Only touch the flags that already
+  // existed on the page so we don't accidentally invent an anchor-mode
+  // envelope on a legacy newest cache (or vice versa).
+  const nextFirst = trimmed
+    ? {
+        ...first,
+        messages,
+        ...(first.hasMoreOlder !== undefined ? { hasMoreOlder: true } : {}),
+        ...(first.hasMore !== undefined ? { hasMore: true } : {}),
+      }
+    : { ...first, messages }
   return {
     ...cache,
-    pages: [{ ...first, messages }, ...cache.pages.slice(1)],
+    pages: [nextFirst, ...cache.pages.slice(1)],
   }
 }
 
@@ -799,8 +816,40 @@ export function useCommunityWs(options?: UseCommunityWsOptions) {
   // (`contexts/agent-context.tsx`): resync the machines query on every
   // reconnect so a missed transition self-corrects within the reconnect
   // window instead of requiring a manual reload.
+  //
+  // Same rationale for the focused channel/DM message stream after Commit C:
+  // the IDB persister rehydrates the cache from the last session, but the
+  // socket may have dropped WS `message.create` events while we were offline
+  // (or the tab was suspended). Invalidating the focused scope's message
+  // query on reconnect fires a top-up refetch — TanStack re-runs every
+  // page's `pageParam`, so anchor windows and newest-tail windows both
+  // catch up without any client-side `?since` bookkeeping. Read-state
+  // snapshots (also persisted) are invalidated too so the NEW divider
+  // matches the fresh server watermark on reconnect.
   const handleReconnect = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: communityKeys.machines() })
+    const sub = useCommunityStore.getState().subscription
+    if (sub.channelId) {
+      void queryClient.invalidateQueries({
+        queryKey: communityKeys.channelMessages(sub.channelId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: communityKeys.channelReadStateSnapshot(sub.channelId),
+      })
+    }
+    if (sub.dmConversationId) {
+      void queryClient.invalidateQueries({
+        queryKey: communityKeys.dmMessages(sub.dmConversationId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: communityKeys.dmReadStateSnapshot(sub.dmConversationId),
+      })
+    }
+    // Inbox counts also need a refetch — unreads and mentions could have
+    // grown while offline and the live invalidator only fires on incoming
+    // `message.create` events, none of which arrive while the socket is
+    // down.
+    void queryClient.invalidateQueries({ queryKey: communityKeys.inbox() })
   }, [queryClient])
   const { send } = useUserWs(handleMessage, { onReconnect: handleReconnect })
 

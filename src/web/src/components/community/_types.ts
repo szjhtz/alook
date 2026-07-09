@@ -243,6 +243,16 @@ export type UnreadServer = {
   }>
 }
 
+// "Unreads" — DMs with unread messages, rendered as a flat sibling section
+// under the same Unreads tab as channels.
+export type UnreadDm = {
+  dmConversationId: string
+  otherUserId: string
+  otherUserName: string
+  otherUserAvatar: string
+  lastMessageAt: string
+}
+
 // Shared callback signature for opening a user's profile card at a click point.
 // `discriminator` is only ever passed for a mention pill that carried a
 // disambiguating `#0042` tag (see message-markdown.tsx) — it lets the lookup

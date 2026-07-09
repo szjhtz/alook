@@ -31,7 +31,7 @@ export function CommunityShell({
   children: ReactNode
 }) {
   return (
-    <QueryProvider>
+    <QueryProvider userId={currentUser.id}>
       <CurrentUserProvider initialUser={currentUser}>
         <CommunityBootstrap>{children}</CommunityBootstrap>
       </CurrentUserProvider>

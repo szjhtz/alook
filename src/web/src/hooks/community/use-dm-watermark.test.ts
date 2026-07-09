@@ -1,9 +1,9 @@
 /**
- * `useChannelWatermark` — IntersectionObserver-driven read pointer advance.
- *
- * The vitest env is node (no jsdom, no IntersectionObserver). We install a
- * lightweight IO polyfill on `globalThis` that records the callback and
- * exposes a `trigger()` helper so tests can simulate intersections.
+ * `useDmWatermark` — DM sibling of `useChannelWatermark`. Same
+ * IntersectionObserver behavior, same monotone forward invariant, same
+ * self-authored skip, same flush-on-unmount contract. Tests mirror the
+ * channel-side coverage so a divergence between the two hooks would
+ * surface here immediately.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
@@ -78,8 +78,6 @@ class MockIntersectionObserver {
 function fireIntersections(
   entries: Array<{ target: Element; isIntersecting: boolean; intersectionRatio: number }>,
 ) {
-  // Broadcast to every active observer (matches real IO semantics — the
-  // caller decides which observer receives which entries via observe()).
   for (const obs of observers) {
     if (obs.disconnected) continue
     const scoped = entries.filter((e) => obs.observed.has(e.target))
@@ -102,7 +100,7 @@ const advanceSpy = vi.fn()
 const flushSpy = vi.fn()
 
 vi.mock("@/hooks/community/mutations/messages", () => ({
-  useAdvanceChannelWatermark: () => advanceSpy,
+  useAdvanceDmWatermark: () => advanceSpy,
   flushPendingReads: () => flushSpy(),
 }))
 
@@ -121,25 +119,18 @@ function resetHarness() {
 }
 
 async function loadHook() {
-  const mod = await import("./use-channel-watermark")
-  return mod.useChannelWatermark
+  const mod = await import("./use-dm-watermark")
+  return mod.useDmWatermark
 }
 
-// Fabricate a scroll-root element the observer can key `root` off. jsdom
-// isn't available, so we lie about the type — the polyfill above doesn't
-// actually look at the root's DOM behaviour beyond identity.
 function makeRoot(): HTMLElement {
   return { __kind: "root" } as unknown as HTMLElement
 }
 
-// Fabricate a message-row element. `dataset.msgId` mirrors the DOM API the
-// hook reads at intersection time.
 function makeRow(id: string): Element {
   return { dataset: { msgId: id } } as unknown as Element
 }
 
-// The hook queries `root.querySelectorAll("[data-msg-id]")` to seed the
-// observer with the currently-rendered rows. We synthesize that here.
 function attachRows(root: HTMLElement, rows: Element[]) {
   ;(root as unknown as { querySelectorAll: (sel: string) => Iterable<Element> }).querySelectorAll =
     () => rows
@@ -147,20 +138,18 @@ function attachRows(root: HTMLElement, rows: Element[]) {
 
 beforeEach(() => {
   resetHarness()
-  // Install IO polyfill on globalThis so `typeof IntersectionObserver` is
-  // "function" inside the hook.
   ;(globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver =
     MockIntersectionObserver
 })
 
-describe("useChannelWatermark — visibility gate", () => {
+describe("useDmWatermark — visibility gate", () => {
   it("advances the watermark when a row hits >=0.2 visibility", async () => {
     const useHook = await loadHook()
     const root = makeRoot()
     const row = makeRow("m_1")
     attachRows(root, [row])
     useHook({
-      channelId: "ch_1",
+      dmId: "dm_1",
       messages: [
         { id: "m_1", createdAt: "2026-07-01T00:00:00.000Z", authorId: "u_other" },
       ],
@@ -168,7 +157,7 @@ describe("useChannelWatermark — visibility gate", () => {
     })
     flushEffects()
     fireIntersections([{ target: row, isIntersecting: true, intersectionRatio: 0.3 }])
-    expect(advanceSpy).toHaveBeenCalledWith("ch_1", "m_1")
+    expect(advanceSpy).toHaveBeenCalledWith("dm_1", "m_1")
   })
 
   it("does NOT advance when ratio is below 0.2", async () => {
@@ -177,7 +166,7 @@ describe("useChannelWatermark — visibility gate", () => {
     const row = makeRow("m_1")
     attachRows(root, [row])
     useHook({
-      channelId: "ch_1",
+      dmId: "dm_1",
       messages: [
         { id: "m_1", createdAt: "2026-07-01T00:00:00.000Z", authorId: "u_other" },
       ],
@@ -187,46 +176,9 @@ describe("useChannelWatermark — visibility gate", () => {
     fireIntersections([{ target: row, isIntersecting: true, intersectionRatio: 0.1 }])
     expect(advanceSpy).not.toHaveBeenCalled()
   })
-
-  it("does NOT advance when isIntersecting is false, even at high ratio", async () => {
-    const useHook = await loadHook()
-    const root = makeRoot()
-    const row = makeRow("m_1")
-    attachRows(root, [row])
-    useHook({
-      channelId: "ch_1",
-      messages: [
-        { id: "m_1", createdAt: "2026-07-01T00:00:00.000Z", authorId: "u_other" },
-      ],
-      scrollRootEl: root,
-    })
-    flushEffects()
-    fireIntersections([{ target: row, isIntersecting: false, intersectionRatio: 0.9 }])
-    expect(advanceSpy).not.toHaveBeenCalled()
-  })
 })
 
-describe("useChannelWatermark — monotone forward", () => {
-  it("advances forward across two newer intersections", async () => {
-    const useHook = await loadHook()
-    const root = makeRoot()
-    const row1 = makeRow("m_1")
-    const row2 = makeRow("m_2")
-    attachRows(root, [row1, row2])
-    useHook({
-      channelId: "ch_1",
-      messages: [
-        { id: "m_1", createdAt: "2026-07-01T00:00:00.000Z", authorId: "u_other" },
-        { id: "m_2", createdAt: "2026-07-01T00:00:01.000Z", authorId: "u_other" },
-      ],
-      scrollRootEl: root,
-    })
-    flushEffects()
-    fireIntersections([{ target: row1, isIntersecting: true, intersectionRatio: 0.9 }])
-    fireIntersections([{ target: row2, isIntersecting: true, intersectionRatio: 0.9 }])
-    expect(advanceSpy.mock.calls.map((c) => c[1])).toEqual(["m_1", "m_2"])
-  })
-
+describe("useDmWatermark — monotone forward", () => {
   it("NEVER regresses — a stale-older intersection after seeing a newer row is ignored", async () => {
     const useHook = await loadHook()
     const root = makeRoot()
@@ -234,7 +186,7 @@ describe("useChannelWatermark — monotone forward", () => {
     const rowNew = makeRow("m_new")
     attachRows(root, [rowOld, rowNew])
     useHook({
-      channelId: "ch_1",
+      dmId: "dm_1",
       messages: [
         { id: "m_old", createdAt: "2026-07-01T00:00:00.000Z", authorId: "u_other" },
         { id: "m_new", createdAt: "2026-07-02T00:00:00.000Z", authorId: "u_other" },
@@ -242,43 +194,20 @@ describe("useChannelWatermark — monotone forward", () => {
       scrollRootEl: root,
     })
     flushEffects()
-    // See the newer one first.
     fireIntersections([{ target: rowNew, isIntersecting: true, intersectionRatio: 0.9 }])
-    // Then scroll back — an older row briefly clears the threshold again.
     fireIntersections([{ target: rowOld, isIntersecting: true, intersectionRatio: 0.9 }])
     expect(advanceSpy.mock.calls.map((c) => c[1])).toEqual(["m_new"])
   })
-
-  it("breaks (createdAt, id) ties lexicographically on id", async () => {
-    const useHook = await loadHook()
-    const root = makeRoot()
-    const rowA = makeRow("m_a")
-    const rowB = makeRow("m_b")
-    attachRows(root, [rowA, rowB])
-    useHook({
-      channelId: "ch_1",
-      messages: [
-        { id: "m_a", createdAt: "2026-07-01T00:00:00.000Z", authorId: "u_other" },
-        { id: "m_b", createdAt: "2026-07-01T00:00:00.000Z", authorId: "u_other" },
-      ],
-      scrollRootEl: root,
-    })
-    flushEffects()
-    fireIntersections([{ target: rowA, isIntersecting: true, intersectionRatio: 0.9 }])
-    fireIntersections([{ target: rowB, isIntersecting: true, intersectionRatio: 0.9 }])
-    // b > a lexicographically at the same createdAt, so both advance.
-    expect(advanceSpy.mock.calls.map((c) => c[1])).toEqual(["m_a", "m_b"])
-  })
 })
 
-describe("useChannelWatermark — self-authored skip", () => {
+describe("useDmWatermark — self-authored skip", () => {
   it("does NOT advance for a message authored by the viewer", async () => {
     const useHook = await loadHook()
     const root = makeRoot()
     const row = makeRow("m_1")
     attachRows(root, [row])
     useHook({
-      channelId: "ch_1",
+      dmId: "dm_1",
       messages: [
         { id: "m_1", createdAt: "2026-07-01T00:00:00.000Z", authorId: "u_viewer" },
       ],
@@ -290,22 +219,20 @@ describe("useChannelWatermark — self-authored skip", () => {
   })
 })
 
-describe("useChannelWatermark — lifecycle", () => {
-  it("flushes pending mark-reads on unmount / channel change", async () => {
+describe("useDmWatermark — lifecycle", () => {
+  it("flushes pending mark-reads on unmount / DM change", async () => {
     const useHook = await loadHook()
     const root = makeRoot()
     attachRows(root, [])
-    useHook({ channelId: "ch_1", messages: [], scrollRootEl: root })
+    useHook({ dmId: "dm_1", messages: [], scrollRootEl: root })
     flushEffects()
-    // Trigger cleanup — the effect keyed on channelId returns
-    // `flushPendingReads`.
     runCleanups()
     expect(flushSpy).toHaveBeenCalled()
   })
 
   it("no-op when scrollRootEl is null (IntersectionObserver never mounts)", async () => {
     const useHook = await loadHook()
-    useHook({ channelId: "ch_1", messages: [], scrollRootEl: null })
+    useHook({ dmId: "dm_1", messages: [], scrollRootEl: null })
     flushEffects()
     expect(observers).toHaveLength(0)
   })

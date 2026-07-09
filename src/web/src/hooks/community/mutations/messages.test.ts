@@ -148,7 +148,54 @@ describe("useSendMessage — rollback", () => {
   })
 })
 
+// Regression pin — the mount-time effect in <MessageList> gates self-send
+// auto-scroll on `tail.authorId === viewerUserId`. A missing `authorId` on
+// the optimistic row silently disables that scroll, so pin the field on
+// BOTH the channel and DM optimistic paths.
+describe("useSendMessage — stamps authorId on optimistic row", () => {
+  it("optimistic row carries the sender's authorId", async () => {
+    capturedQc.setQueryData(communityKeys.channelMessages("ch_1"), makeCache([]))
+    // Never resolves — we only care about the optimistic write from onMutate.
+    apiFetchMock.mockImplementation(() => new Promise(() => {}))
+    const mod = await loadMod()
+    mod.useSendMessage()
+    const cfg = capturedConfig!
+    await cfg.onMutate!({
+      channelId: "ch_1",
+      content: "hi",
+      author: { id: "u_me", name: "me", avatar: "M" },
+    })
+    const cache = capturedQc.getQueryData<{ pages: { messages: { authorId?: string }[] }[] }>(
+      communityKeys.channelMessages("ch_1"),
+    )
+    expect(cache?.pages[0].messages).toHaveLength(1)
+    expect(cache?.pages[0].messages[0].authorId).toBe("u_me")
+  })
+})
+
 // ── useSendDmMessage ──────────────────────────────────────────────────────
+
+describe("useSendDmMessage — stamps authorId on optimistic row", () => {
+  // Companion regression: without authorId the self-send auto-scroll bails
+  // in <MessageList> because `undefined !== viewerUserId`. Pin the field.
+  it("optimistic DM row carries the sender's authorId", async () => {
+    capturedQc.setQueryData(communityKeys.dmMessages("dm_1"), makeCache([]))
+    apiFetchMock.mockImplementation(() => new Promise(() => {}))
+    const mod = await loadMod()
+    mod.useSendDmMessage()
+    const cfg = capturedConfig!
+    await cfg.onMutate!({
+      dmId: "dm_1",
+      content: "hi",
+      author: { id: "u_me", name: "me", avatar: "M" },
+    })
+    const cache = capturedQc.getQueryData<{ pages: { messages: { authorId?: string }[] }[] }>(
+      communityKeys.dmMessages("dm_1"),
+    )
+    expect(cache?.pages[0].messages).toHaveLength(1)
+    expect(cache?.pages[0].messages[0].authorId).toBe("u_me")
+  })
+})
 
 describe("useSendDmMessage — rollback", () => {
   it("marks the temp DM row failed on server failure", async () => {
@@ -207,6 +254,50 @@ describe("useSendDmMessage — 403 blocked special-case", () => {
     expect(cache?.pages[0].messages).toHaveLength(1)
     expect(cache?.pages[0].messages[0].failed).toBe(true)
     expect(toastMock).not.toHaveBeenCalled()
+  })
+})
+
+// 429 rate-limit toasts on both channel and DM send paths — the pill stays
+// as `failed: true` so the retry affordance is still visible, but a toast
+// fires so the user knows why the send didn't go through.
+describe("useSendMessage — 429 rate limit fires a toast + marks failed", () => {
+  it("channel 429: toast fires and row is marked failed:true", async () => {
+    capturedQc.setQueryData(communityKeys.channelMessages("ch_1"), makeCache([]))
+    const mod = await loadMod()
+    const { ApiError } = await import("@/lib/errors")
+    apiFetchMock.mockRejectedValueOnce(new ApiError("rate_limited", 429))
+    mod.useSendMessage()
+    await runMutation({
+      channelId: "ch_1",
+      content: "hi",
+      author: { id: "u_me", name: "me", avatar: "M" },
+    }).catch(() => {})
+    const cache = capturedQc.getQueryData<{ pages: { messages: { failed?: boolean }[] }[] }>(
+      communityKeys.channelMessages("ch_1"),
+    )
+    expect(cache?.pages[0].messages[0].failed).toBe(true)
+    expect(toastMock).toHaveBeenCalledWith(expect.stringContaining("Rate limited"))
+  })
+})
+
+describe("useSendDmMessage — 429 rate limit fires a toast + marks failed", () => {
+  it("DM 429: toast fires and row is marked failed:true (not scrubbed like 403 blocked)", async () => {
+    capturedQc.setQueryData(communityKeys.dmMessages("dm_1"), makeCache([]))
+    const mod = await loadMod()
+    const { ApiError } = await import("@/lib/errors")
+    apiFetchMock.mockRejectedValueOnce(new ApiError("rate_limited", 429))
+    mod.useSendDmMessage()
+    await runMutation({
+      dmId: "dm_1",
+      content: "hi",
+      author: { id: "u_me", name: "me", avatar: "M" },
+    }).catch(() => {})
+    const cache = capturedQc.getQueryData<{ pages: { messages: { failed?: boolean }[] }[] }>(
+      communityKeys.dmMessages("dm_1"),
+    )
+    expect(cache?.pages[0].messages).toHaveLength(1)
+    expect(cache?.pages[0].messages[0].failed).toBe(true)
+    expect(toastMock).toHaveBeenCalledWith(expect.stringContaining("Rate limited"))
   })
 })
 
@@ -611,7 +702,7 @@ describe("useMarkChannelRead — #13 debounced read stampede", () => {
 
 // ── scheduleMarkRead — extended signature (with messageId body) ──────────
 describe("scheduleMarkRead — with messageId body", () => {
-  it("posts { lastMessageId } when a messageId is passed", async () => {
+  it("posts { lastReadMessageId } when a messageId is passed", async () => {
     vi.useFakeTimers()
     try {
       apiFetchMock.mockResolvedValue(undefined)
@@ -623,7 +714,7 @@ describe("scheduleMarkRead — with messageId body", () => {
         (c) => (c[1] as { method?: string })?.method === "PUT",
       )
       expect(put).toBeDefined()
-      expect((put![1] as RequestInit).body).toBe(JSON.stringify({ lastMessageId: "m_42" }))
+      expect((put![1] as RequestInit).body).toBe(JSON.stringify({ lastReadMessageId: "m_42" }))
     } finally {
       vi.useRealTimers()
     }
@@ -643,7 +734,7 @@ describe("scheduleMarkRead — with messageId body", () => {
         (c) => (c[1] as { method?: string })?.method === "PUT",
       )
       expect(puts).toHaveLength(1)
-      expect((puts[0][1] as RequestInit).body).toBe(JSON.stringify({ lastMessageId: "m_fresh" }))
+      expect((puts[0][1] as RequestInit).body).toBe(JSON.stringify({ lastReadMessageId: "m_fresh" }))
     } finally {
       vi.useRealTimers()
     }
@@ -669,7 +760,7 @@ describe("scheduleMarkRead — with messageId body", () => {
 
 // ── useAdvanceChannelWatermark — thin wrapper for viewport advances ─────
 describe("useAdvanceChannelWatermark", () => {
-  it("returns a callable that PUTs { lastMessageId } after the debounce", async () => {
+  it("returns a callable that PUTs { lastReadMessageId } after the debounce", async () => {
     vi.useFakeTimers()
     try {
       apiFetchMock.mockResolvedValue(undefined)
@@ -683,7 +774,7 @@ describe("useAdvanceChannelWatermark", () => {
       )
       expect(put).toBeDefined()
       expect((put![0] as string)).toBe("/api/community/channels/ch_1/read")
-      expect((put![1] as RequestInit).body).toBe(JSON.stringify({ lastMessageId: "m_42" }))
+      expect((put![1] as RequestInit).body).toBe(JSON.stringify({ lastReadMessageId: "m_42" }))
     } finally {
       vi.useRealTimers()
     }
@@ -710,6 +801,90 @@ describe("useAdvanceChannelWatermark", () => {
     })
     expect(inboxCalls.length).toBeGreaterThanOrEqual(1)
     expect(serversCalls.length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+// ── useAdvanceDmWatermark — DM sibling of the channel wrapper ───────────
+describe("useAdvanceDmWatermark", () => {
+  it("returns a callable that PUTs { lastReadMessageId } to the DM read route", async () => {
+    vi.useFakeTimers()
+    try {
+      apiFetchMock.mockResolvedValue(undefined)
+      const mod = await loadMod()
+      mod._resetPendingReads_forTesting()
+      const advance = mod.useAdvanceDmWatermark()
+      advance("dm_1", "m_42")
+      await vi.advanceTimersByTimeAsync(500)
+      const put = apiFetchMock.mock.calls.find(
+        (c) => (c[1] as { method?: string })?.method === "PUT",
+      )
+      expect(put).toBeDefined()
+      expect(put![0] as string).toBe("/api/community/dm/dm_1/read")
+      expect((put![1] as RequestInit).body).toBe(
+        JSON.stringify({ lastReadMessageId: "m_42" }),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("DM and channel schedules share the debounce map but don't alias each other", async () => {
+    // Regression: the "dm:<id>" namespace makes a DM schedule and a
+    // channel schedule with the same underlying id coexist in the same
+    // pendingReads map. If they aliased, one would clobber the other's
+    // pointer and one of the two PUTs would go missing.
+    vi.useFakeTimers()
+    try {
+      apiFetchMock.mockResolvedValue(undefined)
+      const mod = await loadMod()
+      mod._resetPendingReads_forTesting()
+      const advanceDm = mod.useAdvanceDmWatermark()
+      const advanceCh = mod.useAdvanceChannelWatermark()
+      // Same underlying id `x` — one DM, one channel.
+      advanceDm("x", "m_dm")
+      advanceCh("x", "m_ch")
+      await vi.advanceTimersByTimeAsync(500)
+      const puts = apiFetchMock.mock.calls.filter(
+        (c) => (c[1] as { method?: string })?.method === "PUT",
+      )
+      expect(puts).toHaveLength(2)
+      const dmPut = puts.find((c) => (c[0] as string).startsWith("/api/community/dm/"))
+      const chPut = puts.find((c) =>
+        (c[0] as string).startsWith("/api/community/channels/"),
+      )
+      expect(dmPut).toBeDefined()
+      expect(chPut).toBeDefined()
+      expect((dmPut![1] as RequestInit).body).toBe(
+        JSON.stringify({ lastReadMessageId: "m_dm" }),
+      )
+      expect((chPut![1] as RequestInit).body).toBe(
+        JSON.stringify({ lastReadMessageId: "m_ch" }),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("onDone invalidates inbox + dms after the PUT resolves", async () => {
+    apiFetchMock.mockResolvedValue(undefined)
+    const mod = await loadMod()
+    mod._resetPendingReads_forTesting()
+    const advance = mod.useAdvanceDmWatermark()
+    const spy = vi.spyOn(capturedQc, "invalidateQueries")
+    advance("dm_1", "m_42")
+    mod.flushPendingReads()
+    await Promise.resolve()
+    await Promise.resolve()
+    const inboxCalls = spy.mock.calls.filter((c) => {
+      const key = c[0]?.queryKey as unknown[] | undefined
+      return Array.isArray(key) && key.includes("inbox")
+    })
+    const dmsCalls = spy.mock.calls.filter((c) => {
+      const key = c[0]?.queryKey as unknown[] | undefined
+      return Array.isArray(key) && key.length === 2 && key[1] === "dms"
+    })
+    expect(inboxCalls.length).toBeGreaterThanOrEqual(1)
+    expect(dmsCalls.length).toBeGreaterThanOrEqual(1)
   })
 })
 
@@ -763,7 +938,7 @@ describe("useMarkAllInboxRead", () => {
     const mod = await loadMod()
     mod.useMarkAllInboxRead()
     await runMutation<void>(undefined as unknown as void)
-    expect(capturedQc.getQueryData(communityKeys.inboxUnreads())).toEqual({ servers: [] })
+    expect(capturedQc.getQueryData(communityKeys.inboxUnreads())).toEqual({ servers: [], dms: [] })
     expect(capturedQc.getQueryData(communityKeys.inboxMentions())).toEqual({ mentions: [] })
   })
 

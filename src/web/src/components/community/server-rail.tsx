@@ -18,7 +18,7 @@ import { serverGradient } from "./server-gradient"
 import type { Server, CommunityFolder, MobileZone, View } from "./_types"
 
 export const ServerRail = memo(function ServerRail({
-  servers, folders, activeServerId: activeServerIdProp, serversLoading, setMobileZone, view, bottomInset,
+  servers, folders, activeServerId: activeServerIdProp, serversLoading, serversReady, setMobileZone, view, bottomInset,
   onHome, onServer, onServerNavigate, onCreateServer, onJoinServer, onLeaveServer,
   onOpenSettings, onOpenInvitePopover, onUngroupFolder, onReorderRail, onReorderFolders, onFolderItemsChange, onDragCreateFolder,
 }: {
@@ -26,6 +26,13 @@ export const ServerRail = memo(function ServerRail({
   folders: CommunityFolder[]
   activeServerId?: string
   serversLoading?: boolean
+  // Auto-open the "Create a Server" dialog when the user genuinely has no
+  // servers — gated on `serversReady` (query has completed at least one
+  // fetch AND isn't refetching) instead of `!serversLoading`. TanStack v5
+  // `isLoading` is only true on the very first fetch, so any subsequent
+  // invalidate (WS `member.leave`, reconnect) briefly flips servers=[] with
+  // `isLoading=false`, which would re-trigger the dialog mid-session.
+  serversReady?: boolean
   setMobileZone?: (z: MobileZone) => void
   view: View
   bottomInset?: number
@@ -69,11 +76,16 @@ export const ServerRail = memo(function ServerRail({
   const [createOpen, setCreateOpen] = useState(false)
   const [didAutoOpen, setDidAutoOpen] = useState(false)
   useEffect(() => {
-    if (!didAutoOpen && servers.length === 0 && folders.length === 0 && serversLoading === false) {
+    // Only fire when the servers query has genuinely settled (fetched at
+    // least once AND not currently refetching). `serversLoading` (from
+    // TanStack `isLoading`) is only true on the very first fetch, so it
+    // false-triggers on any subsequent cache invalidate where the servers
+    // list is transiently empty. `serversReady` is `isFetched && !isFetching`.
+    if (!didAutoOpen && serversReady && servers.length === 0 && folders.length === 0) {
       setDidAutoOpen(true)
       setCreateOpen(true)
     }
-  }, [servers.length, folders.length, serversLoading, didAutoOpen])
+  }, [servers.length, folders.length, serversReady, didAutoOpen])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const pickServer = (id: string) => { setActiveId(id); onServer(); onServerNavigate?.(id); setMobileZone?.("nav") }
