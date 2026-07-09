@@ -395,10 +395,10 @@ function CommunityMentionList({ state }: { state: MentionPopupState }) {
 
   return createPortal(
     <div
-      className="fixed z-100 w-64 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-(--e2)"
+      className="fixed z-100 w-64 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-(--e2)"
       style={{ top: rect.top - 4, left: clampedLeft, transform: "translateY(-100%)" }}
     >
-      <div ref={listRef} className="max-h-60 overflow-y-auto thin-scrollbar py-1">
+      <div ref={listRef} className="max-h-60 overflow-x-hidden overflow-y-auto thin-scrollbar">
         {items.map((item, i) => {
           const selected = i === selectedIndex
           return (
@@ -456,10 +456,10 @@ function ChannelRefList({ state }: { state: ChannelRefPopupState }) {
 
   return createPortal(
     <div
-      className="fixed z-100 w-64 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-(--e2)"
+      className="fixed z-100 w-64 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-(--e2)"
       style={{ top: rect.top - 4, left: clampedLeft, transform: "translateY(-100%)" }}
     >
-      <div ref={listRef} className="max-h-60 overflow-y-auto thin-scrollbar py-1">
+      <div ref={listRef} className="max-h-60 overflow-x-hidden overflow-y-auto thin-scrollbar">
         {items.map((item, i) => (
           <ChannelRefRow
             key={item.id}
@@ -487,7 +487,7 @@ function ChannelRefRow({ item, selected, showServerPrefix, onSelect }: {
       role="option"
       aria-selected={selected}
       className={[
-        "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors",
+        "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors",
         selected ? "bg-accent" : "hover:bg-accent/50",
       ].join(" ")}
       onMouseDown={(e) => {
@@ -514,14 +514,14 @@ function MentionRow({ item, selected, showMembersHeader, onSelect }: {
   return (
     <>
       {showMembersHeader && (
-        <div className="border-t border-border/60 px-3 pt-1.5 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Members</div>
+        <div className="-mx-1 mt-1 border-t border-border/60 px-2 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Members</div>
       )}
       <button
         type="button"
         role="option"
         aria-selected={selected}
         className={[
-          "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors",
+          "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors",
           selected ? "bg-accent" : "hover:bg-accent/50",
         ].join(" ")}
         onMouseDown={(e) => {
