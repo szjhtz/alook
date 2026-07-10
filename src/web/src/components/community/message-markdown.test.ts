@@ -54,28 +54,56 @@ describe("preprocessMarkdown", () => {
     expect(preprocessMarkdown("/studio/general")).toBe("<channelref>/studio/general</channelref>")
   })
 
+  it("wraps a hyphenated, single-token name segment (post-slugify server/channel names)", () => {
+    expect(preprocessMarkdown("see /Server-Name/general")).toBe(
+      "see <channelref>/Server-Name/general</channelref>",
+    )
+  })
+
   it("leaves text/studio/general (no leading space) untouched", () => {
     expect(preprocessMarkdown("text/studio/general")).toBe("text/studio/general")
   })
 
-  it("does NOT wrap a 3+-segment docs-style path — trailing `/segment` fails the terminator boundary", () => {
-    // Regression guard: `CHANNEL_REF_REGEX` used to greedily eat `/api/user`
-    // out of a docs URL, orphaning `/123` as broken trailing text next to a
-    // muted pill. The trailing boundary lookahead rejects this — a real
-    // 2-segment ref must sit alone (space, EOS, or punctuation after it).
-    expect(preprocessMarkdown("look at /api/user/123")).toBe("look at /api/user/123")
-    expect(preprocessMarkdown("hit /docs/api/v1 first")).toBe("hit /docs/api/v1 first")
+  it("a 3+-segment docs-style path now wraps its first 2 segments, leaving the rest as trailing text — accepted tradeoff of the broadened single-token-segment charset, not a regression to fix", () => {
+    // `CHANNEL_REF_REGEX`'s segment charset is now "anything but whitespace/
+    // `/`/`#`" (see its doc comment) so server/channel names round-trip as a
+    // single token. A 3-segment docs path shape-matches its first two
+    // segments as a ref and leaves the leftover `/segment` as plain text
+    // next to it — this degrades gracefully (an unresolvable ref falls back
+    // to plain, unstyled text per `channel-ref-pill.tsx`), it doesn't crash
+    // or corrupt anything.
+    expect(preprocessMarkdown("look at /api/user/123")).toBe(
+      "look at <channelref>/api/user</channelref>/123",
+    )
+    expect(preprocessMarkdown("hit /docs/api/v1 first")).toBe(
+      "hit <channelref>/docs/api</channelref>/v1 first",
+    )
   })
 
-  it("still wraps a 2-segment ref followed by punctuation (period, comma, close-paren)", () => {
+  it("a punctuation-heavy non-ref token now shape-matches and gets wrapped — accepted tradeoff, not a regression to fix", () => {
+    // `nginx.conf` has no `/`/`#`/whitespace, so it's a valid single-token
+    // channel segment under the broadened charset even though it's not a
+    // real channel name; it just fails to resolve and falls back to plain
+    // text at render time (`channel-ref-pill.tsx`'s existing miss-fallback).
+    expect(preprocessMarkdown("see the config at /etc/nginx.conf")).toBe(
+      "see the config at <channelref>/etc/nginx.conf</channelref>",
+    )
+  })
+
+  it("a 2-segment ref followed by punctuation now absorbs the punctuation into the segment (charset no longer excludes it) — accepted tradeoff, not a regression to fix", () => {
+    // The old nanoid-only charset excluded `.`/`,`/`)`, so trailing
+    // punctuation stayed outside the tag. The new charset only excludes
+    // whitespace/`/`/`#`, so it's absorbed into the (still single-token)
+    // segment instead. Still not a crash, still degrades to plain text if
+    // unresolvable — see the plan's "Known limitations & accepted risks".
     expect(preprocessMarkdown("see /studio/general.")).toBe(
-      "see <channelref>/studio/general</channelref>.",
+      "see <channelref>/studio/general.</channelref>",
     )
     expect(preprocessMarkdown("visit /studio/general, ok?")).toBe(
-      "visit <channelref>/studio/general</channelref>, ok?",
+      "visit <channelref>/studio/general,</channelref> ok?",
     )
     expect(preprocessMarkdown("(see /studio/general)")).toBe(
-      "(see <channelref>/studio/general</channelref>)",
+      "(see <channelref>/studio/general)</channelref>",
     )
   })
 

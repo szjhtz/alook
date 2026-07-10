@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest"
 import {
   buildCommunityChannelRefExtension,
   rankChannelRefItems,
+  toChannelRefCommandProps,
   EMPTY_CHANNEL_REF_STATE,
   type ChannelRefCandidate,
   type ChannelRefPopupState,
@@ -60,7 +61,14 @@ function getItemsCallback(
 
 type RenderNodeProps = {
   options?: { HTMLAttributes?: Record<string, unknown> }
-  node: { attrs: { label?: string | null; id?: string | null; serverId?: string | null } }
+  node: {
+    attrs: {
+      label?: string | null
+      id?: string | null
+      serverId?: string | null
+      serverName?: string | null
+    }
+  }
 }
 
 function getRenderFns(ext: ReturnType<typeof buildCommunityChannelRefExtension>): {
@@ -101,6 +109,18 @@ function build(candidates: ChannelRefCandidate[] = [], popup: ChannelRefPopupSta
   return { ext, candidatesRef, popupRef, setPopup, queryRef }
 }
 
+describe("toChannelRefCommandProps", () => {
+  it("maps a ChannelRefCandidate to { id, label, serverId, serverName } — this is the one function shared by both the keyboard and mouse-click insertion paths", () => {
+    const item = candidate("chn_1", "general", "srv_1", "Studio")
+    expect(toChannelRefCommandProps(item)).toEqual({
+      id: "chn_1",
+      label: "general",
+      serverId: "srv_1",
+      serverName: "Studio",
+    })
+  })
+})
+
 describe("buildCommunityChannelRefExtension — suggestion.items callback", () => {
   it("reads live candidates via candidatesRef.current", () => {
     const { ext, candidatesRef } = build([candidate("c1", "general")])
@@ -123,12 +143,31 @@ describe("buildCommunityChannelRefExtension — suggestion.items callback", () =
 })
 
 describe("buildCommunityChannelRefExtension — renderText/renderHTML", () => {
-  it("renderText produces /serverId/channelId (id-based, not name-based)", () => {
+  it("renderText produces /serverName/label (name-based, not id-based)", () => {
     const { ext } = build()
     const { renderText } = getRenderFns(ext)
     expect(
-      renderText({ node: { attrs: { id: "chn_abc", serverId: "srv_xyz", label: "general" } } }),
-    ).toBe("/srv_xyz/chn_abc")
+      renderText({
+        node: { attrs: { id: "chn_abc", serverId: "srv_xyz", serverName: "Studio", label: "general" } },
+      }),
+    ).toBe("/Studio/general")
+  })
+
+  it("renderText falls back independently per-field — serverName missing falls back to serverId, label missing falls back to id (mixed case, not all-or-nothing)", () => {
+    const { ext } = build()
+    const { renderText } = getRenderFns(ext)
+    // serverName missing, label present.
+    expect(
+      renderText({
+        node: { attrs: { id: "chn_abc", serverId: "srv_xyz", serverName: null, label: "general" } },
+      }),
+    ).toBe("/srv_xyz/general")
+    // serverName present, label missing.
+    expect(
+      renderText({
+        node: { attrs: { id: "chn_abc", serverId: "srv_xyz", serverName: "Studio", label: null } },
+      }),
+    ).toBe("/Studio/chn_abc")
   })
 
   it("renderHTML shows a compact /label chip", () => {
@@ -162,11 +201,24 @@ describe("buildCommunityChannelRefExtension — renderText/renderHTML", () => {
     ).toBe("/general")
   })
 
-  it("renderText emits empty string when neither serverId nor label is present", () => {
+  it("renderText falls back to the channel id alone when server is missing but the channel id is present", () => {
+    // With independent per-field fallback, a present `id` still lets the
+    // channel segment resolve even when both `serverName`/`serverId` are
+    // missing — only the server segment drops out.
     const { ext } = build()
     const { renderText } = getRenderFns(ext)
     expect(
-      renderText({ node: { attrs: { id: "chn_abc", serverId: null, label: null } } }),
+      renderText({ node: { attrs: { id: "chn_abc", serverId: null, serverName: null, label: null } } }),
+    ).toBe("/chn_abc")
+  })
+
+  it("renderText emits empty string when nothing at all is present (server AND channel both fully missing)", () => {
+    const { ext } = build()
+    const { renderText } = getRenderFns(ext)
+    expect(
+      renderText({
+        node: { attrs: { id: null, serverId: null, serverName: null, label: null } },
+      }),
     ).toBe("")
   })
 })
@@ -209,7 +261,7 @@ describe("buildCommunityChannelRefExtension — keyboard callback", () => {
     expect(onKeyDown({ event: enter })).toBe(false)
   })
 
-  it("selecting a candidate via Enter calls command with { id, label, serverId } — not the raw ChannelRefCandidate", () => {
+  it("selecting a candidate via Enter calls command with { id, label, serverId, serverName } (via toChannelRefCommandProps) — not the raw ChannelRefCandidate", () => {
     const command = vi.fn()
     const items = [candidate("chn_1", "general", "srv_1", "Studio")]
     const { ext, setPopup } = build(items, { items, selectedIndex: 0, command, rect: null })
@@ -219,7 +271,7 @@ describe("buildCommunityChannelRefExtension — keyboard callback", () => {
     // Regression guard for the name→label mapping bug: passing the raw
     // candidate through as-is would leave `attrs.label` `null` and silently
     // render "/null" in the in-editor chip.
-    expect(command).toHaveBeenCalledWith({ id: "chn_1", label: "general", serverId: "srv_1" })
+    expect(command).toHaveBeenCalledWith({ id: "chn_1", label: "general", serverId: "srv_1", serverName: "Studio" })
     expect(command).not.toHaveBeenCalledWith(items[0])
     expect(setPopup).toHaveBeenCalledWith(EMPTY_CHANNEL_REF_STATE)
   })
@@ -231,7 +283,7 @@ describe("buildCommunityChannelRefExtension — keyboard callback", () => {
     const onKeyDown = getKeyDownCallback(ext)
     const tab = { key: "Tab", preventDefault: vi.fn(), isComposing: false } as unknown as KeyboardEvent
     expect(onKeyDown({ event: tab })).toBe(true)
-    expect(command).toHaveBeenCalledWith({ id: "chn_1", label: "general", serverId: "srv_1" })
+    expect(command).toHaveBeenCalledWith({ id: "chn_1", label: "general", serverId: "srv_1", serverName: "Studio" })
   })
 
   it("returns false when there are no items (popup effectively closed)", () => {

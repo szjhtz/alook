@@ -3,20 +3,22 @@ import { Spoiler, MentionPill } from "./inline-marks"
 import { ChannelRefPill } from "./channel-ref-pill"
 
 // Match a `/server/channel` or `/server/channel/#N` (thread) ref — the CLI's
-// path grammar (`parseRef`/`formatRef` in `community-cli-contract.ts`). Segment
-// charset `[A-Za-z0-9_-]+` is the nanoid alphabet every `communityServer.id`/
-// `communityChannel.id` is generated with, so a compact ref must be built from
-// ids (see `channel-ref-extension.ts`'s `renderText`) — display names with
-// spaces/punctuation can't round-trip through this regex (same limitation the
-// legacy `#channel-name` chip had). The pinned-message form (`#N` directly, no
-// slash) is intentionally not matched — see plan §1 for why.
+// path grammar (`parseRef`/`formatRef` in `community-cli-contract.ts`).
+// Segment charset `[^\s/#]+` (any run of non-whitespace, non-`/`, non-`#`)
+// works because server/channel `name`s are guaranteed free of whitespace/
+// `/`/`#` at creation/rename time (`slugify()`, applied by every write
+// route) — a single-token segment can never be ambiguous, so refs render by
+// display *name* now (see `channel-ref-extension.ts`'s `renderText`)
+// instead of id. The pinned-message form (`#N` directly, no slash) is
+// intentionally not matched — see plan §1 for why.
 //
-// Trailing `(?=\s|$|[.,;:!?)\]])` boundary lookahead: a 2-segment path
-// followed by ANOTHER `/segment` (e.g. `/api/user/123` in a docs URL) must
-// NOT match — otherwise CHANNEL_REF_REGEX greedily takes `/api/user` and
-// orphans `/123` as trailing text next to a broken pill. Requiring a
-// terminator forces the match to sit ONLY on a real leaf ref.
-const CHANNEL_REF_REGEX = /(^|\s)(\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+(?:\/#\d+)?)(?=\s|$|[.,;:!?)\]])/g
+// Accepted tradeoff: this broadened charset also shape-matches punctuation-
+// heavy non-ref text that happens to look like a path (e.g. `/etc/nginx.conf`,
+// `a/b/c`) — those just fail to resolve and fall back to plain, unstyled
+// text (`channel-ref-pill.tsx`'s existing miss-fallback), no crash. This is
+// intentional, not a regression to "fix": see the channel-ref-slugification
+// plan's "Known limitations & accepted risks".
+const CHANNEL_REF_REGEX = /(^|\s)(\/[^\s/#]+\/[^\s/#]+(?:\/#\d+)?)/g
 
 // Sentinels for stashing code spans/fences (private-use chars — won't collide with
 // real text or markdown punctuation).

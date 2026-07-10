@@ -6,9 +6,10 @@ import {
   moveChannelAcrossCategories,
   reorderChannelsWithin,
   reorderCategories,
+  mergeChannelMetadata,
   type ChannelOrder,
 } from "./use-channel-tree"
-import type { Channel } from "./_types"
+import type { Channel, Category } from "./_types"
 
 const ch = (id: string): Channel => ({ id, name: id, active: false, unread: false })
 
@@ -69,5 +70,52 @@ describe("reorderCategories", () => {
   it("returns the input when a category is missing", () => {
     const cats = ["cat_A", "cat_B"]
     expect(reorderCategories(cats, "cat_Z", "cat_A")).toBe(cats)
+  })
+})
+
+// Regression: the sync effect's id-set early-return silently swallowed
+// metadata-only updates (unread/name) — see "The useChannelTree gap" in
+// plans/community-unread-indicators.md.
+describe("mergeChannelMetadata", () => {
+  const cat = (id: string, channels: Channel[]): Category => ({ id, name: id, channels })
+
+  it("flips an unread flag while ids are unchanged", () => {
+    const result = mergeChannelMetadata(order, [
+      cat("cat_A", [ch("a1"), { ...ch("a2"), unread: true }]),
+      cat("cat_B", [ch("b1"), ch("b2"), ch("b3")]),
+    ])
+    expect(result.changed).toBe(true)
+    expect(result.next.cat_A.find((c) => c.id === "a2")?.unread).toBe(true)
+    // Untouched sibling channel keeps the same object reference.
+    expect(result.next.cat_A.find((c) => c.id === "a1")).toBe(order.cat_A[0])
+  })
+
+  it("picks up a channel rename while ids are unchanged", () => {
+    const result = mergeChannelMetadata(order, [
+      cat("cat_A", [ch("a1"), { ...ch("a2"), name: "renamed" }]),
+      cat("cat_B", [ch("b1"), ch("b2"), ch("b3")]),
+    ])
+    expect(result.changed).toBe(true)
+    expect(result.next.cat_A.find((c) => c.id === "a2")?.name).toBe("renamed")
+  })
+
+  it("preserves category/channel order — only rewrites the changed field", () => {
+    const result = mergeChannelMetadata(order, [
+      cat("cat_A", [ch("a1"), { ...ch("a2"), unread: true }]),
+      cat("cat_B", [ch("b1"), ch("b2"), ch("b3")]),
+    ])
+    expect(Object.keys(result.next)).toEqual(Object.keys(order))
+    expect(result.next.cat_B.map((c) => c.id)).toEqual(order.cat_B.map((c) => c.id))
+    // Every field on the changed channel other than the diffed ones is preserved.
+    expect(result.next.cat_A.find((c) => c.id === "a2")).toMatchObject({ id: "a2", active: false })
+  })
+
+  it("is a no-op (same reference, changed: false) when nothing differs", () => {
+    const result = mergeChannelMetadata(order, [
+      cat("cat_A", [ch("a1"), ch("a2")]),
+      cat("cat_B", [ch("b1"), ch("b2"), ch("b3")]),
+    ])
+    expect(result.changed).toBe(false)
+    expect(result.next).toBe(order)
   })
 })

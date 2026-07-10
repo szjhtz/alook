@@ -112,6 +112,10 @@ export const DM_SERVER = ".dm";
  *     /.dm/<peer>#N , /.dm/<peer>/#N a DM message / DM thread
  *
  * A message is located by **channel + seq** (`<channelRef>#N`) — there is no id.
+ *
+ * `<server>`/`<channel>` are server/channel display *names*, guaranteed free
+ * of whitespace, `/`, and `#` (normalized via `slugify()` at creation/rename
+ * time), so each segment is always a single, unambiguous token.
  */
 export type ChannelRef = string;
 

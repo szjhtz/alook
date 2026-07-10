@@ -8,6 +8,7 @@ import {
   MAX_SERVER_NAME_LENGTH,
   MAX_SERVER_DESCRIPTION_LENGTH,
   WS_EVENTS,
+  slugify,
 } from "@alook/shared"
 import { fanOutToServerMembers } from "@/lib/community/fanout"
 import { logAudit } from "@/lib/community/audit"
@@ -22,16 +23,27 @@ export const GET = withAuth(async (_req, ctx) => {
   const auth = await requireServerMember(db, serverId, ctx.userId)
   if (!auth.ok) return writeError(auth.error, auth.status)
 
-  const [server, channels, categories] = await Promise.all([
+  const [server, rawChannels, categories, unreadRows] = await Promise.all([
     queries.communityServer.getServer(db, serverId),
     queries.communityChannel.listServerChannels(db, serverId),
     db.query.communityCategory.findMany({
       where: (t, { eq }) => eq(t.serverId, serverId),
       orderBy: (t, { asc }) => [asc(t.position)],
     }),
+    queries.communityInbox.listUnreadChannels(db, ctx.userId),
   ])
 
   if (!server) return writeError("server not found", 404)
+
+  // Project the viewer's per-channel unread state onto the shared `channels`
+  // array once, before splitting into categorized/uncategorized — so both
+  // branches inherit `unread` from the same source instead of two separate
+  // maps. `listUnreadChannels` scans all of the viewer's servers; scope it
+  // down to this one via the Set.
+  const unreadIds = new Set(
+    unreadRows.filter((r) => r.serverId === serverId).map((r) => r.channelId),
+  )
+  const channels = rawChannels.map((ch) => ({ ...ch, unread: unreadIds.has(ch.id) }))
 
   const categoriesWithChannels = categories.map((c) => ({
     ...c,
@@ -82,7 +94,11 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
     if (!trimmed || trimmed.length > MAX_SERVER_NAME_LENGTH) {
       return writeError(`name must be 1-${MAX_SERVER_NAME_LENGTH} characters`, 400)
     }
-    changes.name = trimmed
+    const normalized = slugify(trimmed)
+    if (!normalized) {
+      return writeError("name is required", 400)
+    }
+    changes.name = normalized
   }
   if (body.description !== undefined) {
     if (typeof body.description !== "string") {

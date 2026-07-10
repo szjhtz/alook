@@ -28,6 +28,7 @@ import {
   buildCommunityChannelRefExtension,
   EMPTY_CHANNEL_REF_STATE,
   rankChannelRefItems,
+  toChannelRefCommandProps,
   type ChannelRefCandidate,
   type ChannelRefPopupState,
 } from "@/lib/community/channel-ref-extension"
@@ -479,7 +480,7 @@ function ChannelRefList({ state }: { state: ChannelRefPopupState }) {
             item={item}
             selected={i === selectedIndex}
             showServerPrefix={spansMultipleServers}
-            onSelect={() => command({ id: item.id, label: item.name, serverId: item.serverId })}
+            onSelect={() => command(toChannelRefCommandProps(item))}
           />
         ))}
       </div>

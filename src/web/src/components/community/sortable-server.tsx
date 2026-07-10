@@ -49,10 +49,7 @@ export function SortableServer({ server, active, onClick, onLeave, onOpenSetting
                   )}
                 </button>
                 {server.mentions > 0 && (
-                  <span
-                    className="pointer-events-none absolute -bottom-1 -right-1 grid min-w-5 place-items-center rounded-full border border-(--d-rail) px-1 text-[11px] font-black tracking-tight leading-4.5 text-white"
-                    style={{ background: "var(--destructive)", WebkitTextStroke: "0.4px currentColor" }}
-                  >
+                  <span className="pointer-events-none absolute -bottom-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground ring-2 ring-(--d-rail)">
                     <NumberTicker value={server.mentions} />
                   </span>
                 )}

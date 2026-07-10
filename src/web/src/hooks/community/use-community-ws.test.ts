@@ -44,7 +44,7 @@ vi.mock("react", () => ({
     if (!refs.has(id)) refs.set(id, { current: initial })
     return refs.get(id)!
   },
-  useState: (initial: unknown) => [initial, () => {}],
+  useState: (initial: unknown) => [initial, () => { }],
   useCallback: (fn: Function, deps: unknown[]) => {
     const id = `cb-${callbackCounter++}`
     const existing = callbackMemo.get(id)
@@ -99,7 +99,7 @@ vi.mock("@/lib/use-user-ws", () => ({
 const markReadMutate = vi.fn()
 vi.mock("@/hooks/community/mutations/messages", () => ({
   useMarkChannelRead: () => ({ mutate: markReadMutate }),
-  flushPendingReads: () => {},
+  flushPendingReads: () => { },
 }))
 
 function resetHarness() {
@@ -385,6 +385,130 @@ describe("useCommunityWs — message.create", () => {
       expect(invalidateSpy).not.toHaveBeenCalled()
       // Advance past the debounce window — exactly one invalidate.
       vi.advanceTimersByTime(500)
+      const inboxCalls = invalidateSpy.mock.calls.filter((c) => {
+        const key = c[0]?.queryKey
+        return Array.isArray(key) && key.includes("inbox")
+      })
+      expect(inboxCalls).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+// ── Channel-sidebar live unread patch (plans/community-unread-indicators.md) ─
+describe("useCommunityWs — message.create patches channel unread in the open server's cache", () => {
+  function serverDetailFixture(channelId: string) {
+    return {
+      id: "srv_open",
+      name: "Server",
+      description: "",
+      icon: null,
+      ownerId: "u_owner",
+      categories: [
+        { id: "cat_A", name: "Category A", channels: [{ id: channelId, name: "random", active: false, unread: false }] },
+      ],
+    }
+  }
+
+  it("flips the channel's unread to true when it belongs to the currently-open server's cached ServerDetail", async () => {
+    await mountHook({ viewerUserId: "u_me" })
+    const { useCommunityStore } = await import("@/stores/community")
+    useCommunityStore.getState().setCurrentServerId("srv_open")
+    capturedQueryClient.setQueryData(communityKeys.server("srv_open"), serverDetailFixture("ch_random"))
+
+    capturedOnMessage!(messageCreate("ch_random"))
+
+    const cache = capturedQueryClient.getQueryData<{
+      categories: { channels: { id: string; unread: boolean }[] }[]
+    }>(communityKeys.server("srv_open"))
+    expect(cache?.categories[0].channels[0]).toMatchObject({ id: "ch_random", unread: true })
+  })
+
+  it("does NOT flip unread for a message authored by the viewer themself", async () => {
+    await mountHook({ viewerUserId: "u_me" })
+    const { useCommunityStore } = await import("@/stores/community")
+    useCommunityStore.getState().setCurrentServerId("srv_open")
+    capturedQueryClient.setQueryData(communityKeys.server("srv_open"), serverDetailFixture("ch_random"))
+
+    const event: CommunityMessageCreate = {
+      type: "community:message.create",
+      channelId: "ch_random",
+      message: { id: "m_self", authorId: "u_me", authorName: "me", content: "hi", createdAt: "2026-07-03T00:00:00.000Z" },
+    }
+    capturedOnMessage!(event)
+
+    const cache = capturedQueryClient.getQueryData<{
+      categories: { channels: { id: string; unread: boolean }[] }[]
+    }>(communityKeys.server("srv_open"))
+    expect(cache?.categories[0].channels[0].unread).toBe(false)
+  })
+
+  it("does NOT flip unread for the currently-subscribed (active) channel", async () => {
+    await mountHook({ viewerUserId: "u_me" })
+    const { useCommunityStore } = await import("@/stores/community")
+    useCommunityStore.getState().setCurrentServerId("srv_open")
+    useCommunityStore.getState().subscribe({ channelId: "ch_random" })
+    refCounter = 0
+    stateCounter = 0
+    callbackCounter = 0
+    await mountHook({ viewerUserId: "u_me" })
+    capturedQueryClient.setQueryData(communityKeys.server("srv_open"), serverDetailFixture("ch_random"))
+
+    capturedOnMessage!(messageCreate("ch_random"))
+
+    const cache = capturedQueryClient.getQueryData<{
+      categories: { channels: { id: string; unread: boolean }[] }[]
+    }>(communityKeys.server("srv_open"))
+    expect(cache?.categories[0].channels[0].unread).toBe(false)
+  })
+
+  it("is a no-op when the channel isn't present in the currently cached ServerDetail (different server / no cache)", async () => {
+    await mountHook({ viewerUserId: "u_me" })
+    const { useCommunityStore } = await import("@/stores/community")
+    useCommunityStore.getState().setCurrentServerId("srv_open")
+    capturedQueryClient.setQueryData(communityKeys.server("srv_open"), serverDetailFixture("ch_other"))
+
+    expect(() => capturedOnMessage!(messageCreate("ch_random"))).not.toThrow()
+
+    const cache = capturedQueryClient.getQueryData<{
+      categories: { channels: { id: string; unread: boolean }[] }[]
+    }>(communityKeys.server("srv_open"))
+    // Untouched — the fixture's own channel stays unread: false.
+    expect(cache?.categories[0].channels[0]).toMatchObject({ id: "ch_other", unread: false })
+  })
+
+  it("does not crash and is a no-op when no server is currently open", async () => {
+    await mountHook({ viewerUserId: "u_me" })
+    expect(() => capturedOnMessage!(messageCreate("ch_random"))).not.toThrow()
+  })
+
+  it("existing focused-channel message patch and debounced inbox invalidation still fire alongside the new unread patch", async () => {
+    vi.useFakeTimers()
+    try {
+      await mountHook({ viewerUserId: "u_me" })
+      const { useCommunityStore } = await import("@/stores/community")
+      useCommunityStore.getState().setCurrentServerId("srv_open")
+      useCommunityStore.getState().subscribe({ channelId: "ch_focused" })
+      refCounter = 0
+      stateCounter = 0
+      callbackCounter = 0
+      await mountHook({ viewerUserId: "u_me" })
+
+      capturedQueryClient.setQueryData(communityKeys.channelMessages("ch_focused"), {
+        pages: [{ messages: [], hasMore: false }],
+        pageParams: [null],
+      })
+      capturedQueryClient.setQueryData(communityKeys.server("srv_open"), serverDetailFixture("ch_focused"))
+      const invalidateSpy = vi.spyOn(capturedQueryClient, "invalidateQueries")
+
+      capturedOnMessage!(messageCreate("ch_focused"))
+      vi.advanceTimersByTime(500)
+
+      const messagesCache = capturedQueryClient.getQueryData<{ pages: { messages: { id: string }[] }[] }>(
+        communityKeys.channelMessages("ch_focused"),
+      )
+      expect(messagesCache?.pages[0].messages.map((m) => m.id)).toEqual(["m_1"])
       const inboxCalls = invalidateSpy.mock.calls.filter((c) => {
         const key = c[0]?.queryKey
         return Array.isArray(key) && key.includes("inbox")
@@ -1160,7 +1284,7 @@ describe("useCommunityWs — resyncs machines on WS reconnect", () => {
 // ── Regression #15 — double-mount guard warns ───────────────────────────
 describe("useCommunityWs — double-mount detection", () => {
   it("emits console.warn when a second instance mounts with a different send", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => { })
     try {
       // First mount publishes the current stable `send` into activeSend.
       await mountHook()
@@ -1187,7 +1311,7 @@ describe("useCommunityWs — double-mount detection", () => {
   })
 
   it("does NOT warn on a normal re-render (same send identity)", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => { })
     try {
       await mountHook()
       flushEffects()

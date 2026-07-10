@@ -3,6 +3,6 @@ import shared from "../../vitest.shared"
 
 export default mergeConfig(shared, defineConfig({
   test: {
-    include: ["test/**/*.test.ts"],
+    include: ["test/**/*.test.ts", "src/**/*.test.ts"],
   },
 }))

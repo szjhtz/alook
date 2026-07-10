@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field } from "./field"
+import { SlugHint } from "./slug-hint"
+import { previewSlug } from "@/lib/community/slug-preview"
 
 // Create / join server dialog.
 export function CreateServerDialog({ onClose, onCreateServer, onJoinServer }: {
@@ -20,6 +22,7 @@ export function CreateServerDialog({ onClose, onCreateServer, onJoinServer }: {
   const [iconPreview, setIconPreview] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const namePreview = previewSlug(name)
   const pickIcon = () => fileRef.current?.click()
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -62,7 +65,10 @@ export function CreateServerDialog({ onClose, onCreateServer, onJoinServer }: {
                 </button>
                 <span className="text-xs text-muted-foreground">{iconPreview ? "Change icon" : "Upload an icon"}</span>
               </div>
-              <Field label="Server name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="My community" /></Field>
+              <Field label="Server name">
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="My community" />
+                <SlugHint {...namePreview} />
+              </Field>
             </div>
           )}
           {step === "join" && (
@@ -74,7 +80,7 @@ export function CreateServerDialog({ onClose, onCreateServer, onJoinServer }: {
             <Button variant="ghost" size="sm" onClick={() => setStep("choose")}>Back</Button>
             <Button
               size="sm"
-              disabled={step === "create" ? !name.trim() : !invite.trim()}
+              disabled={step === "create" ? !namePreview.slug : !invite.trim()}
               onClick={() => {
                 if (step === "create") onCreateServer?.(name.trim(), iconFile ?? undefined)
                 else onJoinServer?.(invite.trim())

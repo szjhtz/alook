@@ -110,6 +110,27 @@ describe("POST /api/community/servers", () => {
     expect(fanOut).not.toHaveBeenCalled()
   })
 
+  it("normalizes a spaced name via slugify before creating the server", async () => {
+    createServer.mockResolvedValue({
+      server: { id: "srv_1", name: "My-Home", ownerId: "u1" },
+      ownerMember: { id: "mem_1", userId: "u1", joinedAt, userName: "Alice" },
+    })
+
+    const res = await POST(postReq({ name: "My Home" }))
+    expect(res.status).toBe(201)
+    expect(createServer).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ name: "My-Home" }),
+    )
+  })
+
+  it("returns 400 (and never calls createServer) when the name is all disallowed characters", async () => {
+    const res = await POST(postReq({ name: "///" }))
+    expect(res.status).toBe(400)
+    expect(createServer).not.toHaveBeenCalled()
+    expect(fanOut).not.toHaveBeenCalled()
+  })
+
   it("returns 201 { server } and does not leak ownerMember to the response body", async () => {
     const server = { id: "srv_x", name: "S", ownerId: "u1" }
     createServer.mockResolvedValue({

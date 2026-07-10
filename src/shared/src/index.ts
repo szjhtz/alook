@@ -466,6 +466,7 @@ export { buildMimeMessage, extractAttachmentMeta, filterDownloadableAttachments 
 export type { MimeAttachment, BuildMimeOptions, InboundAttachmentMeta } from "./lib/mime";
 export { computeDiscriminator, parseNameAndTag, formatHandle } from "./lib/discriminator";
 export { parseInviteToken } from "./lib/invite-link";
+export { slugify } from "./lib/slugify";
 export {
   addRepeatInterval,
   computeNextScheduledAt,

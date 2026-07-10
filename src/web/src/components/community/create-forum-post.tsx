@@ -5,6 +5,8 @@ import { X, Smile } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { EmojiPickerPopover } from "./emoji-picker"
+import { SlugHint } from "./slug-hint"
+import { previewSlug } from "@/lib/community/slug-preview"
 
 export type NewForumPost = { name: string; content: string; tags: string[] }
 
@@ -20,9 +22,10 @@ export function CreateForumPost({ tags, onCancel, onPost }: {
   const toggleTag = (t: string) =>
     setSelected((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]))
 
+  const titlePreview = previewSlug(title)
   const submit = () => {
     const name = title.trim()
-    if (!name) return
+    if (!titlePreview.slug) return
     onPost({ name, content: body.trim(), tags: selected })
   }
 
@@ -39,6 +42,7 @@ export function CreateForumPost({ tags, onCancel, onPost }: {
             placeholder="Title"
             className="w-full bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground"
           />
+          <SlugHint {...titlePreview} />
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -71,7 +75,7 @@ export function CreateForumPost({ tags, onCancel, onPost }: {
             <Smile className="size-5" />
           </button>
         </EmojiPickerPopover>
-        <Button size="sm" onClick={submit} disabled={!title.trim() || !body.trim()}>Post</Button>
+        <Button size="sm" onClick={submit} disabled={!titlePreview.slug || !body.trim()}>Post</Button>
       </div>
     </div>
   )

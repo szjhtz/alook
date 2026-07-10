@@ -2,11 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api/client"
+import { communityKeys } from "@/lib/query-keys"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useBreakpoint } from "@/hooks/use-mobile"
 import { useChannelTree } from "@/components/community/use-channel-tree"
+import { patchChannelUnread } from "@/hooks/community/server-detail-cache"
+import type { ServerDetail } from "@/hooks/community/use-servers"
 import { ShellFrame } from "@/components/community/shell-frame"
 import { ChannelSidebar } from "@/components/community/channel-sidebar"
 import { ServerSettings } from "@/components/community/server-settings"
@@ -56,6 +60,7 @@ export default function ServerLayout({ children }: { children: ReactNode }) {
 
   const router = useRouter()
   const bp = useBreakpoint()
+  const queryClient = useQueryClient()
   const currentUser = useCurrentUser()
   const { server: currentServer } = useServer(serverId)
   const membersHook = useServerMembers(serverId)
@@ -232,10 +237,25 @@ export default function ServerLayout({ children }: { children: ReactNode }) {
     // the user then never scrolls to the new messages, the server-side
     // watermark stays put and the badge will re-appear on next refetch,
     // which is the correct behavior.
+    //
+    // Also patch the `ServerDetail` query cache (not just the local
+    // `channelTree` state) to `unread: false` for this channel, via the same
+    // `patchChannelUnread` helper the WS handler uses for the opposite
+    // direction. This is still just an optimistic *client-side* tint — the
+    // server-side watermark stays authoritative, and a subsequent real
+    // refetch will correctly re-flip `unread` to `true` if the user never
+    // actually scrolled into the channel. Without this cache patch, an
+    // unrelated sibling-channel WS patch would resurrect the just-cleared dot
+    // before the user even navigates away — `useChannelTree`'s metadata merge
+    // trusts the cache unconditionally, so both directions must write to it.
     router.push(`/community/channels/${serverId}/${id}`)
     channelTree.markRead(id)
+    queryClient.setQueryData<ServerDetail | undefined>(
+      communityKeys.server(serverId),
+      (cache) => patchChannelUnread(cache, id, false),
+    )
     if (bp === "mobile") setMobileZone("messages")
-  }, [router, serverId, channelTree, bp])
+  }, [router, serverId, channelTree, bp, queryClient])
 
   const onSidebarOpenSettings = useCallback((section?: SettingsSection) => {
     if (section) setSettingsSection(section)

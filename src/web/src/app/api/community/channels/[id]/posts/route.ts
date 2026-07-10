@@ -8,6 +8,7 @@ import {
   MAX_MESSAGE_CONTENT_LENGTH,
   MESSAGE_PREVIEW_LENGTH,
   WS_EVENTS,
+  slugify,
 } from "@alook/shared"
 import { fanOutToChannel } from "@/lib/community/fanout"
 import { requireChannelMember } from "@/lib/community/permissions"
@@ -95,8 +96,13 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   if (!body.name || typeof body.name !== "string" || body.name.trim().length === 0) {
     return writeError("name is required", 400)
   }
-  if (body.name.trim().length > MAX_CHANNEL_NAME_LENGTH) {
+  const trimmedName = body.name.trim()
+  if (trimmedName.length > MAX_CHANNEL_NAME_LENGTH) {
     return writeError(`name must be 1-${MAX_CHANNEL_NAME_LENGTH} characters`, 400)
+  }
+  const name = slugify(trimmedName)
+  if (!name) {
+    return writeError("name is required", 400)
   }
 
   if (!body.content || typeof body.content !== "string" || body.content.trim().length === 0) {
@@ -121,7 +127,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   const postChannel = await queries.communityChannel.createChannel(db, {
     serverId: channel.serverId,
     parentChannelId: channelId,
-    name: body.name.trim(),
+    name,
     type: "forum_post",
     creatorId: ctx.userId,
   })

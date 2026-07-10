@@ -8,6 +8,7 @@ import {
   MAX_CHANNEL_NAME_LENGTH,
   MAX_CHANNEL_TOPIC_LENGTH,
   WS_EVENTS,
+  slugify,
 } from "@alook/shared"
 import type { Database } from "@alook/shared"
 import { fanOutToServerMembers } from "@/lib/community/fanout"
@@ -67,7 +68,11 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
     if (!trimmed || trimmed.length > MAX_CHANNEL_NAME_LENGTH) {
       return writeError(`name must be 1-${MAX_CHANNEL_NAME_LENGTH} characters`, 400)
     }
-    changes.name = trimmed
+    const normalized = slugify(trimmed)
+    if (!normalized) {
+      return writeError("name is required", 400)
+    }
+    changes.name = normalized
   }
   if (body.topic !== undefined) {
     if (typeof body.topic !== "string") return writeError("topic must be a string", 400)

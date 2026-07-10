@@ -16,6 +16,8 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar } from "./avatar"
 import { Field } from "./field"
+import { SlugHint } from "./slug-hint"
+import { previewSlug } from "@/lib/community/slug-preview"
 import type { SettingsSection, Member, Role, InviteRow, AuditEntry, OpenProfile } from "./_types"
 
 const SETTABLE_ROLES: Role[] = ["admin", "member"]
@@ -69,52 +71,52 @@ export function ServerSettings({
   ]
   return (
     <>
-    <ConfirmDialog
-      open={confirmDelete}
-      onOpenChange={setConfirmDelete}
-      title={`Delete "${serverName}"?`}
-      description="This cannot be undone. All channels, messages, and members will be permanently removed."
-      confirmLabel="Delete Server"
-      confirmVariant="destructive"
-      onConfirm={() => { setConfirmDelete(false); onDeleteServer?.() }}
-    />
-    <Tabs
-      orientation="vertical"
-      value={section}
-      onValueChange={(v) => setSection(v as SettingsSection)}
-      className="min-h-0 flex-1 flex-row gap-0"
-    >
-      {/* settings nav */}
-      <nav className="flex w-60 shrink-0 flex-col gap-2 overflow-y-auto thin-scrollbar border-r border-border p-4" style={{ background: "var(--d-rail)" }}>
-        <div className="px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{serverName}</div>
-        <TabsList variant="line" className="h-auto w-full flex-col gap-1">
-          {nav.map((n) => (
-            <TabsTrigger key={n.id} value={n.id} className="h-9 w-full justify-start gap-2">
-              <n.icon className="size-4" /> {n.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        <Separator className="my-1" />
-        <Button variant="destructive" size="sm" className="justify-start" onClick={() => setConfirmDelete(true)}><Trash2 className="size-4" /> Delete Server</Button>
-      </nav>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete "${serverName}"?`}
+        description="This cannot be undone. All channels, messages, and members will be permanently removed."
+        confirmLabel="Delete Server"
+        confirmVariant="destructive"
+        onConfirm={() => { setConfirmDelete(false); onDeleteServer?.() }}
+      />
+      <Tabs
+        orientation="vertical"
+        value={section}
+        onValueChange={(v) => setSection(v as SettingsSection)}
+        className="min-h-0 flex-1 flex-row gap-0"
+      >
+        {/* settings nav */}
+        <nav className="flex w-60 shrink-0 flex-col gap-2 overflow-y-auto thin-scrollbar border-r border-border p-4" style={{ background: "var(--d-rail)" }}>
+          <div className="px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{serverName}</div>
+          <TabsList variant="line" className="h-auto w-full flex-col gap-1">
+            {nav.map((n) => (
+              <TabsTrigger key={n.id} value={n.id} className="h-9 w-full justify-start gap-2">
+                <n.icon className="size-4" /> {n.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <Separator className="my-1" />
+          <Button variant="destructive" size="sm" className="justify-start" onClick={() => setConfirmDelete(true)}><Trash2 className="size-4" /> Delete Server</Button>
+        </nav>
 
-      {/* settings body */}
-      <div className="flex min-w-0 flex-1 flex-col bg-background">
-        <header className="flex h-12 shrink-0 items-center border-b border-border px-4">
-          <h1 className="flex-1 text-lg font-semibold capitalize">{section === "audit" ? "Audit Log" : section}</h1>
-          <button onClick={onClose} className="flex flex-col items-center text-muted-foreground hover:text-foreground" aria-label="Close settings">
-            <span className="grid size-8 place-items-center rounded-full border border-current"><X className="size-4" /></span>
-          </button>
-        </header>
-        <div className="flex-1 overflow-y-auto thin-scrollbar p-4">
-          <TabsContent value="overview"><SettingsOverview serverName={serverName} serverDescription={serverDescription} serverIcon={serverIcon} onUploadIcon={onUploadIcon} onUpdateServer={onUpdateServer} /></TabsContent>
-          <TabsContent value="members"><SettingsMembers members={members} loading={membersLoading} loadingMore={membersLoadingMore} hasMore={membersHasMore} total={membersTotal} onLoadMore={onLoadMoreMembers} onSearch={onSearchMembers} onOpenProfile={onOpenProfile} onKickMember={onKickMember} onSetRole={onSetRole} /></TabsContent>
-          <TabsContent value="invites"><SettingsInvites invites={invites} loading={invitesLoading} onRevokeInvite={onRevokeInvite} onCopyInvite={onCopyInvite} /></TabsContent>
-          <TabsContent value="notifications"><SettingsNotifications level={notifLevel ?? "Only @mentions"} onSetLevel={onSetNotifLevel} /></TabsContent>
-          <TabsContent value="audit"><SettingsAudit auditLog={auditLog} loading={auditLogLoading} /></TabsContent>
+        {/* settings body */}
+        <div className="flex min-w-0 flex-1 flex-col bg-background">
+          <header className="flex h-12 shrink-0 items-center border-b border-border px-4">
+            <h1 className="flex-1 text-lg font-semibold capitalize">{section === "audit" ? "Audit Log" : section}</h1>
+            <button onClick={onClose} className="flex flex-col items-center text-muted-foreground hover:text-foreground" aria-label="Close settings">
+              <span className="grid size-8 place-items-center rounded-full border border-current"><X className="size-4" /></span>
+            </button>
+          </header>
+          <div className="flex-1 overflow-y-auto thin-scrollbar p-4">
+            <TabsContent value="overview"><SettingsOverview serverName={serverName} serverDescription={serverDescription} serverIcon={serverIcon} onUploadIcon={onUploadIcon} onUpdateServer={onUpdateServer} /></TabsContent>
+            <TabsContent value="members"><SettingsMembers members={members} loading={membersLoading} loadingMore={membersLoadingMore} hasMore={membersHasMore} total={membersTotal} onLoadMore={onLoadMoreMembers} onSearch={onSearchMembers} onOpenProfile={onOpenProfile} onKickMember={onKickMember} onSetRole={onSetRole} /></TabsContent>
+            <TabsContent value="invites"><SettingsInvites invites={invites} loading={invitesLoading} onRevokeInvite={onRevokeInvite} onCopyInvite={onCopyInvite} /></TabsContent>
+            <TabsContent value="notifications"><SettingsNotifications level={notifLevel ?? "Only @mentions"} onSetLevel={onSetNotifLevel} /></TabsContent>
+            <TabsContent value="audit"><SettingsAudit auditLog={auditLog} loading={auditLogLoading} /></TabsContent>
+          </div>
         </div>
-      </div>
-    </Tabs>
+      </Tabs>
     </>
   )
 }
@@ -129,7 +131,11 @@ function SettingsOverview({ serverName, serverDescription, serverIcon, onUploadI
   // in-progress edits — keep it simple and let mount handle it.
   const [name, setName] = useState(serverName)
   const [desc, setDesc] = useState(serverDescription ?? "")
-  const save = () => onUpdateServer?.(name, desc)
+  const namePreview = previewSlug(name)
+  const save = () => {
+    if (namePreview.invalid) return
+    onUpdateServer?.(name, desc)
+  }
   return (
     <div className="max-w-xl space-y-4">
       <div className="flex items-center gap-4">
@@ -144,7 +150,10 @@ function SettingsOverview({ serverName, serverDescription, serverIcon, onUploadI
           <Button variant="secondary" size="sm" className="mt-2" onClick={onUploadIcon}>Upload image</Button>
         </div>
       </div>
-      <Field label="Server name"><Input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} /></Field>
+      <Field label="Server name">
+        <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+        <SlugHint {...namePreview} />
+      </Field>
       <Field label="Description"><Textarea className="h-20 resize-none" value={desc} onChange={(e) => setDesc(e.target.value)} onBlur={save} /></Field>
     </div>
   )

@@ -56,6 +56,7 @@ import type { Msg, Attachment } from "@/components/community/_types"
 import { avatarInitial } from "@/lib/community/avatar"
 import type { MachinesResponse } from "@/hooks/community/use-machines"
 import type { ServersResponse, ServerDetail } from "@/hooks/community/use-servers"
+import { patchChannelUnread } from "@/hooks/community/server-detail-cache"
 
 /**
  * Community WebSocket handler.
@@ -151,11 +152,11 @@ function insertMessageIntoCache(
     return isImage
       ? { kind: "image", name: a.filename, url: a.url }
       : {
-          kind: "file",
-          name: a.filename,
-          url: a.url,
-          size: a.size ? `${Math.round(a.size / 1024)} KB` : "",
-        }
+        kind: "file",
+        name: a.filename,
+        url: a.url,
+        size: a.size ? `${Math.round(a.size / 1024)} KB` : "",
+      }
   })
   const isSystem = "type" in msg && (msg as { type?: string }).type === "system"
   const authorName = "authorName" in msg ? msg.authorName : "Unknown"
@@ -194,11 +195,11 @@ function insertMessageIntoCache(
   // envelope on a legacy newest cache (or vice versa).
   const nextFirst = trimmed
     ? {
-        ...first,
-        messages,
-        ...(first.hasMoreOlder !== undefined ? { hasMoreOlder: true } : {}),
-        ...(first.hasMore !== undefined ? { hasMore: true } : {}),
-      }
+      ...first,
+      messages,
+      ...(first.hasMoreOlder !== undefined ? { hasMoreOlder: true } : {}),
+      ...(first.hasMore !== undefined ? { hasMore: true } : {}),
+    }
     : { ...first, messages }
   return {
     ...cache,
@@ -406,6 +407,28 @@ export function useCommunityWs(options?: UseCommunityWsOptions) {
             scheduleInboxInvalidate()
           }
 
+          // 3) Live channel-sidebar unread dot: if this message landed in a
+          //    channel that belongs to the currently-open server's cached
+          //    `ServerDetail`, flip that channel's `unread` to `true` —
+          //    no network round-trip. Skip for the viewer's own sends (never
+          //    unread to themselves) and for the currently-**subscribed**
+          //    channel (the dot is already suppressed there via `!active` in
+          //    `sortable-channel.tsx`, but skipping the cache patch too
+          //    avoids a stale `unread: true` lingering for when the user
+          //    later navigates away without the watermark path re-clearing
+          //    it). No-op automatically (via the helper's own "no matching
+          //    channel" branch) if that server's detail isn't cached or
+          //    doesn't contain this channel.
+          if (event.channelId && event.channelId !== sub.channelId && event.message.authorId !== viewerId) {
+            const currentServerId = useCommunityStore.getState().currentServerId
+            if (currentServerId) {
+              queryClient.setQueryData<ServerDetail | undefined>(
+                communityKeys.server(currentServerId),
+                (cache) => patchChannelUnread(cache, event.channelId!, true),
+              )
+            }
+          }
+
           // Note: no auto-mark-read here. See #3 — the
           // IntersectionObserver in `useChannelWatermark` advances the
           // read pointer when a message actually becomes visible in the
@@ -489,17 +512,17 @@ export function useCommunityWs(options?: UseCommunityWsOptions) {
                       messages: p.messages.map((m) =>
                         m.id === event.parentMessageId
                           ? {
-                              ...m,
-                              thread: {
-                                id: event.channel.id,
-                                name: event.channel.name,
-                                // #4: a freshly-created child channel has no
-                                // messages yet — `1` was a false claim that
-                                // the create event carried the first message
-                                // (it doesn't; the message arrives separately).
-                                messageCount: 0,
-                              },
-                            }
+                            ...m,
+                            thread: {
+                              id: event.channel.id,
+                              name: event.channel.name,
+                              // #4: a freshly-created child channel has no
+                              // messages yet — `1` was a false claim that
+                              // the create event carried the first message
+                              // (it doesn't; the message arrives separately).
+                              messageCount: 0,
+                            },
+                          }
                           : m,
                       ),
                     }
@@ -527,15 +550,15 @@ export function useCommunityWs(options?: UseCommunityWsOptions) {
                       messages: p.messages.map((m) =>
                         m.thread?.id === event.channelId
                           ? {
-                              ...m,
-                              thread: {
-                                ...m.thread,
-                                ...(changes.name !== undefined ? { name: changes.name } : {}),
-                                ...(changes.messageCount !== undefined
-                                  ? { messageCount: changes.messageCount }
-                                  : {}),
-                              },
-                            }
+                            ...m,
+                            thread: {
+                              ...m.thread,
+                              ...(changes.name !== undefined ? { name: changes.name } : {}),
+                              ...(changes.messageCount !== undefined
+                                ? { messageCount: changes.messageCount }
+                                : {}),
+                            },
+                          }
                           : m,
                       ),
                     }
@@ -559,17 +582,17 @@ export function useCommunityWs(options?: UseCommunityWsOptions) {
               (prev) =>
                 prev
                   ? {
-                      ...prev,
-                      name: event.changes.name ?? prev.name,
-                      description: event.changes.description ?? prev.description,
-                      // #8: icon can be explicitly cleared (null). `??` treats
-                      // null the same as undefined, which would keep the old
-                      // icon after a removal — check `undefined` explicitly.
-                      icon:
-                        event.changes.icon !== undefined
-                          ? event.changes.icon
-                          : prev.icon,
-                    }
+                    ...prev,
+                    name: event.changes.name ?? prev.name,
+                    description: event.changes.description ?? prev.description,
+                    // #8: icon can be explicitly cleared (null). `??` treats
+                    // null the same as undefined, which would keep the old
+                    // icon after a removal — check `undefined` explicitly.
+                    icon:
+                      event.changes.icon !== undefined
+                        ? event.changes.icon
+                        : prev.icon,
+                  }
                   : prev,
             )
             queryClient.setQueryData<ServersResponse | undefined>(
@@ -577,17 +600,17 @@ export function useCommunityWs(options?: UseCommunityWsOptions) {
               (prev) =>
                 prev
                   ? {
-                      ...prev,
-                      servers: prev.servers.map((s) =>
-                        s.id === event.serverId
-                          ? {
-                              ...s,
-                              ...(event.changes.name ? { name: event.changes.name, initial: avatarInitial(event.changes.name) } : {}),
-                              ...(event.changes.icon !== undefined ? { icon: event.changes.icon ?? null } : {}),
-                            }
-                          : s,
-                      ),
-                    }
+                    ...prev,
+                    servers: prev.servers.map((s) =>
+                      s.id === event.serverId
+                        ? {
+                          ...s,
+                          ...(event.changes.name ? { name: event.changes.name, initial: avatarInitial(event.changes.name) } : {}),
+                          ...(event.changes.icon !== undefined ? { icon: event.changes.icon ?? null } : {}),
+                        }
+                        : s,
+                    ),
+                  }
                   : prev,
             )
           } else {
@@ -767,13 +790,13 @@ export function useCommunityWs(options?: UseCommunityWsOptions) {
             (prev) =>
               prev
                 ? {
-                    ...prev,
-                    machines: prev.machines.map((m) =>
-                      m.id === event.machineId
-                        ? { ...m, lastSeenAt: event.lastSeenAt, status: event.status }
-                        : m,
-                    ),
-                  }
+                  ...prev,
+                  machines: prev.machines.map((m) =>
+                    m.id === event.machineId
+                      ? { ...m, lastSeenAt: event.lastSeenAt, status: event.status }
+                      : m,
+                  ),
+                }
                 : prev,
           )
           cbs.onMachine?.(event)

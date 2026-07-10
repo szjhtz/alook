@@ -13,7 +13,20 @@ export type ChannelRefCandidate = {
 // comment on the `name` → `label` mapping). Mirrors
 // `MentionPopupState.command`'s own mapped-shape typing in
 // `mention-extension.ts`.
-type ChannelRefCommandProps = { id: string; label: string; serverId: string }
+export type ChannelRefCommandProps = { id: string; label: string; serverId: string; serverName: string }
+
+/**
+ * Maps a `ChannelRefCandidate` (the shape the popup lists) to the props
+ * tiptap's `command(props)` inserts verbatim as `node.attrs`. Shared by both
+ * insertion paths — the keyboard handler below and `composer.tsx`'s
+ * mouse-click `onSelect` — so updating one field (e.g. adding `serverName`)
+ * can't be forgotten on the other call site, the exact bug pattern the
+ * `name` → `label` regression guard in `channel-ref-extension.test.ts`
+ * already exists for.
+ */
+export function toChannelRefCommandProps(item: ChannelRefCandidate): ChannelRefCommandProps {
+  return { id: item.id, label: item.name, serverId: item.serverId, serverName: item.serverName }
+}
 
 export interface ChannelRefPopupState {
   items: ChannelRefCandidate[]
@@ -74,6 +87,7 @@ const ChannelRefNode = Mention.extend({
     return {
       ...this.parent?.(),
       serverId: { default: null },
+      serverName: { default: null },
     }
   },
 })
@@ -91,11 +105,14 @@ const ChannelRefNode = Mention.extend({
  * auto-incrementing unique suffix in `prosemirror-state`) — the node
  * **name** rename above is what actually avoids the schema collision.
  *
- * `renderText` inserts by id, not display name — ids are nanoid
- * (`[A-Za-z0-9_-]`), always round-trip through `CHANNEL_REF_REGEX` and
- * `resolveChannelRefBase` (which tries id-match first), whereas an arbitrary
- * display name might not (names with spaces/punctuation can't be typed as a
- * compact ref). `renderHTML` shows a compact in-editor chip — channel name
+ * `renderText` inserts by display name, not id — server/channel names are
+ * now guaranteed ref-safe at creation/rename time (`slugify()`, applied by
+ * every write route), so `serverName`/`label` always round-trip through
+ * `CHANNEL_REF_REGEX` and `resolveChannelRefBase` (exact-string match) just
+ * as cleanly as ids used to, but render as something a human can actually
+ * read. Falls back to `serverId`/`id` if either name is ever missing
+ * (paste-from-HTML, drag-drop, etc.) — defensive, not the primary
+ * mechanism. `renderHTML` shows a compact in-editor chip — channel name
  * only, not the full path — keeping the compose box readable.
  */
 export function buildCommunityChannelRefExtension(opts: {
@@ -120,10 +137,21 @@ export function buildCommunityChannelRefExtension(opts: {
     // to the visible label so the recipient reads a real word instead of
     // a broken pill — degraded, but not misleading. The command flow that
     // DOES set both fields (Enter/Tab on a suggestion) is unaffected.
+    // The server segment (`serverName ?? serverId`) and channel segment
+    // (`label ?? id`) fall back independently — one can be missing while
+    // the other isn't — and neither ever falls through to a literal
+    // "null"/"undefined" string in the emitted text.
     renderText: ({ node }) => {
-      const { serverId, id, label } = node.attrs as { serverId?: string | null; id?: string; label?: string }
-      if (!serverId || !id) return label ? `/${label}` : ""
-      return `/${serverId}/${id}`
+      const { serverId, serverName, id, label } = node.attrs as {
+        serverId?: string | null
+        serverName?: string | null
+        id?: string | null
+        label?: string | null
+      }
+      const server = serverName || serverId
+      const channel = label || id
+      if (!server) return channel ? `/${channel}` : ""
+      return channel ? `/${server}/${channel}` : `/${server}`
     },
     renderHTML: ({ options, node }) => ["span", options.HTMLAttributes, `/${node.attrs.label ?? node.attrs.id}`],
     suggestion: {
@@ -185,7 +213,7 @@ export function buildCommunityChannelRefExtension(opts: {
             // since `renderText` doesn't read `label` — this only shows up
             // visually in the compose box).
             if (item && cur.command) {
-              cur.command({ id: item.id, label: item.name, serverId: item.serverId })
+              cur.command(toChannelRefCommandProps(item))
             }
             setPopup(EMPTY_CHANNEL_REF_STATE)
             return true

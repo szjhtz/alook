@@ -8,6 +8,7 @@ import {
   MAX_SERVER_DESCRIPTION_LENGTH,
   ROLES,
   WS_EVENTS,
+  slugify,
 } from "@alook/shared"
 import { fanOutToServerMembers } from "@/lib/community/fanout"
 import { serverIconUrl } from "@/lib/community/storage"
@@ -32,9 +33,13 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   if (!body.name || typeof body.name !== "string") {
     return writeError("name is required", 400)
   }
-  const name = body.name.trim()
-  if (!name || name.length > MAX_SERVER_NAME_LENGTH) {
+  const trimmed = body.name.trim()
+  if (!trimmed || trimmed.length > MAX_SERVER_NAME_LENGTH) {
     return writeError(`name must be 1-${MAX_SERVER_NAME_LENGTH} characters`, 400)
+  }
+  const name = slugify(trimmed)
+  if (!name) {
+    return writeError("name is required", 400)
   }
 
   let description: string | undefined

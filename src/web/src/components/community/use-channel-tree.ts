@@ -57,6 +57,36 @@ function removeChannelFrom(order: ChannelOrder, id: string): ChannelOrder {
   return { ...order, [cat]: order[cat].filter((c) => c.id !== id) }
 }
 
+/**
+ * Merge metadata-only field changes (`unread`, `name`) from the incoming
+ * `categories` prop into the existing per-category `order` state, keyed by
+ * channel id. Used by the sync effect when the channel/category *id set* is
+ * unchanged but a field like `unread` still needs to reach the render tree —
+ * preserves drag order/collapse state by only ever touching the matched
+ * channel's fields, never reshuffling arrays. Pure — exported for tests.
+ */
+export function mergeChannelMetadata(
+  order: ChannelOrder,
+  categories: Category[],
+): { next: ChannelOrder; changed: boolean } {
+  const incoming = new Map<string, Channel>()
+  for (const cat of categories) {
+    for (const ch of cat.channels) incoming.set(ch.id, ch)
+  }
+  let changed = false
+  const next: ChannelOrder = {}
+  for (const [catId, channels] of Object.entries(order)) {
+    next[catId] = channels.map((ch) => {
+      const src = incoming.get(ch.id)
+      if (!src) return ch
+      if (src.unread === ch.unread && src.name === ch.name) return ch
+      changed = true
+      return { ...ch, unread: src.unread, name: src.name }
+    })
+  }
+  return { next: changed ? next : order, changed }
+}
+
 /** Reorder the category list itself. `activeCatId`/`overCatId` are category IDs. Pure. */
 export function reorderCategories(catOrder: string[], activeCatId: string, overCatId: string): string[] {
   const from = catOrder.indexOf(activeCatId)
@@ -110,7 +140,17 @@ export function useChannelTree(categories: Category[]) {
     // Compare both category IDs and channel IDs to detect any change
     const prevKey = prev.map((c) => `${c.id}:${c.channels.map((ch) => ch.id).join(",")}`).join("|")
     const nextKey = categories.map((c) => `${c.id}:${c.channels.map((ch) => ch.id).join(",")}`).join("|")
-    if (prevKey === nextKey) return
+    if (prevKey === nextKey) {
+      // Id sets are unchanged, but metadata fields (`unread`, `name`) may
+      // have changed underneath — e.g. a WS-driven cache patch or a refetch
+      // that only flips a flag. Merge those without resetting drag order or
+      // collapse state (see plans/community-unread-indicators.md).
+      setOrder((prevOrder) => {
+        const { next, changed } = mergeChannelMetadata(prevOrder, categories)
+        return changed ? next : prevOrder
+      })
+      return
+    }
     setCatOrder(categories.map((c) => c.id))
     setOrder(Object.fromEntries(categories.map((c) => [c.id, c.channels])))
     setCatNames(Object.fromEntries(categories.map((c) => [c.id, c.name])))

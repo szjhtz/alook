@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ChannelIcon } from "./channel-icon"
+import { SlugHint } from "./slug-hint"
+import { previewSlug } from "@/lib/community/slug-preview"
 import type { RightPanel } from "./_types"
 
 // Skeleton header for the loading frame between route change and channel
@@ -201,9 +203,10 @@ function BreadcrumbRename({ label, onRename }: { label: string; onRename: (name:
   useEffect(() => {
     if (!open) setDraft(label)
   }, [label, open])
+  const draftPreview = previewSlug(draft)
   const save = () => {
     const trimmed = draft.trim()
-    if (trimmed && trimmed !== label) onRename(trimmed)
+    if (draftPreview.slug && trimmed !== label) onRename(trimmed)
     setOpen(false)
   }
   return (
@@ -228,11 +231,12 @@ function BreadcrumbRename({ label, onRename }: { label: string; onRename: (name:
                   className="h-10"
                   autoFocus
                 />
+                <SlugHint {...draftPreview} />
               </label>
             </div>
             <DialogFooter className="mx-0 mb-0 flex-row items-center justify-end gap-2 rounded-b-xl border-t border-border bg-card px-4 py-3">
               <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button size="sm" onClick={save} disabled={!draft.trim()}>Save</Button>
+              <Button size="sm" onClick={save} disabled={!draftPreview.slug}>Save</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
