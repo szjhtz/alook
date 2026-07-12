@@ -214,6 +214,10 @@ export type DM = {
 // ── Profile ──────────────────────────────────────────────────────────────────
 export type Profile = {
   name: string
+  // Stable user id of the profile's owner — the exact-match key for DM-target
+  // resolution and self-detection (never match by non-unique display name).
+  // Optional so mock/older Profile-constructing sites keep type-checking.
+  userId?: string
   // 4-digit discriminator hash of user.id (`"0042"`) — undefined while the
   // profile fetch is in flight. See computeDiscriminator in @alook/shared.
   discriminator?: string

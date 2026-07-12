@@ -301,9 +301,9 @@ export const DM_MESSAGES: Record<string, Msg[]> = {
 }
 
 export const PROFILES: Record<string, Profile> = {
-  Gener: { name: "Gener", discriminator: "0042", avatar: "G", role: "Owner", about: "Building Alook. Coffee, agents, and warm gray UIs.", mutual: 3, statusEmoji: "🎧", statusText: "Vibing" },
-  Gus: { name: "Gus", discriminator: "1337", avatar: "Gu", role: "Admin", about: "Tinkering with email-driven workflows.", mutual: 2, statusEmoji: "🦥", statusText: "Chillin'" },
-  Lindsay: { name: "Lindsay", discriminator: "0007", avatar: "L", role: "Admin", about: "Research lead. Ask me about presets.", mutual: 2 },
+  Gener: { name: "Gener", userId: "u_gener", discriminator: "0042", avatar: "G", role: "Owner", about: "Building Alook. Coffee, agents, and warm gray UIs.", mutual: 3, statusEmoji: "🎧", statusText: "Vibing" },
+  Gus: { name: "Gus", userId: "u_gus", discriminator: "1337", avatar: "Gu", role: "Admin", about: "Tinkering with email-driven workflows.", mutual: 2, statusEmoji: "🦥", statusText: "Chillin'" },
+  Lindsay: { name: "Lindsay", userId: "u_lindsay", discriminator: "0007", avatar: "L", role: "Admin", about: "Research lead. Ask me about presets.", mutual: 2 },
 }
 
 export const INVITES: InviteRow[] = [

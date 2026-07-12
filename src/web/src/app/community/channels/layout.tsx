@@ -395,23 +395,17 @@ export default function ServerLayout({ children }: { children: ReactNode }) {
           invitesLoading={invitesLoading}
           auditLog={auditLog}
           auditLogLoading={auditLogLoading}
-          onKickMember={(name) => {
-            const m = membersHook.members.find((x) => x.name === name)
-            if (m) {
-              kickMemberMut.mutate({ serverId, memberId: m.id }, {
-                onSuccess: () => toast("Member kicked"),
-                onError: () => toast("Failed to kick member"),
-              })
-            }
+          onKickMember={(memberId) => {
+            kickMemberMut.mutate({ serverId, memberId }, {
+              onSuccess: () => toast("Member kicked"),
+              onError: () => toast("Failed to kick member"),
+            })
           }}
-          onSetRole={(name, role) => {
-            const m = membersHook.members.find((x) => x.name === name)
-            if (m) {
-              setMemberRoleMut.mutate({ serverId, memberId: m.id, role }, {
-                onSuccess: () => toast("Role updated"),
-                onError: () => toast("Failed to update role"),
-              })
-            }
+          onSetRole={(memberId, role) => {
+            setMemberRoleMut.mutate({ serverId, memberId, role }, {
+              onSuccess: () => toast("Role updated"),
+              onError: () => toast("Failed to update role"),
+            })
           }}
           onRevokeInvite={(code) => revokeInviteMut.mutate({ serverId, code }, {
             onSuccess: () => toast("Invite revoked"),

@@ -50,6 +50,11 @@ export function ChannelProvider({
   children: ReactNode;
 }) {
   const [channels, setChannels] = useState<Channel[]>([]);
+  // TODO(id-identity): activeChannel is keyed by name (persisted to
+  // localStorage, compared in rename/delete). Switching to channel id would be
+  // the correct identity key but requires threading id through the context,
+  // its persistence, and every consumer. Collisions are schema-prevented today
+  // (channel is unique on (workspaceId, name)), so this is a follow-up.
   const [activeChannel, setActiveChannelState] = useState<string>("default");
   const [loading, setLoading] = useState(true);
   const [agentId, setAgentId] = useState<string | null>(null);

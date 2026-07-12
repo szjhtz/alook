@@ -135,6 +135,7 @@ export default function CommunityPreview() {
       ?? friendList.find((f) => f.name === name)
     let data: Profile = PROFILES[name] ?? {
       name,
+      userId: member?.userId ?? member?.id,
       avatar: member?.avatar ?? name.charAt(0).toUpperCase(),
       role: "member",
       about: member && "sub" in member && member.sub ? member.sub : "No bio yet.",
@@ -153,10 +154,12 @@ export default function CommunityPreview() {
   let msgSeq = messages.length
 
   // message from profile card — find or create a DM, append the message, and navigate
-  const profileMessage = (name: string, text: string) => {
-    let target = dmList.find((d) => d.name === name)
+  const profileMessage = (userId: string, text: string) => {
+    const source = memberList.find((m) => m.userId === userId) ?? friendList.find((f) => f.userId === userId)
+    const name = source?.name ?? userId
+    let target = dmList.find((d) => d.userId === userId)
     if (!target) {
-      target = { id: `dm_${name.toLowerCase()}`, userId: `u_${name.toLowerCase()}`, name, avatar: name.charAt(0).toUpperCase(), status: "online" as const, preview: text.slice(0, 40) }
+      target = { id: `dm_${userId}`, userId, name, avatar: name.charAt(0).toUpperCase(), status: "online" as const, preview: text.slice(0, 40) }
       setDmList((prev) => [target!, ...prev])
     }
     const dmId = target.id
@@ -591,7 +594,7 @@ export default function CommunityPreview() {
             {...profileProps}
           />
         )}
-        {profile && <ProfileCard data={profile.data} x={profile.x} y={profile.y} bp={bp} onClose={() => setProfile(null)} onMessage={profileMessage} isSelf={profile.data.name === "Gener"} onUpdateStatus={(emoji, text) => { setMyStatus({ emoji, text }); setProfile((p) => p ? { ...p, data: { ...p.data, statusEmoji: emoji, statusText: text } } : p) }} />}
+        {profile && <ProfileCard data={profile.data} x={profile.x} y={profile.y} bp={bp} onClose={() => setProfile(null)} onMessage={profileMessage} isSelf={profile.data.userId === "u_gener"} onUpdateStatus={(emoji, text) => { setMyStatus({ emoji, text }); setProfile((p) => p ? { ...p, data: { ...p.data, statusEmoji: emoji, statusText: text } } : p) }} />}
         {preview && <ImageLightbox src={preview} onClose={() => setPreview(null)} />}
         {dialogs}
       </Shell>
@@ -628,7 +631,7 @@ export default function CommunityPreview() {
           {...profileProps}
         />
       )}
-      {profile && <ProfileCard data={profile.data} x={profile.x} y={profile.y} bp={bp} onClose={() => setProfile(null)} onMessage={profileMessage} isSelf={profile.data.name === "Gener"} onUpdateStatus={(emoji, text) => { setMyStatus({ emoji, text }); setProfile((p) => p ? { ...p, data: { ...p.data, statusEmoji: emoji, statusText: text } } : p) }} />}
+      {profile && <ProfileCard data={profile.data} x={profile.x} y={profile.y} bp={bp} onClose={() => setProfile(null)} onMessage={profileMessage} isSelf={profile.data.userId === "u_gener"} onUpdateStatus={(emoji, text) => { setMyStatus({ emoji, text }); setProfile((p) => p ? { ...p, data: { ...p.data, statusEmoji: emoji, statusText: text } } : p) }} />}
       {preview && <ImageLightbox src={preview} onClose={() => setPreview(null)} />}
       {dialogs}
     </Shell>

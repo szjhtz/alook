@@ -51,8 +51,8 @@ export function ServerSettings({
   auditLog: AuditEntry[]
   auditLogLoading?: boolean
   onOpenProfile?: OpenProfile
-  onKickMember?: (name: string) => void
-  onSetRole?: (name: string, role: Role) => void
+  onKickMember?: (memberId: string) => void
+  onSetRole?: (memberId: string, role: Role) => void
   onRevokeInvite?: (code: string) => void
   onCopyInvite?: (code: string) => void
   onDeleteServer?: () => void
@@ -173,8 +173,8 @@ function SettingsMembers({ members, loading, loadingMore, hasMore, total, onLoad
   onLoadMore?: () => void
   onSearch?: (q: string) => void
   onOpenProfile?: OpenProfile
-  onKickMember?: (name: string) => void
-  onSetRole?: (name: string, role: Role) => void
+  onKickMember?: (memberId: string) => void
+  onSetRole?: (memberId: string, role: Role) => void
 }) {
   const [query, setQuery] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -272,13 +272,13 @@ function SettingsMembers({ members, loading, loadingMore, hasMore, total, onLoad
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-32">
                         {SETTABLE_ROLES.map((r) => (
-                          <DropdownMenuItem key={r} onClick={() => onSetRole?.(m.name, r)}>{capitalize(r)}</DropdownMenuItem>
+                          <DropdownMenuItem key={r} onClick={() => onSetRole?.(m.id, r)}>{capitalize(r)}</DropdownMenuItem>
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
                   {m.role !== "owner" && (
-                    <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" aria-label="Kick member" onClick={() => onKickMember?.(m.name)}><Trash2 className="size-4" /></Button>
+                    <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" aria-label="Kick member" onClick={() => onKickMember?.(m.id)}><Trash2 className="size-4" /></Button>
                   )}
                 </div>
               </div>

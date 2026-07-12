@@ -30,6 +30,7 @@ export const GET = withAuth(async (_req, ctx) => {
   const memberCount = await queries.communityMember.countMembers(db, invite.serverId)
 
   return writeJSON({
+    serverId: invite.serverId,
     serverName: server.name,
     serverIcon: serverIconUrl(server),
     memberCount,

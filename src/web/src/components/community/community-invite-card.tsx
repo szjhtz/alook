@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 
 type InviteInfo = {
+  serverId: string
   serverName: string
   serverIcon: string | null
   memberCount: number
@@ -35,7 +36,7 @@ export function CommunityInviteCard({ token }: { token: string }) {
   })
 
   const alreadyMemberServerId = data
-    ? servers.find((s) => s.name === data.serverName)?.id
+    ? servers.find((s) => s.id === data.serverId)?.id
     : undefined
 
   const onJoin = async () => {

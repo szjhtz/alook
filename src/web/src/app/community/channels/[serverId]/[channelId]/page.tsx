@@ -504,23 +504,17 @@ function ChannelView() {
     searchQuery,
     myRole,
     onSearch: doSearch,
-    onSetRole: (name: string, role: Role) => {
-      const m = members.find((x) => x.name === name)
-      if (m) {
-        setMemberRoleMut.mutate({ serverId, memberId: m.id, role }, {
-          onSuccess: () => toast("Role updated"),
-          onError: () => toast("Failed to update role"),
-        })
-      }
+    onSetRole: (memberId: string, role: Role) => {
+      setMemberRoleMut.mutate({ serverId, memberId, role }, {
+        onSuccess: () => toast("Role updated"),
+        onError: () => toast("Failed to update role"),
+      })
     },
-    onKickMember: (name: string) => {
-      const m = members.find((x) => x.name === name)
-      if (m) {
-        kickMemberMut.mutate({ serverId, memberId: m.id }, {
-          onSuccess: () => toast("Member kicked"),
-          onError: () => toast("Failed to kick member"),
-        })
-      }
+    onKickMember: (memberId: string) => {
+      kickMemberMut.mutate({ serverId, memberId }, {
+        onSuccess: () => toast("Member kicked"),
+        onError: () => toast("Failed to kick member"),
+      })
     },
     onJumpToMessage: (id: string) => {
       setScrollToMessageId(id)

@@ -311,10 +311,11 @@ export function ShellFrame({
   // pages can trigger this from anywhere via `useCommunityStore.uiHandlers`.
   const openProfile = useCallback(
     (name: string, e: React.MouseEvent, discriminator?: string, targetUserId?: string) => {
-      const isSelf = targetUserId ? targetUserId === currentUser.id : name === currentUser.name
+      const isSelf = !!targetUserId && targetUserId === currentUser.id
       if (isSelf) {
         const data: Profile = {
           name: currentUser.name,
+          userId: currentUser.id,
           discriminator: currentUser.discriminator,
           avatar: currentUser.avatar || currentUser.name.charAt(0).toUpperCase(),
           role: "You",
@@ -337,6 +338,7 @@ export function ShellFrame({
       const userId = member && "userId" in member ? (member as { userId: string }).userId : member?.id
       const data: Profile = {
         name,
+        userId,
         // discriminator is undefined until the /profile fetch below hydrates it.
         avatar: member?.avatar ?? name.charAt(0).toUpperCase(),
         role: displayRole,
@@ -407,17 +409,14 @@ export function ShellFrame({
     }
   }
 
-  const profileMessage = async (name: string, text: string) => {
-    const member = members.find((m) => m.name === name)
-    const friend = friends.find((f) => f.name === name)
-    const targetUserId = member?.userId ?? friend?.userId
-    if (!targetUserId) {
-      toast(`Could not find user ${name}`)
+  const profileMessage = async (userId: string, text: string) => {
+    if (!userId) {
+      toast("Could not find user")
       return
     }
     let dmId: string
     try {
-      const data = await createOrGetDm.mutateAsync({ userId: targetUserId })
+      const data = await createOrGetDm.mutateAsync({ userId })
       dmId = data.conversation.id
     } catch {
       toast("Failed to open DM")
@@ -621,7 +620,7 @@ export function ShellFrame({
             <UserBar user={{ name: currentUser.name, avatar: currentUser.avatar }} onOpenProfile={openProfile} onEditProfile={() => setEditingProfile(true)} inbox={inboxElement} hasUnread={inboxHasUnread} />
           </div>
         </div>
-        {profile && <ProfileCard data={profile.data} x={profile.x} y={profile.y} bp={bp} onClose={() => setProfile(null)} onMessage={profileMessage} isSelf={profile.data.name === currentUser.name} onUpdateStatus={updateOwnStatus} />}
+        {profile && <ProfileCard data={profile.data} x={profile.x} y={profile.y} bp={bp} onClose={() => setProfile(null)} onMessage={profileMessage} isSelf={!!profile.data.userId && profile.data.userId === currentUser.id} onUpdateStatus={updateOwnStatus} />}
         {preview && <ImageLightbox src={preview} onClose={() => setPreview(null)} />}
         {userSettingsDialog}
         {avatarCropDialog}
@@ -646,7 +645,7 @@ export function ShellFrame({
           {children}
         </div>
       )}
-      {profile && <ProfileCard data={profile.data} x={profile.x} y={profile.y} bp={bp} onClose={() => setProfile(null)} onMessage={profileMessage} isSelf={profile.data.name === currentUser.name} onUpdateStatus={updateOwnStatus} />}
+      {profile && <ProfileCard data={profile.data} x={profile.x} y={profile.y} bp={bp} onClose={() => setProfile(null)} onMessage={profileMessage} isSelf={!!profile.data.userId && profile.data.userId === currentUser.id} onUpdateStatus={updateOwnStatus} />}
       {preview && <ImageLightbox src={preview} onClose={() => setPreview(null)} />}
       {userSettingsDialog}
       {avatarCropDialog}

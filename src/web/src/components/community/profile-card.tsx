@@ -29,7 +29,7 @@ export function ProfileCard({ data, x, y, bp, onClose, onMessage, isSelf, onUpda
   y: number
   bp: Breakpoint
   onClose: () => void
-  onMessage?: (name: string, text: string) => void
+  onMessage?: (userId: string, text: string) => void
   isSelf?: boolean
   // Only used when `isSelf` — the inline status row opens `StatusEditor` and
   // calls this on a preset pick / free-text commit / emoji override / clear.
@@ -41,8 +41,8 @@ export function ProfileCard({ data, x, y, bp, onClose, onMessage, isSelf, onUpda
   const close = () => setOpen(false)
   const send = () => {
     const text = msg.trim()
-    if (!text) return
-    onMessage?.(data.name, text)
+    if (!text || !data.userId) return
+    onMessage?.(data.userId, text)
     setMsg("")
     mobile ? onClose() : close()
   }
