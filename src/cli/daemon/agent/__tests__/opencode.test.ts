@@ -241,8 +241,15 @@ describe("OpenCodeBackend", () => {
     backend.execute("do things", { cwd: "/tmp" });
     expect(lastSpawnArgs).toBeTruthy();
     const args = lastSpawnArgs!.args;
+    // On win32 the args are pre-quoted for cmd.exe (see win-quote.ts), so
+    // "do things" arrives as `"do things"`. Strip a single wrapping quote
+    // pair for the positional-arg assertion.
+    const last = args[args.length - 1];
+    const unwrapped = process.platform === "win32" && last.startsWith("\"") && last.endsWith("\"")
+      ? last.slice(1, -1)
+      : last;
     expect(args).not.toContain("--prompt");
-    expect(args[args.length - 1]).toBe("do things");
+    expect(unwrapped).toBe("do things");
   });
 
   it("TC8: spawns the CLI detached on POSIX so its group can be reaped", () => {
