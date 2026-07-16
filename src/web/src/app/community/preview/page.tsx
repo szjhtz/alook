@@ -18,7 +18,7 @@
 import { useMemo, useState } from "react"
 import type React from "react"
 import { toast } from "sonner"
-import { isForum as isForumType, isServerOwner } from "@alook/shared"
+import { isForum as isForumType, isServerOwner, deriveThreadName } from "@alook/shared"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 
@@ -240,7 +240,7 @@ export default function CommunityPreview() {
   // to the message's first words.
   const createThreadFromMessage = (id: string) => {
     const m = messages.find((x) => x.id === id)
-    const name = (m?.content ?? activeChannel).split(/\s+/).slice(0, 6).join(" ").slice(0, 60) || activeChannel
+    const name = deriveThreadName(m?.content, activeChannel)
     createThread(name, m)
   }
 

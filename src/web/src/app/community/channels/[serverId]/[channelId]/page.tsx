@@ -16,7 +16,7 @@ import { AddMembersDialog } from "@/components/community/add-members-dialog"
 import type { RightPanel, Msg, OpenProfile, Role } from "@/components/community/_types"
 import { canManageServer } from "@/components/community/_types"
 import type { MentionType } from "@alook/shared"
-import { isForum as isForumType } from "@alook/shared"
+import { isForum as isForumType, deriveThreadName } from "@alook/shared"
 import { resolveRowPresence } from "@/lib/community/presence"
 import { makeUserNameResolver, displayName } from "@/lib/community/display-name"
 import { avatarInitial } from "@/lib/community/avatar"
@@ -616,7 +616,7 @@ function ChannelView() {
     },
     onCreateThread: async (id: string) => {
       const m = messages.find((x) => x.id === id)
-      const name = (m?.content ?? channelName).split(/\s+/).slice(0, 6).join(" ").slice(0, 60) || channelName
+      const name = deriveThreadName(m?.content, channelName)
       try {
         const data = await createThreadMut.mutateAsync({ channelId, messageId: id, name })
         router.push(`/community/channels/${params.serverId}/${data.id}`)
