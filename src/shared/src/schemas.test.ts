@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest"
-import { CommunityBotCreateRequestSchema, CommunityBotPatchRequestSchema } from "./schemas"
+import {
+  CommunityBotCreateRequestSchema,
+  CommunityBotPatchRequestSchema,
+  AgentTypingMessageSchema,
+  AgentTypingStopMessageSchema,
+} from "./schemas"
 
 function validCreatePayload(image?: string) {
   return {
@@ -72,6 +77,75 @@ describe("BotImageUrlSchema (via CommunityBotPatchRequestSchema)", () => {
 
   it("rejects an invalid image string", () => {
     const res = CommunityBotPatchRequestSchema.safeParse({ image: "ftp://nope" })
+    expect(res.success).toBe(false)
+  })
+})
+
+describe("AgentTypingMessageSchema", () => {
+  it("parses a well-formed frame", () => {
+    const res = AgentTypingMessageSchema.safeParse({
+      type: "agent_typing",
+      agentId: "bot_1",
+      dmConversationId: "dm_1",
+    })
+    expect(res.success).toBe(true)
+  })
+
+  it("rejects missing dmConversationId", () => {
+    const res = AgentTypingMessageSchema.safeParse({ type: "agent_typing", agentId: "bot_1" })
+    expect(res.success).toBe(false)
+  })
+
+  it("rejects empty dmConversationId (min length 1)", () => {
+    const res = AgentTypingMessageSchema.safeParse({
+      type: "agent_typing",
+      agentId: "bot_1",
+      dmConversationId: "",
+    })
+    expect(res.success).toBe(false)
+  })
+
+  it("rejects missing agentId", () => {
+    const res = AgentTypingMessageSchema.safeParse({
+      type: "agent_typing",
+      dmConversationId: "dm_1",
+    })
+    expect(res.success).toBe(false)
+  })
+
+  it("rejects the wrong discriminant", () => {
+    const res = AgentTypingMessageSchema.safeParse({
+      type: "agent_activity",
+      agentId: "bot_1",
+      dmConversationId: "dm_1",
+    })
+    expect(res.success).toBe(false)
+  })
+})
+
+describe("AgentTypingStopMessageSchema", () => {
+  it("parses a well-formed frame", () => {
+    const res = AgentTypingStopMessageSchema.safeParse({
+      type: "agent_typing_stop",
+      agentId: "bot_1",
+      dmConversationId: "dm_1",
+    })
+    expect(res.success).toBe(true)
+  })
+
+  it("rejects missing dmConversationId", () => {
+    const res = AgentTypingStopMessageSchema.safeParse({
+      type: "agent_typing_stop",
+      agentId: "bot_1",
+    })
+    expect(res.success).toBe(false)
+  })
+
+  it("rejects missing agentId", () => {
+    const res = AgentTypingStopMessageSchema.safeParse({
+      type: "agent_typing_stop",
+      dmConversationId: "dm_1",
+    })
     expect(res.success).toBe(false)
   })
 })

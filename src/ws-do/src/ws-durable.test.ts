@@ -177,6 +177,30 @@ vi.mock("@alook/shared", () => {
       return { success: true as const, data: { type: "agent_activity" as const, agentId: m.agentId, state: m.state } }
     },
   }
+  const AgentTypingMessageSchema = {
+    safeParse(v: unknown) {
+      const m = v as { type?: unknown; agentId?: unknown; dmConversationId?: unknown }
+      if (m?.type !== "agent_typing") return { success: false } as const
+      if (typeof m.agentId !== "string" || m.agentId.length === 0) return { success: false } as const
+      if (typeof m.dmConversationId !== "string" || m.dmConversationId.length === 0) return { success: false } as const
+      return {
+        success: true as const,
+        data: { type: "agent_typing" as const, agentId: m.agentId, dmConversationId: m.dmConversationId },
+      }
+    },
+  }
+  const AgentTypingStopMessageSchema = {
+    safeParse(v: unknown) {
+      const m = v as { type?: unknown; agentId?: unknown; dmConversationId?: unknown }
+      if (m?.type !== "agent_typing_stop") return { success: false } as const
+      if (typeof m.agentId !== "string" || m.agentId.length === 0) return { success: false } as const
+      if (typeof m.dmConversationId !== "string" || m.dmConversationId.length === 0) return { success: false } as const
+      return {
+        success: true as const,
+        data: { type: "agent_typing_stop" as const, agentId: m.agentId, dmConversationId: m.dmConversationId },
+      }
+    },
+  }
   const HostBotAuditEventFrameSchema = {
     safeParse(v: unknown) {
       const m = v as { type?: unknown; agentId?: unknown; sessionId?: unknown; launchId?: unknown; event?: unknown }
@@ -213,6 +237,8 @@ vi.mock("@alook/shared", () => {
     SessionErrorFrameSchema,
     HostReadyMessageSchema,
     AgentActivityMessageSchema,
+    AgentTypingMessageSchema,
+    AgentTypingStopMessageSchema,
     HostBotAuditEventFrameSchema,
     // Deterministic preset picker so the assertion can pin exact
     // `statusEmoji`/`statusText` values regardless of the injected `seed`.
@@ -1253,6 +1279,167 @@ describe("WebSocketDurableObject", () => {
 
       expect(mockUpdateProfile).not.toHaveBeenCalled()
       expect(mockStubFetch).not.toHaveBeenCalled()
+    })
+  })
+
+  describe("community-machine — agent_typing / agent_typing_stop frames", () => {
+    beforeEach(() => {
+      mockGetBotBindingWithOwner.mockReset()
+      mockGetDM.mockReset()
+      mockStubFetch.mockClear()
+    })
+
+    it("agent_typing: fans out community:typing.start to the DM peer when machine owns the bot and DM is valid", async () => {
+      const { durable, store } = createDO()
+      store.set("community-machine-identity", {
+        userId: "u_1",
+        machineId: "cm_1",
+        credentialHash: "0".repeat(64),
+      })
+      mockGetBotBindingWithOwner.mockResolvedValue({
+        machineId: "cm_1",
+        runtime: "codex",
+        ownerUserId: "u_1",
+      })
+      mockGetDM.mockResolvedValue({ user1Id: "bot_1", user2Id: "peer_1" })
+
+      const ws = createMockWebSocket()
+      ws.serializeAttachment({
+        type: "community-machine",
+        machineId: "cm_1",
+        userId: "u_1",
+        authenticated: true,
+      })
+
+      const frame = JSON.stringify({
+        type: "agent_typing",
+        agentId: "bot_1",
+        dmConversationId: "dm_1",
+      })
+      await durable.webSocketMessage(ws as any, frame)
+
+      const call = mockStubFetch.mock.calls.find((c: any[]) => (c[0] as Request).url.endsWith("/broadcast"))
+      expect(call).toBeDefined()
+      const body = JSON.parse(await (call![0] as Request).clone().text()) as {
+        type: string
+        userId: string
+        dmConversationId: string
+      }
+      expect(body).toEqual({
+        type: "community:typing.start",
+        userId: "bot_1",
+        dmConversationId: "dm_1",
+      })
+    })
+
+    it("agent_typing: drops a frame naming a bot bound to a different machine — no fan-out", async () => {
+      const { durable, store } = createDO()
+      store.set("community-machine-identity", {
+        userId: "u_1",
+        machineId: "cm_1",
+        credentialHash: "0".repeat(64),
+      })
+      mockGetBotBindingWithOwner.mockResolvedValue({
+        machineId: "cm_OTHER",
+        runtime: "codex",
+        ownerUserId: "u_1",
+      })
+
+      const ws = createMockWebSocket()
+      ws.serializeAttachment({
+        type: "community-machine",
+        machineId: "cm_1",
+        userId: "u_1",
+        authenticated: true,
+      })
+
+      const frame = JSON.stringify({
+        type: "agent_typing",
+        agentId: "bot_1",
+        dmConversationId: "dm_1",
+      })
+      await durable.webSocketMessage(ws as any, frame)
+
+      expect(mockGetDM).not.toHaveBeenCalled()
+      expect(mockStubFetch).not.toHaveBeenCalled()
+    })
+
+    it("agent_typing: drops a frame for a bot that is not a DM participant — no fan-out", async () => {
+      const { durable, store } = createDO()
+      store.set("community-machine-identity", {
+        userId: "u_1",
+        machineId: "cm_1",
+        credentialHash: "0".repeat(64),
+      })
+      mockGetBotBindingWithOwner.mockResolvedValue({
+        machineId: "cm_1",
+        runtime: "codex",
+        ownerUserId: "u_1",
+      })
+      mockGetDM.mockResolvedValue({ user1Id: "someone", user2Id: "else" })
+
+      const ws = createMockWebSocket()
+      ws.serializeAttachment({
+        type: "community-machine",
+        machineId: "cm_1",
+        userId: "u_1",
+        authenticated: true,
+      })
+
+      const frame = JSON.stringify({
+        type: "agent_typing",
+        agentId: "bot_1",
+        dmConversationId: "dm_1",
+      })
+      await durable.webSocketMessage(ws as any, frame)
+
+      expect(mockStubFetch).not.toHaveBeenCalled()
+    })
+
+    it("agent_typing_stop: fans out community:typing.stop to the DM peer, excludes sender", async () => {
+      const { durable, store } = createDO()
+      store.set("community-machine-identity", {
+        userId: "u_1",
+        machineId: "cm_1",
+        credentialHash: "0".repeat(64),
+      })
+      mockGetBotBindingWithOwner.mockResolvedValue({
+        machineId: "cm_1",
+        runtime: "codex",
+        ownerUserId: "u_1",
+      })
+      mockGetDM.mockResolvedValue({ user1Id: "bot_1", user2Id: "peer_1" })
+
+      const ws = createMockWebSocket()
+      ws.serializeAttachment({
+        type: "community-machine",
+        machineId: "cm_1",
+        userId: "u_1",
+        authenticated: true,
+      })
+
+      const frame = JSON.stringify({
+        type: "agent_typing_stop",
+        agentId: "bot_1",
+        dmConversationId: "dm_1",
+      })
+      await durable.webSocketMessage(ws as any, frame)
+
+      const call = mockStubFetch.mock.calls.find((c: any[]) => (c[0] as Request).url.endsWith("/broadcast"))
+      expect(call).toBeDefined()
+      const body = JSON.parse(await (call![0] as Request).clone().text()) as {
+        type: string
+        userId: string
+        dmConversationId: string
+      }
+      expect(body).toEqual({
+        type: "community:typing.stop",
+        userId: "bot_1",
+        dmConversationId: "dm_1",
+      })
+      // Sender exclusion: only the peer (peer_1) is targeted — a single
+      // /broadcast call, addressed via the peer's user DO.
+      expect(mockStubFetch.mock.calls.filter((c: any[]) => (c[0] as Request).url.endsWith("/broadcast"))).toHaveLength(1)
     })
   })
 

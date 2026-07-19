@@ -111,6 +111,7 @@ describe("buildUnreadWakeCommand", () => {
       kind: "unread_notice",
       channel: "/.dm/gustavo#0042",
       latestSeq: 7,
+      dmConversationId: "dm_1",
     });
     expect(mockCanBotReadWakeScope).toHaveBeenCalledWith(fakeDb, "bot_1", { dmConversationId: "dm_1" });
     expect(mockResolveUnreadNoticeChannel).toHaveBeenCalledWith(fakeDb, { dmConversationId: "dm_1" }, "bot_1");
@@ -124,6 +125,9 @@ describe("buildUnreadWakeCommand", () => {
     expect(result.state).toBe("ready");
     if (result.state !== "ready") throw new Error("expected ready");
     expect(result.command.unreadNotice.channel).toBe("/srv_1/general/#3");
+    // Channel/thread wakes never carry dmConversationId — DM-only invariant
+    // for the bot-typing indicator pipeline.
+    expect(result.command.unreadNotice.dmConversationId).toBeUndefined();
   });
 
   it("skip: message_missing when the message no longer exists", async () => {

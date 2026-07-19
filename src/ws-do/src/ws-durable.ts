@@ -8,6 +8,8 @@ import {
   HostReadyMessageSchema,
   SessionErrorFrameSchema,
   AgentActivityMessageSchema,
+  AgentTypingMessageSchema,
+  AgentTypingStopMessageSchema,
   HostBotAuditEventFrameSchema,
   pickBotActivityPreset,
   RUNNING_PRESETS,
@@ -709,6 +711,52 @@ export class WebSocketDurableObject extends DurableObject<Env> {
       return
     }
 
+    // `agent_typing` / `agent_typing_stop` — daemon reports the bot is (or
+    // stopped) actively working on a DM. Fan out `community:typing.start` /
+    // `community:typing.stop` to the DM's peer. Deliberately does NOT traverse
+    // the client-inbound 8s dedup gate at ws-durable.ts:367-419 — daemon meters
+    // cadence (5s heartbeat), so gating here would cause pill flicker every
+    // ~3s. Client-side auto-expire (`TYPING_INDICATOR_TIMEOUT_MS = 8000`)
+    // recovers if a heartbeat is dropped.
+    const typingParse = AgentTypingMessageSchema.safeParse(parsed)
+    if (typingParse.success) {
+      const { agentId, dmConversationId } = typingParse.data
+      const db = createDb(this.env.DB)
+      const binding = await queries.communityBot.getBotBindingWithOwner(db, agentId)
+      if (!binding || binding.machineId !== identity.machineId) {
+        log.warn("agent_typing frame for a bot not bound to this machine — dropped", {
+          agentId,
+          machineId: identity.machineId,
+        })
+        return
+      }
+      // DM participancy is enforced inside `fanOutTyping` — no need to
+      // pre-query `getDM` here at 5s cadence.
+      const event = JSON.stringify({
+        type: "community:typing.start",
+        dmConversationId,
+        userId: agentId,
+      })
+      await this.fanOutTyping(agentId, undefined, dmConversationId, undefined, event)
+      return
+    }
+    const typingStopParse = AgentTypingStopMessageSchema.safeParse(parsed)
+    if (typingStopParse.success) {
+      const { agentId, dmConversationId } = typingStopParse.data
+      const db = createDb(this.env.DB)
+      const binding = await queries.communityBot.getBotBindingWithOwner(db, agentId)
+      if (!binding || binding.machineId !== identity.machineId) {
+        log.warn("agent_typing_stop frame for a bot not bound to this machine — dropped", {
+          agentId,
+          machineId: identity.machineId,
+        })
+        return
+      }
+      // DM participancy enforced inside `fanOutTypingStop`.
+      await this.fanOutTypingStop(agentId, dmConversationId)
+      return
+    }
+
     // `bot_audit_event` — daemon reports a bot activity event (cli_invocation,
     // tool_call, or thinking). Insert + rolling-500 prune land atomically via
     // `db.batch`; server stamps `createdAt` (never trust the daemon clock).
@@ -1078,6 +1126,45 @@ export class WebSocketDurableObject extends DurableObject<Env> {
           return stub.fetch(new Request("http://internal/broadcast", {
             method: "POST",
             body: event,
+          })).catch(() => { })
+        })
+      )
+    }
+  }
+
+  /**
+   * Fan out an explicit `community:typing.stop` for a DM scope to the DM's
+   * peer. Mirrors `fanOutTyping` for DM but never traverses a dedup cache —
+   * a stop must always land or the pill dangles until the client's 8s expiry.
+   */
+  private async fanOutTypingStop(
+    senderUserId: string,
+    dmConversationId: string,
+  ): Promise<void> {
+    const db = createDb(this.env.DB)
+    const dm = await queries.communityDm.getDM(db, dmConversationId)
+    if (!dm || (dm.user1Id !== senderUserId && dm.user2Id !== senderUserId)) {
+      log.warn("fanOutTypingStop: sender not a DM participant", { senderUserId, dmConversationId })
+      return
+    }
+    const recipientUserIds = [dm.user1Id, dm.user2Id]
+      .filter(Boolean)
+      .filter((id): id is string => typeof id === "string" && id !== senderUserId)
+    if (recipientUserIds.length === 0) return
+    const body = JSON.stringify({
+      type: "community:typing.stop",
+      dmConversationId,
+      userId: senderUserId,
+    })
+    for (let i = 0; i < recipientUserIds.length; i += WebSocketDurableObject.SUBREQUEST_BATCH_SIZE) {
+      const batch = recipientUserIds.slice(i, i + WebSocketDurableObject.SUBREQUEST_BATCH_SIZE)
+      await Promise.all(
+        batch.map((userId) => {
+          const doId = this.env.WS_DO.idFromName("user:" + userId)
+          const stub = this.env.WS_DO.get(doId)
+          return stub.fetch(new Request("http://internal/broadcast", {
+            method: "POST",
+            body,
           })).catch(() => { })
         })
       )

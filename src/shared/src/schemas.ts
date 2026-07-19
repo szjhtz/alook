@@ -940,6 +940,27 @@ export const AgentActivityMessageSchema = z.object({
 });
 export type AgentActivityMessage = z.infer<typeof AgentActivityMessageSchema>;
 
+/**
+ * `agent_typing` / `agent_typing_stop` frames — daemon → server. Report
+ * that a bot is (or is not) actively working on a specific DM. The daemon
+ * meters cadence (5s heartbeat while running; one-shot stop on idle) so
+ * ws-do can fan out unconditionally without traversing the 8s client-typing
+ * dedup gate.
+ */
+export const AgentTypingMessageSchema = z.object({
+  type: z.literal("agent_typing"),
+  agentId: z.string(),
+  dmConversationId: z.string().min(1),
+});
+export type AgentTypingMessage = z.infer<typeof AgentTypingMessageSchema>;
+
+export const AgentTypingStopMessageSchema = z.object({
+  type: z.literal("agent_typing_stop"),
+  agentId: z.string(),
+  dmConversationId: z.string().min(1),
+});
+export type AgentTypingStopMessage = z.infer<typeof AgentTypingStopMessageSchema>;
+
 
 export const CommunityPairTokenResponseSchema = z.object({
   tokenId: z.string(),

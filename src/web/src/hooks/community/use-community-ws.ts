@@ -410,10 +410,12 @@ export function useCommunityWs(options?: UseCommunityWsOptions) {
         case "community:message.create": {
           if (wsStore.hasSeenMessage(event.message.id)) return
           wsStore.markSeenMessage(event.message.id)
-
           // Sending a message is an implicit typing.stop for its author —
-          // clear immediately so the indicator doesn't linger under the
-          // freshly-arrived message until the 8s timeout expires.
+          // clear once we know this is a fresh message. In a DM the bot's
+          // reply is broadcast as BOTH message.create AND dm.new_message;
+          // whichever wins the dedup fires the clear, the loser is a no-op.
+          // Clearing before dedup would also clear on WS-reconnect replays
+          // of stale messages, briefly wiping a still-active heartbeat pill.
           clearTypingIndicator(event.message.authorId)
 
           // 1) Patch the focused channel/dm page cache if the event matches.
@@ -511,6 +513,18 @@ export function useCommunityWs(options?: UseCommunityWsOptions) {
           if (!matchesFocus(event)) return
           applyTypingIndicator(userId)
           cbs.onTyping?.(event)
+          return
+        }
+
+        // ── Typing stop — explicit clear (bot turn-end path) ────────────
+        // Symmetric with typing.start: only clear when focused on the same
+        // target so a stop for a different DM doesn't wipe the local pill.
+        case "community:typing.stop": {
+          const userId = event.userId
+          const viewerId = viewerUserIdRef.current
+          if (viewerId && userId === viewerId) return
+          if (!matchesFocus(event)) return
+          clearTypingIndicator(userId)
           return
         }
 
@@ -799,6 +813,10 @@ export function useCommunityWs(options?: UseCommunityWsOptions) {
         case "community:dm.new_message": {
           if (wsStore.hasSeenMessage(event.message.id)) return
           wsStore.markSeenMessage(event.message.id)
+          // Same rationale as `community:message.create` above — either the
+          // message.create or dm.new_message broadcast will pass the dedup
+          // first and clear the pill; the other is a no-op.
+          clearTypingIndicator(event.message.authorId)
 
           // Focus-scope patch (mirrors community message.create).
           if (event.dmConversationId === sub.dmConversationId) {

@@ -84,6 +84,20 @@ export type CommunityTypingStart = {
   userId: string
 }
 
+/**
+ * Explicit "stop typing" event. Fired by the daemon's bot-typing pipeline
+ * when a bot's turn ends, so the pill disappears immediately instead of
+ * dangling until the client's 8s auto-expire. Channel/thread fields are
+ * shaped for future parity — today only `dmConversationId` is emitted.
+ */
+export type CommunityTypingStop = {
+  type: "community:typing.stop"
+  channelId?: string
+  dmConversationId?: string
+  threadId?: string
+  userId: string
+}
+
 // ── Child channel events (threads + forum posts) ─────────────────────────────
 
 export type CommunityChildChannelCreate = {
@@ -492,6 +506,7 @@ export type CommunityWsEvent =
   | CommunityPinAdd
   | CommunityPinRemove
   | CommunityTypingStart
+  | CommunityTypingStop
   | CommunityChildChannelCreate
   | CommunityChildChannelUpdate
   | CommunityServerUpdate
@@ -539,6 +554,7 @@ export const WS_EVENTS = {
   PIN_ADD: "community:pin.add",
   PIN_REMOVE: "community:pin.remove",
   TYPING_START: "community:typing.start",
+  TYPING_STOP: "community:typing.stop",
   CHILD_CHANNEL_CREATE: "community:channel.child_create",
   CHILD_CHANNEL_UPDATE: "community:channel.child_update",
   SERVER_UPDATE: "community:server.update",

@@ -24,7 +24,8 @@
 import { homedir } from "os";
 import { WsControlChannel } from "../server/wsControlChannel.js";
 import { CredentialBroker, startCredentialProxy } from "../credentials/index.js";
-import { AgentProcessManager, AgentRouter } from "../manager/index.js";
+import { AgentProcessManager, AgentRouter, createTypingScopeTracker } from "../manager/index.js";
+import type { TypingScopeTracker } from "../manager/index.js";
 import { UnknownBotError, BotEnrollFailedError, UnknownRuntimeError } from "../manager/agentRouter.js";
 import { createTimelineRecorder } from "../timeline/index.js";
 import { resolveAlookCliPathWithFallback } from "../discovery.js";
@@ -186,6 +187,53 @@ export async function createDaemon(opts: CreateDaemonOptions): Promise<RunningDa
 
   // Per-agent enrolled runner keys (enrollment is async; stored before deliver).
   const enrolledKeys = new Map<string, string>();
+
+  // ── Bot typing indicator (DM-only) ─────────────────────────────────────
+  //
+  // Shared in-memory tracker of per-agent DM conversation ids the daemon
+  // should be broadcasting "bot is typing…" for. Populated by the
+  // AgentRouter on each `agent:wake` (from `unreadNotice.dmConversationId`)
+  // and cleared on FSM transitions into `idle`/`stopping`.
+  const typingTracker: TypingScopeTracker = createTypingScopeTracker();
+  // Per-agent heartbeat interval handles. Only alive while an agent is in
+  // a running-family state; recreated on each starting/running transition.
+  const typingHeartbeats = new Map<string, ReturnType<typeof setInterval>>();
+  const TYPING_HEARTBEAT_MS = 5_000;
+  function stopTypingHeartbeat(agentId: string): void {
+    const timer = typingHeartbeats.get(agentId);
+    if (timer) {
+      clearInterval(timer);
+      typingHeartbeats.delete(agentId);
+    }
+  }
+  function startTypingHeartbeat(agentId: string): void {
+    stopTypingHeartbeat(agentId);
+    // Immediate emit + every 5s while active — comfortably refreshes the
+    // client's 8s expiry, and bypasses the ws-do 8s dedup gate (which only
+    // guards the client-inbound `community:typing.start` path — daemon
+    // metered heartbeats reach clients unconditionally).
+    for (const dmConversationId of typingTracker.snapshot(agentId)) {
+      channel.reportAgentTyping?.({ agentId, dmConversationId });
+    }
+    const timer = setInterval(() => {
+      for (const dmConversationId of typingTracker.snapshot(agentId)) {
+        channel.reportAgentTyping?.({ agentId, dmConversationId });
+      }
+    }, TYPING_HEARTBEAT_MS);
+    timer.unref?.();
+    typingHeartbeats.set(agentId, timer);
+  }
+  function emitTypingStopsAndClear(agentId: string): void {
+    // Order: emit stops FIRST, then clear tracker. If two transitions fire
+    // (running→stopping→idle), the second sees an empty tracker and
+    // per-scope loop no-ops — matches the "emit-then-clear" rule in the
+    // plan's race-handling section.
+    stopTypingHeartbeat(agentId);
+    for (const dmConversationId of typingTracker.snapshot(agentId)) {
+      channel.reportAgentTypingStop?.({ agentId, dmConversationId });
+    }
+    typingTracker.clear(agentId);
+  }
 
   // ── Bot cache ──────────────────────────────────────────────────────────
   //
@@ -427,7 +475,25 @@ export async function createDaemon(opts: CreateDaemonOptions): Promise<RunningDa
     },
     tickIntervalMs: opts.tickIntervalMs ?? 2000,
     onAgentSession: (info) => void channel.reportAgentSession(info),
-    onAgentActivity: (info) => void channel.reportAgentActivity?.(info),
+    onAgentActivity: (info) => {
+      void channel.reportAgentActivity?.(info);
+      // Bot typing indicator (DM-only) — install / tear down the daemon-metered
+      // heartbeat off the derived FSM activity, so the pill lifecycle exactly
+      // mirrors "is this bot actively working."
+      //
+      // `onAgentActivity` fires on every derived-activity change, so a natural
+      // `idle → starting → running` sequence emits BOTH starting and running.
+      // The `typingHeartbeats.has(agentId)` guard makes install idempotent —
+      // subsequent starting/running transitions are no-ops instead of
+      // restarting the interval + firing a duplicate immediate frame.
+      if (info.state === "starting" || info.state === "running") {
+        if (!typingHeartbeats.has(info.agentId)) {
+          startTypingHeartbeat(info.agentId);
+        }
+      } else {
+        emitTypingStopsAndClear(info.agentId);
+      }
+    },
     // Bot audit log — Producer A (runtime thinking + non-Bash tool_call).
     // Bash suppression + thinking truncation happen inside managerRuntime.
     onBotAuditEvent: (agentId, event, context) => emitBotAuditEvent(agentId, event, context),
@@ -455,6 +521,7 @@ export async function createDaemon(opts: CreateDaemonOptions): Promise<RunningDa
     arch: opts.arch,
     osRelease: opts.osRelease,
     daemonVersion: opts.daemonVersion,
+    typingTracker,
     logger: log.child("router"),
     // onBeforeAgent gate — reject unknown bots BEFORE enroll to keep the
     // failure code stable (`bot_unknown` vs `bot_enroll_failed`).
@@ -509,6 +576,11 @@ export async function createDaemon(opts: CreateDaemonOptions): Promise<RunningDa
     isOpen: () => channel.status === "open",
     proxyUrl: proxy.url,
     stop: async () => {
+      // Clear all bot-typing heartbeat intervals and emit final stops for
+      // any outstanding scopes so no pill is left dangling.
+      for (const agentId of [...typingHeartbeats.keys()]) {
+        emitTypingStopsAndClear(agentId);
+      }
       channel.close();
       await proxy.close();
       await manager.stopAll();

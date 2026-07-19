@@ -97,6 +97,8 @@ type OutboundFrame =
   | ({ type: "ready" } & HostReady)
   | { type: "agent_session"; agentId: AgentId; sessionId: string; launchId: string }
   | { type: "agent_activity"; agentId: AgentId; state: AgentActivityState }
+  | { type: "agent_typing"; agentId: AgentId; dmConversationId: string }
+  | { type: "agent_typing_stop"; agentId: AgentId; dmConversationId: string }
   | {
       type: "agent_wake_ack";
       agentId: AgentId;
@@ -211,6 +213,27 @@ export class WsControlChannel implements HostControlChannel {
 
   async reportAgentActivity(info: { agentId: AgentId; state: AgentActivityState }): Promise<void> {
     this.sendFrame({ type: "agent_activity", ...info });
+  }
+
+  /**
+   * Emit an `agent_typing` frame (daemon → server). Sync + fire-and-forget:
+   * this is a heartbeat, dropped silently when the socket isn't open — the
+   * next heartbeat tick re-fires within 5s and the client's 8s expiry keeps
+   * the pill from flickering. Never traverses the ws-do 8s dedup gate on
+   * the client-inbound path (the daemon meters cadence, ws-do fans out
+   * unconditionally).
+   */
+  reportAgentTyping(info: { agentId: AgentId; dmConversationId: string }): void {
+    this.sendFrame({ type: "agent_typing", ...info });
+  }
+
+  /**
+   * Emit an `agent_typing_stop` frame (daemon → server). One-shot at turn
+   * end; ws-do fans out `community:typing.stop` with no dedup so the pill
+   * clears within ~50ms.
+   */
+  reportAgentTypingStop(info: { agentId: AgentId; dmConversationId: string }): void {
+    this.sendFrame({ type: "agent_typing_stop", ...info });
   }
 
   /**

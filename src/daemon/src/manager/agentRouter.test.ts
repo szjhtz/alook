@@ -24,9 +24,10 @@ function stubLogger(): Logger & { calls: Record<"debug" | "info" | "warn" | "err
 }
 
 /** Fake manager recording deliver/register; enough for router behavior tests. */
-function fakeManager() {
+function fakeManager(initialStatuses: Record<string, "idle" | "starting" | "running" | "stopping"> = {}) {
   const delivers: Array<{ agentId: string; text: string; seq?: number }> = [];
   const registers: Array<{ agentId: string; sessionId?: string; launchId?: string }> = [];
+  const statuses: Record<string, "idle" | "starting" | "running" | "stopping"> = { ...initialStatuses };
   const mgr = {
     register(agentId: string, launch?: { sessionId?: string; launchId?: string }) {
       registers.push({ agentId, sessionId: launch?.sessionId, launchId: launch?.launchId });
@@ -36,8 +37,13 @@ function fakeManager() {
     },
     stop() {},
     liveSessionReports: () => [],
+    snapshot() {
+      const agents: Record<string, { status: string }> = {};
+      for (const [id, status] of Object.entries(statuses)) agents[id] = { status };
+      return { agents };
+    },
   } as unknown as AgentProcessManager;
-  return { mgr, delivers, registers };
+  return { mgr, delivers, registers, statuses };
 }
 
 /** Fake channel capturing acks + the command handler the router registers. */
@@ -46,6 +52,7 @@ function fakeChannel() {
   const wakeAcks: Array<{ agentId: string; launchId: string; status: string }> = [];
   const readys: Array<Parameters<HostControlChannel["reportReady"]>[0]> = [];
   const sessionErrors: SessionErrorFrame[] = [];
+  const typings: Array<{ agentId: string; dmConversationId: string }> = [];
   const ch: HostControlChannel = {
     onCommand(cb) {
       handler = cb;
@@ -60,9 +67,12 @@ function fakeChannel() {
     async reportSessionError(frame) {
       sessionErrors.push(frame);
     },
+    reportAgentTyping(info) {
+      typings.push(info);
+    },
     onResync() {},
   };
-  return { ch, wakeAcks, readys, sessionErrors, fire: (c: HostCommand) => handler?.(c) };
+  return { ch, wakeAcks, readys, sessionErrors, typings, fire: (c: HostCommand) => handler?.(c) };
 }
 
 describe("AgentRouter — agent:wake", () => {
@@ -424,5 +434,137 @@ describe("AgentRouter — logging", () => {
     router.markRuntimeHealthy("codex");
     router.markRuntimeHealthy("codex"); // idempotent — already healthy
     expect(logger.calls.info.filter(([m]) => m === "runtime marked healthy again")).toHaveLength(1);
+  });
+});
+
+describe("AgentRouter — bot typing indicator", () => {
+  function makeTracker() {
+    const scopes = new Map<string, Set<string>>();
+    return {
+      add(agentId: string, dm: string) {
+        let s = scopes.get(agentId);
+        if (!s) { s = new Set(); scopes.set(agentId, s); }
+        s.add(dm);
+      },
+      snapshot(agentId: string) {
+        return [...(scopes.get(agentId) ?? [])];
+      },
+      hasAny(agentId: string) {
+        return (scopes.get(agentId)?.size ?? 0) > 0;
+      },
+      clear(agentId: string) {
+        scopes.delete(agentId);
+      },
+    };
+  }
+
+  it("first wake (unregistered → running): router does NOT emit typing (FSM owns first frame)", async () => {
+    const { mgr } = fakeManager();
+    const { ch, typings, fire } = fakeChannel();
+    const tracker = makeTracker();
+    const router = new AgentRouter({
+      manager: mgr,
+      channel: ch,
+      runtimeReport: [{ id: "mock" }],
+      typingTracker: tracker,
+    });
+    await router.start();
+    await fire({
+      type: "agent:wake",
+      agentId: "bot_1",
+      config: { version: 1, runtime: "mock", model: { kind: "default" }, mode: { kind: "default" } },
+      launchId: "l1",
+      unreadNotice: {
+        kind: "unread_notice",
+        channel: "/.dm/peer#0042",
+        latestSeq: 1,
+        dmConversationId: "dm_1",
+      },
+    });
+    expect(typings).toEqual([]);
+    expect(tracker.snapshot("bot_1")).toEqual(["dm_1"]);
+  });
+
+  it("mid-turn wake (beforeStatus=running AND wasActive=true): router emits ONCE for the newly-added scope", async () => {
+    const { mgr, statuses } = fakeManager({ bot_1: "running" });
+    const { ch, typings, fire } = fakeChannel();
+    const tracker = makeTracker();
+    tracker.add("bot_1", "dm_1"); // wasActive=true — bot already handling dm_1
+    const router = new AgentRouter({
+      manager: mgr,
+      channel: ch,
+      runtimeReport: [{ id: "mock" }],
+      typingTracker: tracker,
+    });
+    await router.start();
+    // Sanity: statuses map preserved after start
+    expect(statuses.bot_1).toBe("running");
+    await fire({
+      type: "agent:wake",
+      agentId: "bot_1",
+      config: { version: 1, runtime: "mock", model: { kind: "default" }, mode: { kind: "default" } },
+      launchId: "l2",
+      unreadNotice: {
+        kind: "unread_notice",
+        channel: "/.dm/peer2#0042",
+        latestSeq: 3,
+        dmConversationId: "dm_2",
+      },
+    });
+    expect(typings).toEqual([{ agentId: "bot_1", dmConversationId: "dm_2" }]);
+  });
+
+  it("wake during stopping (beforeStatus=stopping): router does NOT emit — FSM will fire stopping→running", async () => {
+    const { mgr } = fakeManager({ bot_1: "stopping" });
+    const { ch, typings, fire } = fakeChannel();
+    const tracker = makeTracker();
+    tracker.add("bot_1", "dm_prev"); // wasActive=true (stale from prior turn)
+    const router = new AgentRouter({
+      manager: mgr,
+      channel: ch,
+      runtimeReport: [{ id: "mock" }],
+      typingTracker: tracker,
+    });
+    await router.start();
+    await fire({
+      type: "agent:wake",
+      agentId: "bot_1",
+      config: { version: 1, runtime: "mock", model: { kind: "default" }, mode: { kind: "default" } },
+      launchId: "l3",
+      unreadNotice: {
+        kind: "unread_notice",
+        channel: "/.dm/peer#0042",
+        latestSeq: 4,
+        dmConversationId: "dm_1",
+      },
+    });
+    expect(typings).toEqual([]);
+  });
+
+  it("wake without dmConversationId (channel/thread scope): tracker untouched, no typing frame", async () => {
+    const { mgr } = fakeManager();
+    const { ch, typings, fire } = fakeChannel();
+    const tracker = makeTracker();
+    const router = new AgentRouter({
+      manager: mgr,
+      channel: ch,
+      runtimeReport: [{ id: "mock" }],
+      typingTracker: tracker,
+    });
+    await router.start();
+    await fire({
+      type: "agent:wake",
+      agentId: "bot_1",
+      config: { version: 1, runtime: "mock", model: { kind: "default" }, mode: { kind: "default" } },
+      launchId: "l4",
+      unreadNotice: {
+        kind: "unread_notice",
+        channel: "/srv_1/general",
+        latestSeq: 5,
+      },
+    });
+    expect(typings).toEqual([]);
+    expect(tracker.snapshot("bot_1")).toEqual([]);
+    expect(tracker.hasAny("bot_1")).toBe(false);
   });
 });

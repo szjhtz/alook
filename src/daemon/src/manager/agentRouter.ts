@@ -20,6 +20,7 @@
  */
 import type { HostCommand, HostControlChannel, HostReady, HostReadyRuntime, UnreadNotice, AgentSessionReport, SessionErrorFrame } from "../server/contract.js";
 import type { AgentProcessManager } from "./managerRuntime.js";
+import type { TypingScopeTracker } from "./typingScopeTracker.js";
 import { createLogger, type Logger } from "../logger.js";
 
 /**
@@ -99,6 +100,13 @@ export interface AgentRouterOpts {
    * into one wire frame. Tests inject a synchronous scheduler.
    */
   scheduleReadyResend?: (fn: () => void) => void;
+  /**
+   * Shared in-memory tracker of per-agent DM typing scopes. Populated here
+   * on `agent:wake` (when `unreadNotice.dmConversationId` is set); read by
+   * the daemon's heartbeat manager. Optional so tests / non-community daemon
+   * builds can construct AgentRouter without one.
+   */
+  typingTracker?: TypingScopeTracker;
   /** Defaults to `createLogger({ header: "@alook/daemon:router" })`. */
   logger?: Logger;
 }
@@ -270,6 +278,18 @@ export class AgentRouter {
           latestSeq: cmd.unreadNotice.latestSeq,
         });
         try {
+          // Capture pre-transition FSM status + tracker state BEFORE
+          // register/deliver so we can decide whether the FSM's
+          // `onAgentActivity` callback owns the first typing frame or this
+          // router does — see "First-ever wake ordering" in
+          // plans/bot-typing-indicator.md. The FSM path OWNS the first frame
+          // whenever a transition into a running-family state fires; the
+          // router emits only on a true mid-turn wake (`beforeStatus ===
+          // "running"` AND `wasActive`) where no FSM edge would leave the
+          // newly-added scope silent for up to 5s.
+          const beforeStatus =
+            this.opts.manager.snapshot?.().agents?.[cmd.agentId]?.status ?? "unregistered";
+          const wasActive = this.opts.typingTracker?.hasAny(cmd.agentId) ?? false;
           await this.opts.onBeforeAgent?.(cmd.agentId);
           this.opts.manager.register(cmd.agentId, {
             runtimeConfig: cmd.config,
@@ -277,10 +297,23 @@ export class AgentRouter {
             launchId: cmd.launchId,
           });
           this.running.add(cmd.agentId);
+          // Track the DM scope AFTER register succeeds (register may throw on
+          // an unknown runtime) but BEFORE deliver, so the FSM callback
+          // installed synchronously inside deliver sees the scope in its
+          // snapshot. Adding before register would leak a stale scope into
+          // the shared tracker on any register-time throw.
+          const dmScope = cmd.unreadNotice.dmConversationId;
+          if (dmScope) this.opts.typingTracker?.add(cmd.agentId, dmScope);
           const text = (this.opts.formatUnreadNoticeText ?? defaultFormatUnreadNoticeText)(cmd.unreadNotice);
           // The manager (not this router) decides spawn vs. in-process notify
           // vs. coalesce — see managerPolicy's `onWake`.
           this.opts.manager.deliver(cmd.agentId, { seq: cmd.unreadNotice.latestSeq, text });
+          if (dmScope && wasActive && beforeStatus === "running") {
+            this.opts.channel.reportAgentTyping?.({
+              agentId: cmd.agentId,
+              dmConversationId: dmScope,
+            });
+          }
           await this.opts.channel.reportWakeAck?.({
             agentId: cmd.agentId,
             launchId: cmd.launchId,

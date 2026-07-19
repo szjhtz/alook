@@ -142,7 +142,12 @@ export async function buildUnreadWakeCommand(
   const channel = await agentInbox.resolveUnreadNoticeChannel(db, scope, input.botUserId);
   if (!channel) return { state: "skip", reason: "notice_channel_unresolvable" };
 
-  const unreadNotice: UnreadNotice = { kind: "unread_notice", channel, latestSeq: msg.seq };
+  const unreadNotice: UnreadNotice = {
+    kind: "unread_notice",
+    channel,
+    latestSeq: msg.seq,
+    ...(scope.dmConversationId ? { dmConversationId: scope.dmConversationId } : {}),
+  };
   const config = makeRuntimeConfig({
     runtime: botCtx.runtime,
     agentName: botCtx.name,
